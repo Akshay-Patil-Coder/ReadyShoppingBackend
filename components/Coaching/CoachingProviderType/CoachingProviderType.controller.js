@@ -1,0 +1,116 @@
+const fs = require('fs');
+const path = require('path');
+const CoachingProviderTypeModel = require('./CoachingProviderType.model');
+const { success } = require('../paytm/paytm.controller');
+
+module.exports = {
+
+    addcoachingProviderType: async (req, res) => {
+        try {
+            const { CourceProviderType } = req.body;
+            if (!CourceProviderType) {
+                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', req.file.filename);
+                if (fs.existsSync(newImagePath)) {
+                    fs.unlinkSync(newImagePath);
+                }
+                res.status(400).json({ message: 'please filled all fields', success: false })
+            }
+            const CourceProviderTypeData = {
+                CourceProviderType
+            }
+            if (req.file) {
+                CourceProviderTypeData.CourceProviderTypeImage = req.file.filename;
+            }
+
+            const newCoachingProviderType = new CoachingProviderTypeModel(CourceProviderTypeData);
+
+            const savedCoachingProviderType = await newCoachingProviderType.save();
+
+            if (!savedCoachingProviderType) {
+                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', req.file.filename);
+                if (fs.existsSync(newImagePath)) {
+                    fs.unlinkSync(newImagePath);
+                }
+
+                return res.status(400).json({ message: 'Something went wrong while saving the coaching provider type', success: false });
+            }
+
+            res.status(200).json({
+                success: true,
+                message: "provider type successfully added",
+                data: savedCoachingProviderType
+            });
+        } catch (error) {
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    getCoachingProviderType: async (req, res) => {
+        try {
+
+            const users = await CoachingProviderTypeModel.find();
+            res.status(200).json({
+                success: true,
+                message: "Coaching provider type fetched successfully",
+                data: users
+            });
+        } catch (error) {
+            res.status(500).send
+                ({
+                    success: false,
+                    message: error.message
+                });
+        }
+    },
+
+
+    updateCoachingProviderTypeDetails: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const existingUser = await CoachingProviderTypeModel.findById(id);
+
+            if (!existingUser) {
+                return res.status(404).json({ success: false, message: "cource provider type not found" });
+            }
+            if (!req.body.CourceProviderType || !id) {
+                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', req.file.filename);
+                if (fs.existsSync(newImagePath)) {
+                    fs.unlinkSync(newImagePath);
+                }
+                return res.status(400).json({ message: "please filled all data", success: false })
+            }
+
+            let updatedData = { CourceProviderType: req.body.CourceProviderType };
+
+            if (req.file) {
+
+                const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', existingUser.CourceProviderTypeImage);
+                if (existingUser.CourceProviderTypeImage && fs.existsSync(oldImagePath)) {
+                    fs.unlinkSync(oldImagePath);
+                }
+
+                updatedData.CourceProviderTypeImage = req.file.filename;
+            }
+
+            const updatedUser = await CoachingProviderTypeModel.findByIdAndUpdate(id, updatedData, { new: true });
+
+            res.status(200).json({
+                success: true,
+                message: "coaching provider type updated successfully",
+                data: updatedUser
+            });
+
+        } catch (error) {
+            const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', req.file.filename);
+            if (fs.existsSync(newImagePath)) {
+                fs.unlinkSync(newImagePath);
+            }
+            res.status(500).json({
+                success: false,
+                message: error.message
+            });
+        }
+    },
+
+    
+};
