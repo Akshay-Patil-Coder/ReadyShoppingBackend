@@ -1,10 +1,9 @@
-const { ObjectID } = require('mongodb')
 const fs = require('fs');
 const path = require('path');
-const master_services = require('./MasterServices.model')
+const master_services = require('./MasterServices.model');
+const { default: mongoose } = require('mongoose');
 
-
-module.exports={
+module.exports = {
    addservices: async (req, res) => {
         try {
             let { 
@@ -41,7 +40,7 @@ module.exports={
                 });
             }
 
-            const parentServiceIdObj = parentServiceId ? ObjectID(parentServiceId) : null;
+            const parentServiceIdObj = parentServiceId ? mongoose.Types.ObjectId(parentServiceId) : null; // Changed to new ObjectId()
 
             const newService = new master_services({
                 companyId,
@@ -78,8 +77,8 @@ module.exports={
             const { parentServiceId, companyId, service_name } = req.query;
         
             const query = {
-                parentServiceId: parentServiceId ? new ObjectID(parentServiceId) : undefined,
-                companyId: companyId ? new ObjectID(companyId) : undefined,
+                parentServiceId: parentServiceId ? mongoose.Types.ObjectId(parentServiceId) : undefined, // Changed to new ObjectId()
+                companyId: companyId ? mongoose.Types.ObjectId(companyId) : undefined, // Changed to new ObjectId()
                 service_name: service_name ? new RegExp(service_name, 'i') : undefined,
             };
     
@@ -271,4 +270,4 @@ module.exports={
             });
         }
     },
-}
+};
