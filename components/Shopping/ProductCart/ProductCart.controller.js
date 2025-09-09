@@ -332,8 +332,6 @@
 const Cart = require('./ProductCart.model');
 const mongoose = require('mongoose');
 
-const { ObjectId } = require('mongodb'); 
-
 module.exports = {
     addtocart: async (req, res) => {
         console.log("prasad", req.body);
@@ -353,7 +351,7 @@ module.exports = {
                     existingCart.products[productIndex].totalPrice = existingCart.products[productIndex].quantity * existingCart.products[productIndex].price;
                 } else {
                     existingCart.products.push({
-                        productId: mongoose.Types.ObjectId(productId), // Changed to mongoose.Types.ObjectId()
+                        productId: mongoose.Types.ObjectId(productId),
                         quantity,
                         price,
                         totalPrice: quantity * price
@@ -369,10 +367,10 @@ module.exports = {
                 });
             } else {
                 const newCart = new Cart({
-                    userId: mongoose.Types.ObjectId(userId), // Changed to mongoose.Types.ObjectId()
-                    companyId: mongoose.Types.ObjectId(companyId), // Changed to mongoose.Types.ObjectId()
+                    userId: mongoose.Types.ObjectId(userId),
+                    companyId: mongoose.Types.ObjectId(companyId),
                     products: [{
-                        productId: mongoose.Types.ObjectId(productId), // Changed to mongoose.Types.ObjectId()
+                        productId: mongoose.Types.ObjectId(productId),
                         quantity,
                         price,
                         totalPrice: quantity * price
@@ -442,7 +440,7 @@ module.exports = {
                                                         $filter: {
                                                             input: "$addedDetails",
                                                             as: "item",
-                                                            cond: { $eq: ["$$item._id", mongoose.Types.ObjectId("$$product.productId")] } // Changed to mongoose.Types.ObjectId()
+                                                            cond: { $eq: ["$$item._id", "$$product.productId"] } // Fixed: Removed ObjectId conversion
                                                         }
                                                     },
                                                     0

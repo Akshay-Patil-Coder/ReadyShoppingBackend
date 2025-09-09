@@ -102,74 +102,7 @@ module.exports={
         }
     },
   
-    // getservicesTree: async (req, res) => {
-    //     try {
-    //         const { parentServiceId, companyId, _id, categoryId } = req.query;
-    
-    //         // Validate companyId
-    //         if (!companyId) {
-    //             return res.status(400).json({
-    //                 success: false,
-    //                 message: "Please provide companyId",
-    //             });
-    //         }
-    
-    //         let categories;
-    
-    //         // Determine categories based on the presence of _id, categoryId, parentServiceId, or only companyId
-    //         if (_id) {
-    //             categories = await master_services.find({ companyId, _id, isActive: true }).lean();
-    //         } else if (categoryId) {
-    //             categories = await master_services.find({ companyId, categoryId, isActive: true }).lean();
-    //         } else if (parentServiceId) {
-    //             categories = await master_services.find({ companyId, parentServiceId, isActive: true }).lean();
-    //         } else {
-    //             categories = await master_services.find({ companyId, parentServiceId: null, isActive: true }).lean();
-    //         }
-    
-    //         // Recursive helper function to fetch subcategories by parentServiceId
-    //         const getCategoryTreeRecursive = async (parentServiceId) => {
-    //             const subCategories = await master_services.find({
-    //                 companyId,
-    //                 parentServiceId,
-    //                 isActive: true
-    //             }).lean();
-    
-    //             // If there are no subcategories, return an empty array
-    //             if (!subCategories.length) {
-    //                 return [];
-    //             }
-    
-    //             // Recursively build each category's subcategory tree
-    //             return Promise.all(subCategories.map(async (category) => ({
-    //                 ...category,
-    //                 subservicecategories: await getCategoryTreeRecursive(category._id),
-    //             })));
-    //         };
-    
-    //         // Build the complete category tree starting from the top-level categories
-    //         const categoryTree = await Promise.all(
-    //             categories.map(async (category) => ({
-    //                 ...category,
-    //                 subservicecategories: await getCategoryTreeRecursive(category._id),
-    //             }))
-    //         );
-    
-    //         return res.status(200).json({
-    //             success: true,
-    //             message: "Success",
-    //             data: categoryTree,
-    //         });
-    //     } catch (error) {
-    //         console.error("Error fetching service tree:", error);
-    //         return res.status(500).json({
-    //             success: false,
-    //             message: "Something went wrong",
-    //             error: error.message,
-    //         });
-    //     }
-    // },
-
+ 
     getservicesTree: async (req, res) => {
         try {
             const { companyId, categoryId, _id } = req.query;
