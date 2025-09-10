@@ -1,4 +1,3 @@
-const { ObjectID } = require('mongodb')
 const trendingmodel = require('./TrendingProducts.model')
 const { error } = require('console');
 const mongoose = require('mongoose');

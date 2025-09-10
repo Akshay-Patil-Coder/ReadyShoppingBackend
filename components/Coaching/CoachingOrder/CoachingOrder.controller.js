@@ -9,9 +9,7 @@ const CoachingCourceController = require('../CoachingCource/CoachingCource.contr
 const CompanyModel = require('../companies/companies.model')
 const TransactionModel = require('../payment/transaction.model');
 const fs = require('fs');
-// const sizeOf = require('image-size');
-// const PDFDocument = require('pdfkit');
-const { success } = require('../paytm/paytm.controller');
+
 class CourseOrderService {
     constructor() {
     }

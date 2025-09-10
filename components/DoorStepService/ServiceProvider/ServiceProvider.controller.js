@@ -1,12 +1,8 @@
-const { ObjectID } = require('mongodb')
+const { ObjectId } = require('mongodb')
 const serviceProviderModel = require('./ServiceProvider.model')
 const mongoose = require('mongoose');
 const fs = require('fs')
 const path = require('path');
-const { tryEach } = require('async');
-const { success } = require('../paytm/paytm.controller');
-const moment = require('moment')
-const moment_timezone_1 = require("moment-timezone");
 const serviceProductsModel = require('../ServiceProducts/ServiceProducts.model')
 const ServiceAppointmentModel = require('../ServiceAppointment/ServiceAppointment.model');
 const jwt = require('jsonwebtoken')
@@ -30,11 +26,13 @@ module.exports = {
             }
 
             if (!FirstName || !LastName || !companyId || !HeadServiceId || !SubServiceId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation || !Password) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
-                }
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
 
+                }
                 return resp.status(400).json({ message: 'Please fill in all required fields', success: false });
             }
             if (Password) {
@@ -71,9 +69,12 @@ module.exports = {
 
 
             if (!result) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                  if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
+
                 }
 
                 return resp.status(400).json({ message: 'Something went wrong while saving the brand', success: false });
@@ -81,10 +82,13 @@ module.exports = {
 
             return resp.status(200).json({ data: result, success: true });
         } catch (error) {
-            const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
-            if (fs.existsSync(newImagePath)) {
-                fs.unlinkSync(newImagePath);
-            }
+              if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
+
+                }
             return resp.status(500).json({ error: error.message, success: false });
         }
     },
@@ -139,7 +143,7 @@ module.exports = {
                 }
                 matchCondition._id = mongoose.Types.ObjectId(ServiceProviderId);
             }
-              console.log(matchCondition,'condition')
+            console.log(matchCondition, 'condition')
             const data = await module.exports.getServiceProviderData(matchCondition);
 
             if (data.length === 0) {
@@ -311,10 +315,13 @@ module.exports = {
 
             }
         } catch (error) {
-            const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
-            if (fs.existsSync(newImagePath)) {
-                fs.unlinkSync(newImagePath);
-            }
+             if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
+
+                }
             return resp.status(400).json({ error: error.message, success: false });
         }
     },
@@ -347,32 +354,32 @@ module.exports = {
         }
     },
     loginServiceProvider: async (req, resp) => {
-            let { Email, Password } = req.body;
-    
-            try {
-                if (!Email || !Password) {
-                    return resp.status(400).json({ message: 'please provide email and password', success: false })
-                }
-                let findServiceProvider = await serviceProviderModel.serviceProviderModel.findOne({ Email: Email })
-                console.log(findServiceProvider,'service provider')
+        let { Email, Password } = req.body;
 
-                if (!findServiceProvider) {
-                    return resp.status(400).json({ message: 'service provider not found', success: false })
-                }
-                let passwordMatch = await bcrypt.compare(Password, findServiceProvider.Password);
-                if (!passwordMatch) {
-                    return resp.status(400).json({ message: 'password not match', success: false })
-                }
-                let Role = "Service Provider"
-                let token = jwt.sign(
-                    { ServiceProviderId: findServiceProvider._id, Email: findServiceProvider.Email,companyId:findServiceProvider.companyId, Role: Role },
-                    process.env.ACCESS_TOKEN_SECRET,
-                    { expiresIn: '24h' }
-                );
-                resp.status(200).json({ message: 'login successfully', token: token })
-            } catch (error) {
-                console.error('Login error:', error);
-                resp.status(500).json({ message: 'Internal Server Error', success: false });
+        try {
+            if (!Email || !Password) {
+                return resp.status(400).json({ message: 'please provide email and password', success: false })
             }
-        },
+            let findServiceProvider = await serviceProviderModel.serviceProviderModel.findOne({ Email: Email })
+            console.log(findServiceProvider, 'service provider')
+
+            if (!findServiceProvider) {
+                return resp.status(400).json({ message: 'service provider not found', success: false })
+            }
+            let passwordMatch = await bcrypt.compare(Password, findServiceProvider.Password);
+            if (!passwordMatch) {
+                return resp.status(400).json({ message: 'password not match', success: false })
+            }
+            let Role = "Service Provider"
+            let token = jwt.sign(
+                { ServiceProviderId: findServiceProvider._id, Email: findServiceProvider.Email, companyId: findServiceProvider.companyId, Role: Role },
+                process.env.ACCESS_TOKEN_SECRET,
+                { expiresIn: '24h' }
+            );
+            resp.status(200).json({ message: 'login successfully', token: token })
+        } catch (error) {
+            console.error('Login error:', error);
+            resp.status(500).json({ message: 'Internal Server Error', success: false });
+        }
+    },
 }

@@ -8,17 +8,19 @@ const { ObjectId } = require("mongodb");
 
 
 module.exports = {
-    addCoachingCategory: async (req, res) => { 
+    addCoachingCategory: async (req, res) => {
         try {
             let { companyId, coachingCategoryName, coachingParentCategoryId, coachingLevel, Description } = req.body;
 
-            
 
-            if (!companyId || !coachingCategoryName  || !coachingLevel || !Description) {
-                console.log("////////////////",req.body)
-                let newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingCategoryImage', req.file.filename)
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+
+            if (!companyId || !coachingCategoryName || !coachingLevel || !Description) {
+                console.log("////////////////", req.body)
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingCategoryImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
 
                 return res.status(400).json({
@@ -28,11 +30,12 @@ module.exports = {
             }
             coachingLevel = Number(coachingLevel)
             if (coachingLevel !== 0 && !coachingParentCategoryId) {
-                let newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingCategoryImage', req.file.filename)
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath)
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingCategoryImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
-
                 return res.status(400).json({
                     success: false,
                     message: 'Please Provide coachingParentCategoryId for subservices'
@@ -66,9 +69,11 @@ module.exports = {
 
         } catch (error) {
             console.error("Error", error)
-            const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingCategoryImage', req.file.filename);
-            if (fs.existsSync(newImagePath)) {
-                fs.unlinkSync(newImagePath)
+            if (req.file?.filename) {
+                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingCategoryImage', req.file.filename);
+                if (fs.existsSync(newImagePath)) {
+                    fs.unlinkSync(newImagePath);
+                }
             }
             res.status(500).send({
                 success: false,
@@ -162,39 +167,40 @@ module.exports = {
         }
     },
 
-    updateCoachingCategory: async (req, res)=>{
-        try{
-            console.log("req.body//////////",req.body)
-            let {coachingCategoryName} = req.body;
-            console.log("coachingCategoryName",coachingCategoryName)
+    updateCoachingCategory: async (req, res) => {
+        try {
+            console.log("req.body//////////", req.body)
+            let { coachingCategoryName } = req.body;
+            console.log("coachingCategoryName", coachingCategoryName)
             const category = await CoachingCategory.findOne({
-                $or:[
-                    {_id:req.params.id},
-                    {coachingCategoryName:coachingCategoryName}
+                $or: [
+                    { _id: req.params.id },
+                    { coachingCategoryName: coachingCategoryName }
                 ]
             })
-            console.log("category",category)
-            if(!category){
-                let newImagePath = path.join(__dirname,'..','..','public','CoachingCategoryImage',req.file.filename)
-
-                if(fs.existsSync(newImagePath)){
-                    fs.unlinkSync(newImagePath);
+            console.log("category", category)
+            if (!category) {
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingCategoryImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
 
                 return res.status(404).send({
-                    success:false,
-                    message:'Category not found'
+                    success: false,
+                    message: 'Category not found'
                 })
             }
 
-            let updatedData = {...req.body, updatedAt:new Date()}
-            console.log("updated Data",updatedData)
-            
+            let updatedData = { ...req.body, updatedAt: new Date() }
+            console.log("updated Data", updatedData)
 
-            if(req.file){
-                if(category && category.coachingImage){
-                    let oldFilePath = path.join(__dirname,'..','..','public','CoachingCategoryImage',category.coachingImage)
-                    if(fs.existsSync(oldFilePath)){
+
+            if (req.file) {
+                if (category && category.coachingImage) {
+                    let oldFilePath = path.join(__dirname, '..', '..', 'public', 'CoachingCategoryImage', category.coachingImage)
+                    if (fs.existsSync(oldFilePath)) {
                         fs.unlinkSync(oldFilePath);
                     }
                 }
@@ -202,96 +208,96 @@ module.exports = {
             }
 
             let updatedCategory = await CoachingCategory.findOneAndUpdate(
-                {_id:category._id},
-                {$set:updatedData},
-                {new:true}
+                { _id: category._id },
+                { $set: updatedData },
+                { new: true }
             )
 
-             return res.status(200).json({
-                success:true,
-                message:"Category Updated Successfully",
-                data:updatedCategory
-             })
+            return res.status(200).json({
+                success: true,
+                message: "Category Updated Successfully",
+                data: updatedCategory
+            })
 
-        }catch(error){
-            console.log("error in updateCoachingCategory",error)
+        } catch (error) {
+            console.log("error in updateCoachingCategory", error)
             res.status(500).json({
-                success:false,
-                message:"error while updating CoachingCategory",
-                error:error.message
+                success: false,
+                message: "error while updating CoachingCategory",
+                error: error.message
             })
         }
     },
 
-    toggleCoachingCategoryStatus: async (req,res)=>{
-        try{
+    toggleCoachingCategoryStatus: async (req, res) => {
+        try {
             let id = req.body.id
 
-        let details = await CoachingCategory.findById(id)
-        console.log("detais",details)
+            let details = await CoachingCategory.findById(id)
+            console.log("detais", details)
 
-        let data = await CoachingCategory.findByIdAndUpdate(id,{
-            $set:{
-                isActive:!details.isActive
-            }
-        }, {new:true})
+            let data = await CoachingCategory.findByIdAndUpdate(id, {
+                $set: {
+                    isActive: !details.isActive
+                }
+            }, { new: true })
 
-        res.status(200).json({
-            success:true,
-            message:"Success",
-            data:data
-        })
-        }catch(error){
-            console.log("error",error);
+            res.status(200).json({
+                success: true,
+                message: "Success",
+                data: data
+            })
+        } catch (error) {
+            console.log("error", error);
             res.status(500).json({
-                success:false,
-                message:"Something Went Wrong",
-                error:error.message
+                success: false,
+                message: "Something Went Wrong",
+                error: error.message
             })
         }
     },
 
-    deleteCoachingCategory: async (req,res)=>{
-        try{
-            let {id} = req.params;
+    deleteCoachingCategory: async (req, res) => {
+        try {
+            let { id } = req.params;
 
             let category = await CoachingCategory.findById(id)
-            
-            if(!category){
+
+            if (!category) {
                 return res.status(404).json({
-                    success:false,
-                    message:"Category not Found"
+                    success: false,
+                    message: "Category not Found"
                 })
             }
 
-            if(!category.isActive){
+            if (!category.isActive) {
                 return res.status(404).json({
-                    success:false,
-                    message:"Category is already inActive"
+                    success: false,
+                    message: "Category is already inActive"
                 })
             }
 
-            let result = await CoachingCategory.deleteOne({_id:id})
-            console.log("result",result)
-            if(!result){
+            let result = await CoachingCategory.deleteOne({ _id: id })
+            console.log("result", result)
+            if (!result) {
                 res.status(400).json({
-                    success:false,
-                    message:"Category not deleted"
+                    success: false,
+                    message: "Category not deleted"
                 })
             }
 
             res.status(200).json({
-                success:true,
-                message:"Category deleted",
-                data:result
+                success: true,
+                message: "Category deleted",
+                data: result
             })
 
-        }catch(error){
-            console.log("error",error)
+        } catch (error) {
+            console.log("error", error)
             res.status(500).json({
-                success:false,
-                message:"Something Went Wrong",
-                error:error.message
+                success: false,
+                message: "Something Went Wrong",
+                error: error.message
             })
         }
     }

@@ -5,11 +5,7 @@ const fs = require('fs').promises;
 const fssync = require('fs');
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
-const { type } = require('os');
-const { success } = require('../paytm/paytm.controller');
 const ffprobePath = path.join("C:", "ffmpeg", "bin", "ffprobe.exe");
-// const srt2vtt = require('srt-to-vtt');
-const { exec } = require('child_process');
 
 ffmpeg.setFfprobePath(ffprobePath);
 class CourseService {

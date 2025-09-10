@@ -3,7 +3,6 @@ const { ObjectId } = require('mongodb');
 const mongoose = require('mongoose');
 const path = require('path')
 const fs = require('fs');
-const { query } = require('express');
 module.exports = {
     addtocart: async (req, resp) => {
         try {

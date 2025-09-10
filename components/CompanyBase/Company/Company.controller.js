@@ -12,16 +12,20 @@ module.exports = {
         let { CompanyName, CompanyDomain, PredifinedDomain, Street, City, State, Country, PostalCode, Email, Phone, PanCardNo, GstNo, Contact_person_name, Password } = req.body;
         try {
             if (!CompanyName || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !Contact_person_name || !Password) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
                 return res.status(400).json({ message: "please filled all data", success: false })
             }
             if (!PredifinedDomain && !CompanyDomain) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+              if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
                 return res.status(400).json({ message: "we required domain for make your website", success: false })
             }
@@ -65,10 +69,10 @@ module.exports = {
                 Contact_person_name,
                 Password,
             };
-            if(CompanyDomain){
+            if (CompanyDomain) {
                 CompanyData.CompanyDomain = CompanyDomain
             }
-            else if(PredifinedDomain){
+            else if (PredifinedDomain) {
                 CompanyData.PredifinedDomain = PredifinedDomain
             }
             if (req.file) {
@@ -80,9 +84,11 @@ module.exports = {
             const data = await company.save();
 
             if (!data) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+             if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
 
                 return res.status(400).json({ message: 'Something went wrong while saving the brand', success: false });
@@ -206,25 +212,29 @@ module.exports = {
     },
 
     updatecompanies: async (req, res) => {
-        let { Password,CompanyName,PredifinedDomain, CompanyDomain, Street, City, State, Country, PostalCode, Email, Phone, PanCardNo, GstNo, Contact_person_name, _id } = req.body;
+        let { Password, CompanyName, PredifinedDomain, CompanyDomain, Street, City, State, Country, PostalCode, Email, Phone, PanCardNo, GstNo, Contact_person_name, _id } = req.body;
 
         try {
 
             if (!_id || !CompanyName || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !Contact_person_name) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+           if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
                 return res.status(400).json({ message: "please filled all data", success: false })
             }
-             if (!PredifinedDomain && !CompanyDomain) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+            if (!PredifinedDomain && !CompanyDomain) {
+               if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
                 return res.status(400).json({ message: "we required domain for make your website", success: false })
             }
-             const CompanyData = {
+            const CompanyData = {
                 CompanyName,
                 Street,
                 City,
@@ -237,8 +247,8 @@ module.exports = {
                 GstNo,
                 Contact_person_name,
             };
-            
-             if (PredifinedDomain) {
+
+            if (PredifinedDomain) {
                 let findCompany = await Company.findOne({ PredifinedDomain: String(PredifinedDomain) })
                 if (findCompany) {
                     return res.status(400).json({ message: 'your domain is already registered' })
@@ -252,7 +262,7 @@ module.exports = {
                 }
                 CompanyData.CompanyDomain = CompanyDomain
             }
-            
+
             console.log(CompanyData, 'CompanyData')
             if (req.file) {
                 const existingBrand = await Company.findOne({ _id: _id })
@@ -279,10 +289,12 @@ module.exports = {
             });
         } catch (error) {
             console.log("error", error)
-            const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
-            if (fs.existsSync(newImagePath)) {
-                fs.unlinkSync(newImagePath);
-            }
+            if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
+                }
             res.status(500).send({
                 success: false,
                 message: "Failed to add company",

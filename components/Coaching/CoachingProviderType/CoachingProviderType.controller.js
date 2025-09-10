@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const CoachingProviderTypeModel = require('./CoachingProviderType.model');
-const { success } = require('../paytm/paytm.controller');
 
 module.exports = {
 
@@ -9,10 +8,13 @@ module.exports = {
         try {
             const { CourceProviderType } = req.body;
             if (!CourceProviderType) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
+
                 res.status(400).json({ message: 'please filled all fields', success: false })
             }
             const CourceProviderTypeData = {
@@ -27,9 +29,11 @@ module.exports = {
             const savedCoachingProviderType = await newCoachingProviderType.save();
 
             if (!savedCoachingProviderType) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
 
                 return res.status(400).json({ message: 'Something went wrong while saving the coaching provider type', success: false });
@@ -73,9 +77,11 @@ module.exports = {
                 return res.status(404).json({ success: false, message: "cource provider type not found" });
             }
             if (!req.body.CourceProviderType || !id) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
                 return res.status(400).json({ message: "please filled all data", success: false })
             }
@@ -101,9 +107,11 @@ module.exports = {
             });
 
         } catch (error) {
-            const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', req.file.filename);
-            if (fs.existsSync(newImagePath)) {
-                fs.unlinkSync(newImagePath);
+            if (req.file?.filename) {
+                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', req.file.filename);
+                if (fs.existsSync(newImagePath)) {
+                    fs.unlinkSync(newImagePath);
+                }
             }
             res.status(500).json({
                 success: false,
@@ -112,5 +120,5 @@ module.exports = {
         }
     },
 
-    
+
 };

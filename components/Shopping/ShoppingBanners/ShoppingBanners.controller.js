@@ -1,7 +1,4 @@
-const { data } = require('jquery')
 const bannersSchema = require('./ShoppingBanners.model');
-const { ObjectID } = require('mongodb');
-const { query } = require('express');
 const mongoose = require('mongoose')
 const path = require('path')
 const fs = require('fs')
@@ -12,14 +9,26 @@ module.exports = {
         try {
             let { companyId, BannerName, SubCategoryId, HeadCategoryId, BrandId, Position, ProductsId, OfferPercentage, BannerType } = req.body;
             if (ProductsId) {
-                ProductsId = JSON.parse(ProductsId)
-
+                try {
+                    ProductsId = JSON.parse(ProductsId);
+                } catch {
+                    if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
+                    }
+                    return resp.status(400).json({ message: 'Invalid ProductsId format', success: false });
+                }
             }
+
             if (BannerType == 'Brand') {
                 if (!companyId || !BannerName || !SubCategoryId || !HeadCategoryId || !BrandId) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                    if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
                     return resp.status(400).json({ message: 'please filled all required fields', success: false })
                 }
@@ -44,9 +53,11 @@ module.exports = {
                 const newBanner = new bannersSchema(bannerData);
                 const result = await newBanner.save();
                 if (!result) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                    if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
 
                     return resp.status(400).json({ message: 'Something went wrong while saving the banner', success: false });
@@ -56,9 +67,11 @@ module.exports = {
             }
             else if (BannerType == 'Offer') {
                 if (!companyId || !BannerName || !SubCategoryId || !HeadCategoryId || !ProductsId || !OfferPercentage) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                    if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
                     return resp.status(400).json({ message: 'please filled all required fields', success: false })
                 }
@@ -80,21 +93,19 @@ module.exports = {
                     return resp.status(400).json({ message: 'please Upload The Image', success: false })
                 }
                 if (ProductsId && ProductsId.length !== 0) {
-                    for (let Prod_id of ProductsId) {
-                        console.log(OfferPercentage, 'Offepercentage')
-                        let newresult = await ProductsModel.Products.updateOne({ _id: Prod_id }, {
-                            $set: {
-                                offerPercentage: OfferPercentage
-                            }
-                        });
-                    }
+                    await ProductsModel.Products.updateMany(
+                    { _id: { $in: ProductsId } },
+                    { $set: { offerPercentage: OfferPercentage } }
+                );
                 }
                 const newBanner = new bannersSchema(bannerData);
                 const result = await newBanner.save();
                 if (!result) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                    if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
 
                     return resp.status(400).json({ message: 'Something went wrong while saving the banner', success: false });
@@ -103,9 +114,11 @@ module.exports = {
                 return resp.status(200).json({ data: result, success: true });
             }
         } catch (error) {
-            const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-            if (fs.existsSync(newImagePath)) {
-                fs.unlinkSync(newImagePath);
+            if (req.file?.filename) {
+                const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                if (fs.existsSync(newImagePath)) {
+                    fs.unlinkSync(newImagePath);
+                }
             }
             return resp.status(500).json({ error: error.message, success: false });
         }
@@ -296,9 +309,11 @@ module.exports = {
                 }
             }
             if (bannerdatanew.BannerImage) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', bannerdatanew.BannerImage);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
             }
             let result = await bannersSchema.deleteOne({ _id: _id, companyId: companyId })
@@ -315,12 +330,12 @@ module.exports = {
             const companyId = req.query.companyId;
 
             if (!BannerId || !BannerName) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
-                return resp.status(400).send('Please insert valid data');
-
             }
 
 
@@ -331,9 +346,11 @@ module.exports = {
                 if (req.file) {
                     const existingBanner = await bannersSchema.findOne({ _id: BannerId, companyId: companyId })
                     if (existingBanner && existingBanner.BannerImage) {
-                        const oldImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', existingBanner.BannerImage);
-                        if (fs.existsSync(oldImagePath)) {
-                            fs.unlinkSync(oldImagePath);
+                        if (req.file?.filename) {
+                            const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                            if (fs.existsSync(newImagePath)) {
+                                fs.unlinkSync(newImagePath);
+                            }
                         }
                     }
                     bannerData.BannerImage = req.file.filename;
@@ -354,11 +371,12 @@ module.exports = {
 
             }
         } catch (error) {
-            const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-            if (fs.existsSync(newImagePath)) {
-                fs.unlinkSync(newImagePath);
+            if (req.file?.filename) {
+                const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                if (fs.existsSync(newImagePath)) {
+                    fs.unlinkSync(newImagePath);
+                }
             }
-
             return resp.status(400).json({ error: error.message, success: false });
         }
     }

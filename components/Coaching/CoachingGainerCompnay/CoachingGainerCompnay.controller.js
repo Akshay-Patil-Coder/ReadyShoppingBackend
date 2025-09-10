@@ -1,10 +1,8 @@
-const { ObjectID } = require('mongodb')
+const { ObjectId } = require('mongodb')
 const CoachingGainerCompaniesModel = require('./CoachingGainerCompnay.model')
 const mongoose = require('mongoose');
 const fs = require('fs')
 const path = require('path');
-const { tryEach } = require('async');
-const { success } = require('../paytm/paytm.controller');
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcryptjs')
 
@@ -23,9 +21,11 @@ module.exports = {
             // }
             console.log(req.body, 'body')
             if (!CompanyGainerName || !CompanyOwnerName || !companyId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation || !Password) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingGainerCompanyImage', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingGainerCompanyImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
 
                 return resp.status(400).json({ message: 'Please fill in all required fields', success: false });
@@ -64,9 +64,11 @@ module.exports = {
 
 
             if (!result) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingGainerCompanyImage', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingGainerCompanyImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
 
                 return resp.status(400).json({ message: 'Something went wrong while saving the company', success: false });
@@ -74,10 +76,13 @@ module.exports = {
 
             return resp.status(200).json({ data: result, success: true });
         } catch (error) {
-            const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingGainerCompanyImage', req.file.filename);
-            if (fs.existsSync(newImagePath)) {
-                fs.unlinkSync(newImagePath);
-            }
+            if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingGainerCompanyImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
+                }
+
             return resp.status(500).json({ error: error.message, success: false });
         }
     },
@@ -165,7 +170,7 @@ module.exports = {
             let { CoachingGainerCompanyId, Employees, EmployeeId } = req.body;
             const companyId = req.query.companyId;
             const operation = req.query.operation;
-            if (!CoachingGainerCompanyId ) {
+            if (!CoachingGainerCompanyId) {
                 return resp.status(400).send('Please insert valid data');
             }
 
@@ -191,22 +196,22 @@ module.exports = {
                     const hasInvalid = Employees.some(emp =>
                         !emp.EmployeeName || !emp.EmployeeEmail || !emp.EmployeePassword || !emp.EmployeeMobileNo
                     );
-                    
+
                     if (hasInvalid) {
                         return resp.status(400).json({
                             message: 'Please fill all required data of employee',
                             status: false
                         });
                     }
-                    
+
                     const NewEmployees = Employees.filter(emp =>
                         emp.EmployeeName && emp.EmployeeEmail && emp.EmployeePassword && emp.EmployeeMobileNo
                     );
-                    
+
 
                     let CompanyDetail = await CoachingGainerCompaniesModel.findOne({ _id: CoachingGainerCompanyId, companyId: companyId })
                     if (CompanyDetail.Employees.length !== 0) {
-                       
+
                         let updatedResult = await CoachingGainerCompaniesModel.findOneAndUpdate(
                             { _id: CoachingGainerCompanyId, companyId: companyId },
                             { $addToSet: { Employees: { $each: NewEmployees } } },
@@ -215,7 +220,7 @@ module.exports = {
                         return resp.status(200).json({ data: updatedResult, success: true });
                     }
                     else {
-                       
+
                         let updatedResult = await CoachingGainerCompaniesModel.findOneAndUpdate(
                             { _id: CoachingGainerCompanyId, companyId: companyId },
                             { $addToSet: { Employees: NewEmployees } },
@@ -258,10 +263,13 @@ module.exports = {
             const companyId = req.query.companyId;
 
             if (!CoachingGainerCompanyId || !CompanyGainerName || !CompanyOwnerName || !companyId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingGainerCompanyImage', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingGainerCompanyImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
+
                 return resp.status(400).send('Please insert valid data');
 
             }
@@ -311,10 +319,13 @@ module.exports = {
 
             }
         } catch (error) {
-            const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingGainerCompanyImage', req.file.filename);
-            if (fs.existsSync(newImagePath)) {
-                fs.unlinkSync(newImagePath);
-            }
+            if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingGainerCompanyImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
+                }
+
             return resp.status(400).json({ error: error.message, success: false });
         }
     },
@@ -371,5 +382,5 @@ module.exports = {
             resp.status(500).json({ message: 'Internal Server Error', success: false });
         }
     },
-    
+
 }

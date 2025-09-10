@@ -1,8 +1,7 @@
-const {serviceProductsModel} = require('./ServiceProducts.model')
+const { serviceProductsModel } = require('./ServiceProducts.model')
 const mongoose = require('mongoose');
 const path = require('path')
 const fs = require('fs');
-const { query } = require('express');
 const { ObjectId } = require('mongodb');
 const { Parser } = require("json2csv");
 const csvParser = require("csv-parser");
@@ -14,14 +13,14 @@ module.exports = {
 
     getproducts: async (req, res) => {
         try {
-             let query = {}
+            let query = {}
 
-             if(req.query.companyId){
+            if (req.query.companyId) {
                 query.companyId = ObjectId(req.query.companyId)
-             }
+            }
 
             const data = await serviceProductsModel.find(query)
-            console.log("prasad",data)
+            console.log("prasad", data)
             res.status(200).send({
                 success: true,
                 message: "Successfully fetched",
@@ -60,13 +59,15 @@ module.exports = {
                 service_parts = JSON.parse(service_parts)
             }
             if (!companyId || !ServiceName || !HeadServiceId || !SubServiceId || !ProviderId || !service_description || !googleLocation) {
-                req.files.forEach((file) => {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProductImage', file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
-                    }
-                })
+                if (req.files) {
+                    req.files.forEach((file) => {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProductImage', file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
+                    })
 
+                }
                 return res.status(400).send({
                     success: false,
                     message: "Please filled all required fields"
@@ -106,12 +107,15 @@ module.exports = {
             res.status(200).send({ success: true, message: "Successfully added", data: result });
 
         } catch (error) {
-            req.files.forEach((file) => {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProductImage', file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+             if (req.files) {
+                    req.files.forEach((file) => {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProductImage', file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
+                    })
+
                 }
-            })
             console.log("Error:", error);
             res.status(500).send({ success: false, message: "Error occurred", error: error.message });
         }
@@ -216,14 +220,14 @@ module.exports = {
                 ServiceProductId
             } = req.body;
             let finalPrice = 0;
-    
+
             if (service_parts) {
                 service_parts = JSON.parse(service_parts);
             }
-    console.log(req.body,'update')
+            console.log(req.body, 'update')
             const companyId = req.query.companyId;
             console.log(req.body, 'new testing');
-    
+
             if (!ServiceProductId || !HeadServiceId || !serviceTime || !SubServiceId || !SubServiceName || !ProviderId || !ServiceName || !service_description || !googleLocation) {
                 if (req.files) {
                     req.files.forEach((file) => {
@@ -235,7 +239,7 @@ module.exports = {
                 }
                 return resp.status(400).send('Please insert valid data');
             }
-    
+
             let serviceProductData = {
                 ServiceName,
                 HeadServiceId,
@@ -246,23 +250,23 @@ module.exports = {
                 googleLocation,
                 SubServiceName,
             };
-    
+
             if (service_parts) {
                 serviceProductData.service_parts = service_parts;
                 service_parts.forEach(data => {
                     finalPrice += data.partPrice;
                 });
-    
+
                 if (finalPrice > 0) {
                     serviceProductData.service_base_price = finalPrice;
                 }
             } else {
                 serviceProductData.service_base_price = service_base_price;
             }
-    
+
             if (req.files) {
                 const existingServiceProduct = await serviceProductsModel.findOne({ _id: ServiceProductId, companyId });
-    
+
                 if (existingServiceProduct && existingServiceProduct.serviceImages) {
                     const serviceImages = req.files.map(file => `${file.filename}`);
                     const result = await serviceProductsModel.findOneAndUpdate(
@@ -270,7 +274,7 @@ module.exports = {
                         { $push: { serviceImages: { $each: serviceImages } } },
                         { new: true }
                     );
-    
+
                     if (!result) {
                         serviceImages.forEach((file) => {
                             const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProductImage', file);
@@ -281,20 +285,20 @@ module.exports = {
                     }
                 }
             }
-    
+
             serviceProductData.offerPercentage = offerPercentage && offerPercentage > 0 ? offerPercentage : null;
-    
+
             const updatedResult = await serviceProductsModel.updateOne(
                 { _id: ServiceProductId, companyId },
                 { $set: serviceProductData }
             );
-    
+
             if (!updatedResult) {
                 return resp.status(400).json({ message: 'Service product not updated', success: false });
             } else {
                 return resp.status(200).json({ data: updatedResult, success: true });
             }
-    
+
         } catch (error) {
             if (req.files) {
                 req.files.forEach((file) => {
@@ -304,11 +308,11 @@ module.exports = {
                     }
                 });
             }
-    
+
             return resp.status(400).json({ error: error.message, success: false });
         }
     },
-    
+
     deleteServiceProducts: async (req, resp) => {
         try {
             if (!req.params.id) {
@@ -332,50 +336,50 @@ module.exports = {
 
         }
     },
-   
-deleteServiceImage: async (req, resp) => {
-    try {
-        let { serviceImages } = req.body;
 
-        if (!serviceImages) {
-            return resp.status(400).json({ message: "No service image provided", success: false });
+    deleteServiceImage: async (req, resp) => {
+        try {
+            let { serviceImages } = req.body;
+
+            if (!serviceImages) {
+                return resp.status(400).json({ message: "No service image provided", success: false });
+            }
+
+            if (!req.params.id) {
+                return resp.status(400).json({ message: "Please provide the ID of the service provider", success: false });
+            }
+
+            const serviceproductdata = await serviceProductsModel.findById(req.params.id);
+
+            if (!serviceproductdata) {
+                return resp.status(400).json({ message: "Service product not found", success: false });
+            }
+
+            const result = await serviceProductsModel.findOneAndUpdate(
+                { _id: req.params.id },
+                { $pull: { serviceImages: serviceImages } },
+                { new: true }
+            );
+
+            if (!result) {
+                return resp.status(400).json({ message: "Service image cannot be deleted", success: false });
+            }
+
+            const imagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProductImage', serviceImages);
+
+            if (fs.existsSync(imagePath)) {
+                fs.unlinkSync(imagePath);
+            } else {
+                console.warn(`Image not found in filesystem: ${imagePath}`);
+            }
+
+            return resp.status(200).json({ message: "Service image deleted successfully", success: true, data: result });
+
+        } catch (error) {
+            console.error('Error deleting service image:', error);
+            return resp.status(500).json({ error: error.message, success: false });
         }
-
-        if (!req.params.id) {
-            return resp.status(400).json({ message: "Please provide the ID of the service provider", success: false });
-        }
-
-        const serviceproductdata = await serviceProductsModel.findById(req.params.id);
-        
-        if (!serviceproductdata) {
-            return resp.status(400).json({ message: "Service product not found", success: false });
-        }
-
-        const result = await serviceProductsModel.findOneAndUpdate(
-            { _id: req.params.id },
-            { $pull: { serviceImages: serviceImages } },
-            { new: true }
-        );
-
-        if (!result) {
-            return resp.status(400).json({ message: "Service image cannot be deleted", success: false });
-        }
-
-        const imagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProductImage', serviceImages);
-        
-        if (fs.existsSync(imagePath)) {
-            fs.unlinkSync(imagePath);
-        } else {
-            console.warn(`Image not found in filesystem: ${imagePath}`);
-        }
-
-        return resp.status(200).json({ message: "Service image deleted successfully", success: true, data: result });
-
-    } catch (error) {
-        console.error('Error deleting service image:', error);
-        return resp.status(500).json({ error: error.message, success: false });
-    }
-},
+    },
     updateServiceParts: async (req, resp) => {
         try {
             let { serviceProductId, service_parts } = req.body;
@@ -460,7 +464,7 @@ deleteServiceImage: async (req, resp) => {
             ]
         })
         generateCsv.writeRecords([]).then(() => {
-            resp.status(200).json({message:'file generated succesfully',file:'serviceProduct.csv',success:true})
+            resp.status(200).json({ message: 'file generated succesfully', file: 'serviceProduct.csv', success: true })
             // resp.download(filepath, "serviceCsv")
         }).catch((err) => {
             resp.status(400).json({ err: err.message, message: 'file not generated', success: false })

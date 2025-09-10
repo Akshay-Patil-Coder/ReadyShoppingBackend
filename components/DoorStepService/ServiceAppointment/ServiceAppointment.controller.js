@@ -1,10 +1,6 @@
 const ServiceAppointmentModel = require('./ServiceAppointment.model');
 const { ObjectId } = require('mongoose').Types;
 const mongoose = require('mongoose');
-const path = require('path')
-const fs = require('fs');
-const { query } = require('express');
-const { schedule } = require('node-cron');
 module.exports = {
     addAppointments: async (req, resp) => {
         try {

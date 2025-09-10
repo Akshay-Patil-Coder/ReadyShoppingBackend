@@ -4,20 +4,13 @@ const mongoose = require('mongoose');
 const path = require('path');
 const jwt = require('jsonwebtoken')
 const { CoachingCourceModel, CoachingVideoModel, QuizModel } = require('../CoachingCource/CoachingCource.model');
-const UserController = require('../user/user.model')
 const CoachingCourceController = require('../CoachingCource/CoachingCource.controller')
 const CompanyModel = require('../companies/companies.model')
-const TransactionModel = require('../payment/transaction.model');
 const fs = require('fs');
-// const sizeOf = require('image-size');
-// const PDFDocument = require('pdfkit');
-const { success } = require('../paytm/paytm.controller');
 const CoachingGainerCompaniesModel = require('../CoachingGainerCompnay/CoachingGainerCompnay.model')
 const nodemailer = require('nodemailer')
 const bcrypt = require('bcryptjs')
 const transaction_model_1 = require("../payment/transaction.model");
-const { findIndex } = require('lodash');
-const { updateEmergencyService } = require('../emergency-service/emergency-service.controller');
 const CoachingCourceOrder = require('../CoachingOrder/CoachingOrder.model');
 const csvgenerator = require('csv-writer').createObjectCsvWriter
 const csvParser = require("csv-parser");
@@ -91,13 +84,12 @@ class CourseOrderService {
 
     async generateBlankCSVForEmployessListWithPredifinedEmailAndPassword(req, resp) {
         try {
-            const publicdirPath = path.join(__dirname, '..', '..', 'public', 'employeeListCsv');
+             const publicdirPath = path.join(__dirname, '..', '..', 'public', 'employeeListCsv');
             if (!fs.existsSync(publicdirPath)) {
                 fs.mkdirSync(publicdirPath, { recursive: true });
             }
-
+             
             const filepath = path.join(publicdirPath, 'employeeListPre.csv');
-
             if (fs.existsSync(filepath)) {
                 fs.unlinkSync(filepath);
             }
@@ -177,7 +169,7 @@ class CourseOrderService {
 
         uploadedImages.forEach((file) => {
             if (!csvListedImages.has(file)) {
-                fs.unlink(path.join(imagesDir, file), (err) => {
+                fs.unlinkSync(path.join(imagesDir, file), (err) => {
                     if (err) console.error(`Error deleting file ${file}:`, err);
                 });
             }
@@ -188,7 +180,7 @@ class CourseOrderService {
         if (!files) return;
 
         if (files.csvFile) {
-            fs.unlink(files.csvFile[0].path, (err) => {
+            fs.unlinkSync(files.csvFile[0].path, (err) => {
                 if (err) console.error('Error deleting CSV file:', err);
             });
         }

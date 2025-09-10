@@ -8,9 +8,11 @@ module.exports = {
         try {
             const { FunctionallityName } = req.body;
             if (!FunctionallityName) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
                 res.status(400).json({ message: 'please filled all fields', success: false })
             }
@@ -26,11 +28,12 @@ module.exports = {
             const savedUser = await newUser.save();
 
             if (!savedUser) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
-
                 return res.status(400).json({ message: 'Something went wrong while saving the brand', success: false });
             }
 
@@ -72,9 +75,11 @@ module.exports = {
                 return res.status(404).json({ success: false, message: "User not found" });
             }
             if (!req.body.FunctionallityName || !id) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+              if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
                 return res.status(400).json({ message: "please filled all data", success: false })
             }
@@ -100,10 +105,12 @@ module.exports = {
             });
 
         } catch (error) {
-            const newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
-            if (fs.existsSync(newImagePath)) {
-                fs.unlinkSync(newImagePath);
-            }
+              if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
+                }
             res.status(500).json({
                 success: false,
                 message: error.message

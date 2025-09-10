@@ -14,18 +14,22 @@ module.exports = {
             serviceLevel = Number(serviceLevel);
 
             if (!companyId || !serviceCategoryName || serviceLevel < 0 || !Description) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
+               if(req.file?.filename){
+                 const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
                 if (fs.existsSync(newImagePath)) {
                     fs.unlinkSync(newImagePath);
                 }
+               }
                 return res.status(400).json({ message: 'please provide all fields', success: false })
             }
 
             if (serviceLevel !== 0 && !serviceParentCategoryId) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
+                 if(req.file?.filename){
+                 const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
                 if (fs.existsSync(newImagePath)) {
                     fs.unlinkSync(newImagePath);
                 }
+               }
                 return res.status(400).send({ message: "Please provide parentCategoryId for subservices" });
             }
             const ServiceCategoryData = {
@@ -52,10 +56,12 @@ module.exports = {
 
         } catch (error) {
             console.error("Error:", error);
-            const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
-            if (fs.existsSync(newImagePath)) {
-                fs.unlinkSync(newImagePath);
-            }
+            if(req.file?.filename){
+                 const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
+                if (fs.existsSync(newImagePath)) {
+                    fs.unlinkSync(newImagePath);
+                }
+               }
             res.status(500).send({
                 success: false,
                 message: "Something went wrong",
@@ -160,10 +166,12 @@ module.exports = {
             });
             console.log(category, 'category')
             if (!category) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
+               if(req.file?.filename){
+                 const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
                 if (fs.existsSync(newImagePath)) {
                     fs.unlinkSync(newImagePath);
                 }
+               }
                 return res.status(404).send({ success: false, message: "Category not found" });
             }
 
@@ -197,10 +205,12 @@ module.exports = {
 
         } catch (error) {
             console.log("error", error);
-            const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
-            if (fs.existsSync(newImagePath)) {
-                fs.unlinkSync(newImagePath);
-            }
+            if(req.file?.filename){
+                 const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
+                if (fs.existsSync(newImagePath)) {
+                    fs.unlinkSync(newImagePath);
+                }
+               }
             res.status(500).send({
                 success: false,
                 message: "Something went wrong",

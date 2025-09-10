@@ -1,7 +1,5 @@
-const { data } = require('jquery')
 const bannersSchema = require('./CoachingBanners.model');
-const { ObjectID, ObjectId } = require('mongodb');
-const { query } = require('express');
+const {  ObjectId } = require('mongodb');
 const mongoose = require('mongoose')
 const path = require('path')
 const fs = require('fs')
@@ -16,9 +14,11 @@ module.exports = {
             }
             if (BannerType == 'Skill') {
                 if (!companyId || !BannerName || !SubCourceCatId || !HeadCourceCatId || !SkillId) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                    if(req.file?.filename){
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
+                    }
                     }
                     return resp.status(400).json({ message: 'please filled all required fields', success: false })
                 }
@@ -43,9 +43,11 @@ module.exports = {
                 const newBanner = new bannersSchema(bannerData);
                 const result = await newBanner.save();
                 if (!result) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                      if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
 
                     return resp.status(400).json({ message: 'Something went wrong while saving the banner', success: false });
@@ -55,9 +57,11 @@ module.exports = {
             }
             else if (BannerType == 'Offer') {
                 if (!companyId || !BannerName || !SubCourceCatId || !HeadCourceCatId || !CourcesId || !OfferPercentage) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                      if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
                     return resp.status(400).json({ message: 'please filled all required fields', success: false })
                 }
@@ -91,9 +95,11 @@ module.exports = {
                 const newBanner = new bannersSchema(bannerData);
                 const result = await newBanner.save();
                 if (!result) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                      if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
 
                     return resp.status(400).json({ message: 'Something went wrong while saving the banner', success: false });
@@ -103,9 +109,11 @@ module.exports = {
             }
             else if (BannerType == 'Advertiser') {
                 if (!companyId || !BannerName || !SubCourceCatId || !HeadCourceCatId || !AdvertiserId || !AdvertiserType) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                      if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
                     return resp.status(400).json({ message: 'please filled all required fields', success: false })
                 }
@@ -132,9 +140,11 @@ module.exports = {
                 const newBanner = new bannersSchema(bannerData);
                 const result = await newBanner.save();
                 if (!result) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                      if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
 
                     return resp.status(400).json({ message: 'Something went wrong while saving the banner', success: false });
@@ -144,9 +154,11 @@ module.exports = {
             }
             else if (BannerType == 'Offer-Skill') {
                 if (!companyId || !BannerName || !SubCourceCatId || !HeadCourceCatId || !CourcesId || !OfferPercentage || !SkillId) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                      if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
                     return resp.status(400).json({ message: 'please filled all required fields', success: false })
                 }
@@ -181,9 +193,11 @@ module.exports = {
                 const newBanner = new bannersSchema(bannerData);
                 const result = await newBanner.save();
                 if (!result) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                     if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
 
                     return resp.status(400).json({ message: 'Something went wrong while saving the banner', success: false });
@@ -193,9 +207,11 @@ module.exports = {
             }
             else if (BannerType == 'Offer-Advertiser') {
                 if (!companyId || !BannerName || !SubCourceCatId || !HeadCourceCatId || !CourcesId || !OfferPercentage || !AdvertiserId || !AdvertiserType) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                     if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
                     return resp.status(400).json({ message: 'please filled all required fields', success: false })
                 }
@@ -231,9 +247,11 @@ module.exports = {
                 const newBanner = new bannersSchema(bannerData);
                 const result = await newBanner.save();
                 if (!result) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                     if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
 
                     return resp.status(400).json({ message: 'Something went wrong while saving the banner', success: false });
@@ -243,9 +261,11 @@ module.exports = {
             }
             else if (BannerType == 'Skill-Advertiser') {
                 if (!companyId || !BannerName || !SubCourceCatId || !HeadCourceCatId || !AdvertiserId || !AdvertiserType || !SkillId) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                      if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
                     return resp.status(400).json({ message: 'please filled all required fields', success: false })
                 }
@@ -273,9 +293,11 @@ module.exports = {
                 const newBanner = new bannersSchema(bannerData);
                 const result = await newBanner.save();
                 if (!result) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                      if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
 
                     return resp.status(400).json({ message: 'Something went wrong while saving the banner', success: false });
@@ -285,9 +307,11 @@ module.exports = {
             }
             else if (BannerType == 'AllCombined') {
                 if (!companyId || !BannerName || !SubCourceCatId || !HeadCourceCatId || !CourcesId || !OfferPercentage || !AdvertiserId || !AdvertiserType || !SkillId) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                      if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
                     return resp.status(400).json({ message: 'please filled all required fields', success: false })
                 }
@@ -324,9 +348,11 @@ module.exports = {
                 const newBanner = new bannersSchema(bannerData);
                 const result = await newBanner.save();
                 if (!result) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
+                     if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
                     }
 
                     return resp.status(400).json({ message: 'Something went wrong while saving the banner', success: false });
@@ -336,10 +362,12 @@ module.exports = {
             }
 
         } catch (error) {
-            const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
-            if (fs.existsSync(newImagePath)) {
-                fs.unlinkSync(newImagePath);
-            }
+              if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
+                    }
             return resp.status(500).json({ error: error.message, success: false });
         }
     },
@@ -646,10 +674,12 @@ module.exports = {
             const companyId = req.query.companyId;
 
             if (!BannerId || !BannerName) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
-                }
+                 if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
+                    }
                 return resp.status(400).send('Please insert valid data');
 
             }
@@ -685,10 +715,12 @@ module.exports = {
 
             }
         } catch (error) {
-            const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
-            if (fs.existsSync(newImagePath)) {
-                fs.unlinkSync(newImagePath);
-            }
+             if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
+                    }
 
             return resp.status(400).json({ error: error.message, success: false });
         }

@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const CoachingSkillsModel = require('./CoachingSkills.model');
-const { success } = require('../paytm/paytm.controller');
 const mongoose = require('mongoose');
 
 module.exports = {
