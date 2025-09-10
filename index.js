@@ -2,7 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 require('dotenv').config();
 const path = require('path');
-const routes = require('./common/routes');
+// const routes = require('./common/routes');
 
 const app = express();
 app.use(express.json());
@@ -17,7 +17,7 @@ app.use(express.json());
   }
 })();
 
-routes.default(app); 
+// routes.default(app); 
 
 const staticPaths = {
   '/api/v1/report': '../outputfiles/',

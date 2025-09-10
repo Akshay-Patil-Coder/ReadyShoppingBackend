@@ -1,19 +1,17 @@
-const { ObjectId } = require("mongodb")
+const { ObjectId } = require("mongodb");
 const dynamicCategoriesModel = require("./ProductCategories.model");
 const fs = require('fs');
+const fsPromises = fs.promises;
 const path = require('path');
 const master_services = require('../MasterServices/MasterServices.model');
-const ProductsModel = require('../Products/Products.model')
-
+const ProductsModel = require('../Products/Products.model');
+const { default: mongoose } = require("mongoose");
 
 module.exports = {
-
-
     addCategory: async (req, res) => {
         try {
-            console.log("prasad", req.body)
+            console.log("prasad", req.body);
             const { companyId, categoryName, parentCategoryId, categoryLevel, Description, service_type, price, duration, serviceCategoryLevel = 0 } = req.body;
-
 
             let imageName = '';
 
@@ -28,7 +26,7 @@ module.exports = {
                 console.log("Old Path:", oldPath);
                 console.log("New Path:", newPath);
 
-                fs.renameSync(oldPath, newPath);
+                await fsPromises.rename(oldPath, newPath);
             }
 
             if (categoryLevel !== '0' && !parentCategoryId) {
@@ -38,7 +36,7 @@ module.exports = {
             const newCategory = new dynamicCategoriesModel({
                 companyId,
                 categoryName,
-                parentCategoryId: parentCategoryId ? ObjectId(parentCategoryId) : null,
+                parentCategoryId: parentCategoryId ? mongoose.Types.ObjectId(parentCategoryId) : null,
                 categoryLevel,
                 imageName,
                 Description
@@ -50,7 +48,6 @@ module.exports = {
                 companyId,
                 categoryId: categoryData._id,
                 service_type,
-                //parentserviceId: parentCategoryId ? ObjectId(parentCategoryId) : null,
                 service_name: categoryName + " Services",
                 serviceCategoryLevel,
                 isActive: true,
@@ -78,100 +75,35 @@ module.exports = {
         }
     },
 
+    getCategory: async (req, res) => {
+        try {
+            const { parentCategoryId, companyId, categoryName } = req.query;
 
-//     getCategory: async (req, res) => {
-//         try {
-//             const { parentCategoryId, companyId, categoryName } = req.query;
+            // Initialize the base query with isActive: true
+            const query = { isActive: true };
 
-//             // Initialize the base query with isActive: true
-//             const query = { isActive: true };
+            // Conditionally add filters if they are provided
+            if (parentCategoryId) query.parentCategoryId = mongoose.Types.ObjectId(parentCategoryId);
+            if (companyId) query.companyId = mongoose.Types.ObjectId(companyId);
+            if (categoryName) query.categoryName = new RegExp(categoryName, 'i'); // Case-insensitive regex search
 
-//         const newCategory = new dynamicCategoriesModel({
-//             companyId,
-//             categoryName,
-//             parentCategoryId: parentCategoryId ? ObjectId(parentCategoryId) : null,
-//             categoryLevel,
-//             imageName,
-//             Description
-//         });
+            // Fetch data based on constructed query
+            const data = await dynamicCategoriesModel.find(query);
 
-//         const categoryData = await newCategory.save();
-
-//         const newService = new master_services({
-//             companyId,
-//             categoryId: categoryData._id,
-//             service_type,
-//             //parentserviceId: parentCategoryId ? ObjectId(parentCategoryId) : null,
-//             service_name: categoryName + " Services",
-//             serviceCategoryLevel, 
-//             isActive: true,
-//             description: Description,
-//             price: price ? Number(price) : undefined,
-//             duration
-//         });
-
-//         await newService.save();
-
-//         res.status(200).send({ 
-//             success: true, 
-//             message: "Category and service added successfully", 
-//             categoryData,
-//             newService
-//          });
-
-//     } catch (error) {
-//         console.error("Error:", error);
-//         res.status(500).send({ 
-//             success: false, 
-//             message: "Something went wrong", 
-//             error: error.message 
-//     });
-//     }
-// },
-
-getCategory: async (req, res) => {
-    try {
-        const { parentCategoryId, companyId, categoryName } = req.query;
-
-        // Initialize the base query with isActive: true
-        const query = { isActive: true };
-
-        // Conditionally add filters if they are provided
-        if (parentCategoryId) query.parentCategoryId = new ObjectId(parentCategoryId);
-        if (companyId) query.companyId = new ObjectId(companyId);
-        if (categoryName) query.categoryName = new RegExp(categoryName, 'i'); // Case-insensitive regex search
-
-        // Fetch data based on constructed query
-        const data = await dynamicCategoriesModel.find(query);
-
-        res.status(200).send({
-            success: true,
-            message: "Successfully fetched",
-            data: data.length ? data : null // Return data or null if empty
-        });
-    } catch (error) {
-        console.log("error", error);
-        res.status(500).send({
-            success: false,
-            message: "Unsuccessful fetch",
-            error: error.message
-        });
-    }
-},
-
-// getCategoryTree: async (req, res) => {
-//     try {
-//         let { parentCategoryId, companyId, _id } = req.query;
-        
-//         // Check if companyId is present
-//         if (!companyId) {
-//             return res.status(400).send({
-//                 success: false,
-//                 message: "Unsuccessful fetch",
-//                 error: error.message
-//             });
-//         }
-//     },
+            res.status(200).send({
+                success: true,
+                message: "Successfully fetched",
+                data: data.length ? data : null // Return data or null if empty
+            });
+        } catch (error) {
+            console.log("error", error);
+            res.status(500).send({
+                success: false,
+                message: "Unsuccessful fetch",
+                error: error.message
+            });
+        }
+    },
 
     getCategoryTree: async (req, res) => {
         try {
@@ -261,20 +193,22 @@ getCategory: async (req, res) => {
                 if (category.imageName) {
                     const oldFilePath = path.join(__dirname, '../../public/master_categories', category.imageName);
 
-                    if (fs.existsSync(oldFilePath)) {
-                        fs.unlinkSync(oldFilePath);
+                    try {
+                        await fsPromises.access(oldFilePath);
+                        await fsPromises.unlink(oldFilePath);
+                    } catch (err) {
+                        // File doesn't exist or other error - we can continue
+                        console.log("Error deleting old file:", err.message);
                     }
                 }
 
                 const newFilePath = path.join(__dirname, '../../public/master_categories', newImageName);
                 const currentFilePath = path.join(__dirname, '../../public/master_categories', req.file.filename);
 
-                fs.renameSync(currentFilePath, newFilePath);
+                await fsPromises.rename(currentFilePath, newFilePath);
 
                 updatedData.imageName = newImageName;
             }
-
-
 
             const updatedCategory = await dynamicCategoriesModel.findOneAndUpdate(
                 { _id: category._id },
@@ -300,20 +234,19 @@ getCategory: async (req, res) => {
 
     toggleCategoriesStatus: async (req, res) => {
         try {
-            let id = req.body.id
-            const details = await dynamicCategoriesModel.findById(id)
+            let id = req.body.id;
+            const details = await dynamicCategoriesModel.findById(id);
             const data = await dynamicCategoriesModel.findByIdAndUpdate(id, {
                 $set: {
                     isActive: !details.isActive
                 }
-            }, { new: true })
+            }, { new: true });
 
             res.status(200).send({
                 success: true,
                 message: "success",
                 data
-            })
-
+            });
 
         } catch (error) {
             console.error("error", error);
@@ -339,18 +272,18 @@ getCategory: async (req, res) => {
                 return res.status(400).send({ success: false, message: "Category is already inactive" });
             }
 
-
-
-            const productData = await ProductsModel.Products.find({ categoryId: id })
+            const productData = await ProductsModel.Products.find({ categoryId: id });
             let deletedProduct = '';
-            if (productData) {
-                const deleteProduct = await ProductsModel.Products.deleteMany({ categoryId: id })
-                deletedProduct = deleteProduct
+            
+            if (productData && productData.length > 0) {
+                const deleteProduct = await ProductsModel.Products.deleteMany({ categoryId: id });
+                deletedProduct = deleteProduct;
             }
 
-            const result = await dynamicCategoriesModel.deleteOne({ _id: id })
-            if (!result) {
-                res.status(400).json({ message: 'CATEGORY NOT DELETED', success: false })
+            const result = await dynamicCategoriesModel.deleteOne({ _id: id });
+            
+            if (result.deletedCount === 0) {
+                return res.status(400).json({ message: 'CATEGORY NOT DELETED', success: false });
             }
 
             res.status(200).json({ success: true, message: "category and product both deleted", data: result, deletedProduct: deletedProduct });
@@ -364,6 +297,4 @@ getCategory: async (req, res) => {
             });
         }
     },
-
-}
-
+};
