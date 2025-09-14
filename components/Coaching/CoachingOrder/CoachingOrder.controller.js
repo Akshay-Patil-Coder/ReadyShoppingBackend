@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken')
 const { CoachingCourceModel, CoachingVideoModel, QuizModel } = require('../CoachingCource/CoachingCource.model');
 const UserController = require('../user/user.model')
 const CoachingCourceController = require('../CoachingCource/CoachingCource.controller')
-const CompanyModel = require('../companies/companies.model')
+const CompanyModel = require('../../CompanyBase/Company/Company.model')
 const TransactionModel = require('../payment/transaction.model');
 const fs = require('fs');
 
