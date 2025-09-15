@@ -1,52 +1,50 @@
 const mongoose = require('mongoose');
-
-// Define the schema for Admin
 const adminSchema = new mongoose.Schema({
-  username: {
-    type: String,
-    required: [true, 'Username is required'],
-    unique: true,
-    dropDups: true, // ensures duplicates are removed on unique index creation
-  },
-  name: {
-    type: String,
-    required: [true, 'Name is a required field'],
-  },
-  password: {
-    type: String,
-    required: [true, 'Password is required'],
-  },
-  permission: {
-    appointment: {
-      type: Boolean,
-      default: true, // By default, admins have appointment permission
+    username: {
+        type: String,
+        required: 'Username is required',
+        unique: true,
+        dropDups: true
     },
-  },
-  image: {
-    type: String, // Optional profile image URL
-  },
-  isActive: {
-    type: Boolean,
-    default: true, // Default active status
-  },
-  passwordResetToken: {
-    token: { type: String }, // Optional password reset token
-    expiry: { type: Date },  // Optional expiry date for token
-  },
-  lastLoginTime: {
-    type: String, // Optional last login time, can store as string or Date if needed
-    default: "",
-  },
-  count: {
-    type: Number,
-    default: 0, // Optional counter for logins or other tracking
-  },
-}, {
-  timestamps: true, // Automatically adds createdAt and updatedAt fields
-});
+    name: {
+        type: String,
+        required: 'Name is a required field',
+    },
+    password: {
+        type: String,
+        required: true
+    },
+    permission: {
+        appointment: {
+            type: Boolean,
+            default: true
+        }
+    },
+    image: {
+        type: String
+    },
+    isActive: {
+        type: Boolean,
+        required: true,
+        default: true
+    },
+    passwordResetToken: {
+        token: String,
+        expiry: Date,
+    },
+    lastlogintime: {
+        type: String,
+        default: ""
+    },
+    count: {
+        type: Number,
+        default: 0
+    },
+    role: {
+        type: String
+    },
 
-// Create the model from the schema
+}, { timestamps: true });
+
 const Admin = mongoose.model('Admin', adminSchema);
-
-// Export the model
 module.exports = Admin;

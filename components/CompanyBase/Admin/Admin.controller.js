@@ -1,177 +1,111 @@
-import { default as Admin, AdminModel } from "./Admin.model";
-import { Request, Response, NextFunction } from "express";
+import { default as Admin } from "./Admin.model";
 import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
-import * as async from "async";
 import Log from "../log/log.model";
-import AppointmentModel from "../appointment/appointment.model";
-import doctorModel from "../doctor/doctor.model"; // Fixed typo
 import userModel from '../user/user.model';
-import reportModel from "../report/report.model";
-import { throws } from "assert";
-import { rescheduleAppointment } from "../appointment/appointment.controller";
-import hospitalModel from "../hospital/hospital.model";
-import diagnosticModel from "../diagnostic/diagnostic.model";
-import appointmentModel from "../appointment/appointment.model";
-import specialityModel from "../speciality/speciality.model";
-import nursingModel from "../nursing/nursing.model";
-import { fee, nursing, physician } from "./Admin.model";
-import { create } from "domain";
-import { forEach, concat } from "async";
 import mongoose from "mongoose";
-import pharmacyModel from "../pharmacy/pharmacy.model";
 import _ from "lodash";
 import moment from "moment";
-import consultancyModel from "../consultancy/consultancy.model";
-import homeAppointmentModel from "../homeappointment/home.appointment.model";
-import { error, test } from "shelljs";
-import { compare } from "bcrypt-nodejs";
-import notificationModel from "../notification/notification.model";
-import scheduleModel from "../doctor/schedule.model";
-import { ObjectId, ObjectID } from "bson";
-import { emit } from "cluster";
-import { sendMessage } from "../../socket";
-import { sendNotification } from "../pushnotifications/push.controller";
-import { sendEmail, sendEmailForDoctor } from "../../util/utility";
-import { Test } from "../diagnostic/diagnostic.model"; // Fixed import
-import Geocoder from "node-geocoder";
-import { exists } from "fs";
 
-export let createAdmin = (req, res) => {
-  if (!req.body.username || !req.body.password) {
-    return res.status(400).send("arguments missing");
-  } else {
-    bcrypt.genSalt(10, (err, salt) => {
-      if (err) {
-        return res.status(500).send(err);
-      }
-      bcrypt.hash(req.body.password, salt, (err, hashedPassword) => {
-        if (err) {
-          return res.status(500).send(err);
-        }
-        const admin = new Admin({
-          username: req.body.username,
-          password: hashedPassword,
-          name: req.body.name,
-          permission: req.body.permission,
-          image: req.body.image,
-        });
 
-        admin.save((err, value) => {
-          if (err) {
-            if (err.code === 11000) {
-              return res.status(400).send("username already exists");
-            } else {
-              return res.status(400).send(err);
-            }
-          } else {
-            const log = new Log();
-            // log.user = req.user.userObject._id;
-            // log.event = "Admin is created: " + value.username;
-            // log.save();
-            return res.status(201).send("User Created Successfully");
-          }
-        });
-      });
-    });
-  }
-};
 export let getAdminList = async (req, res) => {
-  try {
-    const adminList = await Admin.find({});
-    console.log(`adminList---${req.user}`);
-    console.log("hello world");
-    res.status(400).send(adminList);
-  } catch (error) {
-    res.status(400).send(error);
-  }
+    try {
+        const adminList = await Admin.find({});
+        console.log(`adminList---${req.user}`);
+        console.log("hello world");
+        res.status(400).send(adminList);
+    } catch (error) {
+        res.status(400).send(error);
+    }
 };
 export let adminLogin = async (req, res) => {
-  if (!req.body.username || !req.body.password) {
-    return res.status(400).send("arguments missing");
-  } else {
-    try {
-      const admin = await Admin.findOne(
-        {
-          isActive: true,
-          username: req.body.username,
-        },
-        {
-          username: 1,
-          password: 1,
-          permission: 1,
-          image: 1,
-          lastlogintime: 1,
-          name: 1,
+    if (!req.body.username || !req.body.password) {
+        return res.status(400).send("arguments missing");
+    } else {
+        try {
+            const admin = await Admin.findOne(
+                {
+                    isActive: true,
+                    username: req.body.username,
+                },
+                {
+                    username: 1,
+                    password: 1,
+                    permission: 1,
+                    image: 1,
+                    lastlogintime: 1,
+                    name: 1,
+                    role: 1,
+                }
+            );
+
+            if (admin) {
+                const dateupdate = await Admin.updateOne(
+                    { _id: admin._id },
+                    { $set: { lastlogintime: new Date() } }
+                );
+                if (dateupdate.n) {
+                    console.log("get updated date");
+                } else {
+                    console.log("error");
+                }
+            }
+
+            const result = bcrypt.compareSync(req.body.password, admin.password);
+            if (result) {
+                const userObject = admin.toObject();
+                const sanitizedUser = {
+                    _id: userObject._id,
+                    Email: userObject.username,
+                    Role: "Admin"
+                };
+                delete userObject.password;
+
+                const expiry = Math.floor(
+                    (Date.now() + 24 * 60 * 60 * 1000) / 1000
+                ); // 1 day expiry
+
+                let token = jwt.sign(
+                    sanitizedUser,
+                    process.env.ACCESS_TOKEN_SECRET,
+                    { expiresIn: '24h' }
+                );
+
+              const refToken = jwt.sign(
+                    sanitizedUser,
+                    "some_other_secret",
+                    { expiresIn: '24h' }
+                );
+
+                res.status(200).send({
+                    token: token,
+                    refToken: refToken,
+                    Admin: admin,
+                });
+            } else {
+                res.status(400).send("authentication error");
+            }
+        } catch (error) {
+            res.status(400).send(error);
         }
-      );
-
-      if (admin) {
-        const dateupdate = await Admin.updateOne(
-          { _id: admin._id },
-          { $set: { lastlogintime: new Date() } }
-        );
-        if (dateupdate.n) {
-          console.log("get updated date");
-        } else {
-          console.log("error");
-        }
-      }
-
-      const result = bcrypt.compareSync(req.body.password, admin.password);
-      if (result) {
-        const userObject = admin.toObject();
-        delete userObject.password;
-
-        const expiry = Math.floor(
-          (Date.now() + 24 * 60 * 60 * 1000) / 1000
-        ); // 1 day expiry
-
-        const token = jwt.sign(
-          {
-            userObject,
-            exp: expiry,
-          },
-          "secret_for_now"
-        );
-
-        const refToken = jwt.sign(
-          {
-            userObject,
-            exp: expiry,
-          },
-          "some_other_secret"
-        );
-
-        res.status(200).send({
-          token: token,
-          refToken: refToken,
-          Admin: admin,
-        });
-      } else {
-        res.status(400).send("authentication error");
-      }
-    } catch (error) {
-      res.status(400).send(error);
     }
-  }
 };
 export let getUnread = async (req, res) => {
-  try {
-    const data = await Admin.findOne({ _id: req.user._id }, { count: 1 });
-    if (data) {
-      res.status(201).send({
-        unread: data.count,
-      });
-    } else {
-      res.status(400).send({
-        message: "Admin does not exist.",
-      });
+    try {
+        const data = await Admin.findOne({ _id: req.user._id }, { count: 1 });
+        if (data) {
+            res.status(201).send({
+                unread: data.count,
+            });
+        } else {
+            res.status(400).send({
+                message: "Admin does not exist.",
+            });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(400).send({ error: error });
     }
-  } catch (error) {
-    console.error(error);
-    res.status(400).send({ error: error });
-  }
 };
 
 export const getUsers = async (req, res) => {
@@ -340,13 +274,18 @@ export const getuserdetails = async (req, res) => {
 
     try {
         const showCondition = {
-            email: 1,
-            phone: 1,
-            name: 1,
-            dob: 1,
-            bloodGroup: 1,
-            gender: 1,
-            img: 1
+           email: 1,
+                phone: 1,
+                name: 1,
+                fname: 1,
+                lname: 1,
+                dob: 1,
+                bloodGroup: 1,
+                gender: 1,
+                img: 1,
+                followup_details: 1,
+                empCode: 1,
+                empName: 1
         };
 
         const userdata = await userModel.find({ _id: req.body.patientid }, showCondition);
@@ -391,3 +330,45 @@ export const getuserFamily = async (req, res) => {
     }
 };
 
+export let createAdmin = (req, res) => {
+    const { username, password, name, role, permission, image, doctor, pharmacistId } = req.body;
+
+    if (!username || !password) {
+        return res.status(400).json({ success: false, msg: "Username and password are required" });
+    }
+
+    bcrypt.genSalt(10, (err, salt) => {
+        if (err) return res.status(500).json({ success: false, msg: "Error generating salt", err });
+
+        bcrypt.hash(password, salt, (err, hashedPassword) => {
+            if (err) return res.status(500).json({ success: false, msg: "Error hashing password", err });
+
+            const admin = new Admin({
+                username,
+                password: hashedPassword,
+                name,
+                role,
+                permission,
+                image: image || "",
+            });
+
+            admin.save((err, savedAdmin) => {
+                if (err) {
+                    if (err.code === 11000) {
+                        return res.status(400).json({ success: false, msg: "Username already exists" });
+                    }
+                    return res.status(400).json({ success: false, msg: "Error creating admin", err });
+                }
+
+                const log = new Log({
+                });
+                log.save().catch(console.error);
+
+                return res.status(201).json({
+                    success: true,
+                    msg: "Admin user has been created successfully"
+                });
+            });
+        });
+    });
+};
