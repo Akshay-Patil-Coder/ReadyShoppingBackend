@@ -21,7 +21,7 @@ module.exports = {
                 return res.status(400).json({ message: "please filled all data", success: false })
             }
             if (!PredifinedDomain && !CompanyDomain) {
-              if (req.file?.filename) {
+                if (req.file?.filename) {
                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
@@ -84,7 +84,7 @@ module.exports = {
             const data = await company.save();
 
             if (!data) {
-             if (req.file?.filename) {
+                if (req.file?.filename) {
                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
@@ -188,7 +188,9 @@ module.exports = {
     getcompanies: async (req, res) => {
         try {
             let query = {}
-            if (req.query.id) query._id = ObjectId(req.query.id)
+            if (req.query.id) {
+                query._id = mongoose.Types.ObjectId.createFromHexString(req.query.id);
+            }
             if (req.query.CompanyDomain) query.CompanyDomain = (req.query.CompanyDomain)
             if (req.query.PredifinedDomain) query.PredifinedDomain = (req.query.PredifinedDomain)
 
@@ -217,7 +219,7 @@ module.exports = {
         try {
 
             if (!_id || !CompanyName || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !Contact_person_name) {
-           if (req.file?.filename) {
+                if (req.file?.filename) {
                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
@@ -226,7 +228,7 @@ module.exports = {
                 return res.status(400).json({ message: "please filled all data", success: false })
             }
             if (!PredifinedDomain && !CompanyDomain) {
-               if (req.file?.filename) {
+                if (req.file?.filename) {
                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
@@ -264,7 +266,7 @@ module.exports = {
             }
 
             console.log(CompanyData, 'CompanyData')
-            if (req.file) {
+            if (req.file?.filename) {
                 const existingBrand = await Company.findOne({ _id: _id })
                 if (existingBrand && existingBrand.CompanyLogo) {
                     const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', existingBrand.CompanyLogo);
@@ -275,7 +277,7 @@ module.exports = {
                 CompanyData.CompanyLogo = req.file.filename
             }
             const data = await Company.findByIdAndUpdate(
-                ObjectId(_id),
+                _id,
                 { $set: CompanyData },
                 { new: true }
             );
@@ -290,11 +292,11 @@ module.exports = {
         } catch (error) {
             console.log("error", error)
             if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
-                    }
+                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
+                if (fs.existsSync(newImagePath)) {
+                    fs.unlinkSync(newImagePath);
                 }
+            }
             res.status(500).send({
                 success: false,
                 message: "Failed to add company",
@@ -305,9 +307,9 @@ module.exports = {
 
     deletecompanies: async (req, res) => {
         try {
-            const existingBrand = await Company.findOne({ _id: req.params._id })
-            if (existingBrand && existingBrand.CompanyLogo) {
-                const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', existingBrand.CompanyLogo);
+            const existingCompany = await Company.findOne({ _id: req.params._id })
+            if (existingCompany && existingCompany?.CompanyLogo) {
+                const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', existingCompany.CompanyLogo);
                 if (fs.existsSync(oldImagePath)) {
                     fs.unlinkSync(oldImagePath);
                 }

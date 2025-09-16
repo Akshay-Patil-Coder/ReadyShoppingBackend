@@ -7,7 +7,6 @@ const userController = require("./User.controller");
 
 const router = express.Router();
 
-//---------------------- Multer Config ----------------------
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = path.join(__dirname, '..', '..', 'public', 'UserImage');
@@ -25,8 +24,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 const uploadFile = multer({ dest: path.join(__dirname, "../../../uploads") });
 
-//---------------------- Authentication ----------------------
-router.post("/loginViaPhone", userController.loginViaPhone);
-
-// Export router in CommonJS style
+router.post("/loginViaPhone", userController.LoginViaPhone);
+router.post("/verify", userController.Verify);
+router.post("/resendotpforsignup", userController.ResendOtpForSignup);
 module.exports = router;

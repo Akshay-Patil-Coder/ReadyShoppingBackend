@@ -14,12 +14,6 @@ const adminSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    permission: {
-        appointment: {
-            type: Boolean,
-            default: true
-        }
-    },
     image: {
         type: String
     },
@@ -35,10 +29,6 @@ const adminSchema = new mongoose.Schema({
     lastlogintime: {
         type: String,
         default: ""
-    },
-    count: {
-        type: Number,
-        default: 0
     },
     role: {
         type: String

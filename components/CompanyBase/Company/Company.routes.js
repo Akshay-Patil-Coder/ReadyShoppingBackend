@@ -42,18 +42,12 @@ router.get('/getcompanies', (req, res) => {
  return companiesController.getcompanies(req, res);
 });
 
-router.put('/updatecompanies', authentication, upload.single('CompanyLogo'), (req, res) => {
-  if (req.user.role === 'Admin') {
+router.put('/updatecompanies', upload.single('CompanyLogo'), (req, res) => {
     return companiesController.updatecompanies(req, res);
-  }
-  res.status(400).json({ message: "Authentication Failed only admin  eligible to add data", success: false })
 });
 
-router.delete('/deletecompanies/:_id', authentication, (req, res) => {
-  if (req.user.role === 'Admin') {
+router.delete('/deletecompanies/:_id', (req, res) => {
     return companiesController.deletecompanies(req, res);
-  }
-  res.status(400).json({ message: "Authentication Failed only admin  eligible to add data", success: false })
 });
 router.post('/logincompany', (req, res) => {
   companiesController.loginCompnay(req, res);

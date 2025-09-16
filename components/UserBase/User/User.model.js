@@ -3,11 +3,8 @@ const bcrypt = require('bcrypt');
 
 const userSchema = new mongoose.Schema({
     userid: { type: String, default: "", unique: true },
-    company_id: { type: mongoose.Schema.Types.ObjectId },
-    addedByPruthvi: { type: String },
-    counter: { type: Number, default: 1 },
-    isPharmaCount: { type: Number, default: 0 },
-    otptime: { type: Date },
+    companyId: { type: mongoose.Schema.Types.ObjectId },
+        otptime: { type: Date },
     email: { type: String },
     followup_details: [
         {
@@ -17,7 +14,6 @@ const userSchema = new mongoose.Schema({
         }
     ],
     password: { type: String, default: "" },
-    facebook: { type: String, default: "" },
     phone: { type: String, minlength: 10, maxlength: 10, default: "" },
     phoneisverified: { type: Boolean, default: false },
     name: { type: String, default: "" },
@@ -36,52 +32,14 @@ const userSchema = new mongoose.Schema({
     ],
     gender: { type: String, default: "" },
     dob: { type: Date, default: "" },
-    height: { type: String, default: "" },
-    weight: { type: String, default: "" },
-    bloodGroup: { type: String, default: "" },
-    medicalHistory: { type: String, default: "" },
-    allergies: { type: String, default: "" },
-    walletBalance: { type: Number, default: 0 },
-    isParent: { type: Boolean, default: true },
-    relation: { type: String, default: "self" },
-    parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     otp: { type: Number },
-    family: [
-        {
-            name: { type: String, default: "" },
-            relation: { type: String, default: "" },
-            Age: { type: String, default: "" },
-            BloodGroup: { type: String, default: "" },
-            Weight: { type: Number, default: 0 },
-            Dob: { type: Date, default: "" },
-            gender: { type: String, default: "" },
-            profileComplete: { type: Boolean, default: false },
-            phone: { type: String, minlength: 10, maxlength: 10, default: "" },
-            email: { type: String }
-        }
-    ],
-    profilePercentage: { type: Number, default: 0 },
     active: { type: Boolean, default: false },
-    feedback: [
-        {
-            message: { type: String },
-            date: { type: String },
-            img: { type: String },
-            name: { type: String }
-        }
-    ],
-    count: { type: Number, default: 0 },
     profilestatus: { type: Boolean, default: false },
-    empCode: { type: String, default: "" },
-    empName: { type: String, default: "" },
-    hms_phone: { type: String, default: "" },
     type: { type: String, default: "" },
     scheme: {
         category: { type: String },
         payment: { type: Boolean }
     },
-    loginFrom: { type: String, default: "Patient App" },
-    RowStatus: { type: Number, default: 0 },
     Identification: { type: String, default: 0 }
 }, { timestamps: true });
 
