@@ -120,13 +120,13 @@ module.exports = {
         const { HeadServiceId, SubServiceId, companyId, ServiceProviderId, googleLocation } = req.query;
 
         try {
-            let matchCondition = { companyId: mongoose.Types.ObjectId(companyId) };
+            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
             if (HeadServiceId) {
                 if (!mongoose.Types.ObjectId.isValid(HeadServiceId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.HeadServiceId = { $in: [mongoose.Types.ObjectId(HeadServiceId)] };
+                matchCondition.HeadServiceId = { $in: [mongoose.Types.ObjectId.createFromHexString(HeadServiceId)] };
             }
             if (googleLocation) {
                 matchCondition.googleLocation = String(googleLocation);
@@ -135,13 +135,13 @@ module.exports = {
                 if (!mongoose.Types.ObjectId.isValid(SubServiceId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.SubServiceId = { $in: [mongoose.Types.ObjectId(SubServiceId)] };
+                matchCondition.SubServiceId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubServiceId)] };
             }
             if (ServiceProviderId) {
                 if (!mongoose.Types.ObjectId.isValid(ServiceProviderId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition._id = mongoose.Types.ObjectId(ServiceProviderId);
+                matchCondition._id = mongoose.Types.ObjectId.createFromHexString(ServiceProviderId);
             }
             console.log(matchCondition, 'condition')
             const data = await module.exports.getServiceProviderData(matchCondition);

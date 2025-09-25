@@ -292,24 +292,22 @@ class CourseOrderService {
     async getCoachingCourceOrder(req, res) {
         let { CourseId, UserId, companyId } = req.query;
         try {
-            let matchCondition = { companyId: mongoose.Types.ObjectId(companyId) };
+            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
             if (CourseId) {
                 if (!mongoose.Types.ObjectId.isValid(CourseId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.CourceId = mongoose.Types.ObjectId(CourseId)
+                matchCondition.CourceId = mongoose.Types.ObjectId.createFromHexString(CourseId)
             }
             if (UserId) {
                 if (!mongoose.Types.ObjectId.isValid(UserId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.UserId = mongoose.Types.ObjectId(UserId)
+                matchCondition.UserId = mongoose.Types.ObjectId.createFromHexString(UserId)
             }
-            console.log("jjjjjjjjjjjj", req.query)
 
             const data = await this.getCoachingCourceOrderData(matchCondition);
-            console.log("jjjjjjjjjjjj", data)
 
             if (data.length === 0) {
                 return res.status(404).json({ message: 'No Cource Found', success: false });

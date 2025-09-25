@@ -7,28 +7,14 @@ const multer = require('multer')
 const productsController = require('./Products.controller');
 const { authentication } = require('../../Middleware/Middleware.controller')
 
-// const storage = multer.diskStorage({
-//     destination: (req, file, cb) => {
-//         const dir = path.join(__dirname, '../../public/varients');
-//         if (!fs.existsSync(dir)){
-//             fs.mkdirSync(dir, { recursive: true });
-//         }
-//         cb(null, dir);
-//     },
-//     filename: (req, file, cb) => {
-//         const ext = path.extname(file.originalname);
-//         cb(null, `${Date.now()}${ext}`);
-//     }
-// });
-// const upload = multer({ storage });
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         let dir;
 
         if (file.mimetype === "text/csv") {
-            dir = path.join(__dirname, '../outputfiles/blankproducts')
+            dir = path.join(__dirname, '..', '..', 'public', 'ShoppingProductsCsvFile')
         } else {
-            dir = path.join(__dirname, '../../public/varients');
+            dir = path.join(__dirname, '..', '..', 'public', 'Varients');
         }
 
         if (!fs.existsSync(dir)) {
@@ -40,8 +26,8 @@ const storage = multer.diskStorage({
         if (file.mimetype === "text/csv") {
             cb(null, file.originalname);
         } else {
-            const ext = path.extname(file.originalname);
-            cb(null, `${Date.now()}${ext}`);
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+            cb(null, 'Varient-' + uniqueSuffix + path.basename(file.originalname, path.extname(file.originalname)) + path.extname(file.originalname));
         }
     }
 });
@@ -50,36 +36,27 @@ const upload = multer({ storage });
 
 
 //******************************products******************************************** */
-router.post('/addproducts', authentication, upload.array('productImages', 10), (req, res) => {
-    if (req.user.role === 'Admin' || req.user.role === 'Company') {
+router.post('/addproducts',upload.array('productImages', 10), (req, res) => {
         return productsController.addproducts(req, res)
-    }
-    res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
-
 });
 router.post('/generateBlankCSVProducts', (req, res) => {
     // if (req.user.role === 'Admin' || req.user.role === 'Company') {
-        return productsController.generateBlankCSVProducts(req, res)
+    return productsController.generateBlankCSVProducts(req, res)
     // }
     // res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 
 });
 router.post('/upload-products-csv', upload.single('csvfile'), (req, res) => {
     //if (req.user.role === 'Admin' || req.user.role === 'Company') {
-        return productsController.uploadCSV(req, res)
+    return productsController.uploadCSV(req, res)
     //}
     // res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 
 
 });
 
-router.put('/updateproducts/:id', authentication, upload.array('productImages', 10), (req, res) => {
-    if (req.user.role === 'Admin' || req.user.role === 'Company') {
+router.put('/updateproducts/:id',  upload.array('productImages', 10), (req, res) => {
         return productsController.updateproducts(req, res);
-    }
-    res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
-
-
 });
 
 router.get('/getproducts', (req, res) => {

@@ -161,31 +161,31 @@ module.exports = {
         const { Position, BannerType, companyId, ProviderId, SubServiceId, HeadServiceId, BannerId } = req.query;
 
         try {
-            let matchCondition = { companyId: mongoose.Types.ObjectId(companyId) };
+            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
             if (HeadServiceId) {
                 if (!mongoose.Types.ObjectId.isValid(HeadServiceId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.HeadServiceId = mongoose.Types.ObjectId(HeadServiceId);
+                matchCondition.HeadServiceId = mongoose.Types.ObjectId.createFromHexString(HeadServiceId);
             }
             if (SubServiceId) {
                 if (!mongoose.Types.ObjectId.isValid(SubServiceId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.SubServiceId = mongoose.Types.ObjectId(SubServiceId);
+                matchCondition.SubServiceId = mongoose.Types.ObjectId.createFromHexString(SubServiceId);
             }
             if (BannerId) {
                 if (!mongoose.Types.ObjectId.isValid(BannerId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition._id = mongoose.Types.ObjectId(BannerId);
+                matchCondition._id = mongoose.Types.ObjectId.createFromHexString(BannerId);
             }
             if (ProviderId) {
                 if (!mongoose.Types.ObjectId.isValid(ProviderId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.ProviderId = mongoose.Types.ObjectId(ProviderId);
+                matchCondition.ProviderId = mongoose.Types.ObjectId.createFromHexString(ProviderId);
             }
             if (Position) {
                 if (Position !== "SUB" && Position !== "HEAD") {

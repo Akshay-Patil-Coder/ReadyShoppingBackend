@@ -184,7 +184,6 @@ module.exports = {
             });
         }
     },
-
     getcompanies: async (req, res) => {
         try {
             let query = {}

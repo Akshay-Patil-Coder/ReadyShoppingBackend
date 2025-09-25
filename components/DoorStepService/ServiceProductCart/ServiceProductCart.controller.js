@@ -390,19 +390,19 @@ module.exports = {
             if (!companyId || !UserId) {
                 return res.status(400).json({ message: "please provide company id and user id", success: false })
             }
-            let matchCondition = { companyId: mongoose.Types.ObjectId(companyId) };
+            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
             if (UserId) {
                 if (!mongoose.Types.ObjectId.isValid(UserId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.UserId = mongoose.Types.ObjectId(UserId);
+                matchCondition.UserId = mongoose.Types.ObjectId.createFromHexString(UserId);
             }
             if (serviceId) {
                 if (!mongoose.Types.ObjectId.isValid(serviceId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition["CartServices.serviceId"] = mongoose.Types.ObjectId(serviceId);
+                matchCondition["CartServices.serviceId"] = mongoose.Types.ObjectId.createFromHexString(serviceId);
             }
 
             const data = await module.exports.getServiceCartData(matchCondition);

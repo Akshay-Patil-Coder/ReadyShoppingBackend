@@ -34,7 +34,7 @@ module.exports = {
                 data: savedCoachingSkills
             });
         } catch (error) {
-            res.status(500).json({ success: false, message: error.message });
+            res.status(500).json({ success: false, error: error.message,message:"Internl Server Error" });
         }
     },
 
@@ -64,27 +64,27 @@ module.exports = {
          const { HeadCourceCatId, SubCourceCatId, companyId, SkillId } = req.query;
  
          try {
-             let matchCondition = { companyId: mongoose.Types.ObjectId(companyId) };
+             let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
  
              if (HeadCourceCatId) {
                  if (!mongoose.Types.ObjectId.isValid(HeadCourceCatId)) {
                      return res.status(400).json({ message: 'Invalid ID format', success: false });
                  }
-                 matchCondition.HeadCourceCatId = { $in: [mongoose.Types.ObjectId(HeadCourceCatId)] };
+                 matchCondition.HeadCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(HeadCourceCatId)] };
              }
             
              if (SubCourceCatId) {
                  if (!mongoose.Types.ObjectId.isValid(SubCourceCatId)) {
                      return res.status(400).json({ message: 'Invalid ID format', success: false });
                  }
-                 matchCondition.SubCourceCatId = { $in: [mongoose.Types.ObjectId(SubCourceCatId)] };
+                 matchCondition.SubCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubCourceCatId)] };
              }
             
              if (SkillId) {
                  if (!mongoose.Types.ObjectId.isValid(SkillId)) {
                      return res.status(400).json({ message: 'Invalid ID format', success: false });
                  }
-                 matchCondition._id = mongoose.Types.ObjectId(SkillId);
+                 matchCondition._id = mongoose.Types.ObjectId.createFromHexString(SkillId);
              }
  
              const data = await module.exports.getCoachingSkillData(matchCondition);
@@ -93,10 +93,10 @@ module.exports = {
                  return res.status(404).json({ message: 'No skill Found', success: false });
              }
  
-             return res.status(200).json({ data: data, success: true });
+             return res.status(200).json({ data: data, success: true,message:"skills fetched" });
  
          } catch (error) {
-             res.status(400).json({ error: error.message, success: false });
+             res.status(400).json({ error: error.message, success: false,message:"Interna Server Error" });
          }
      },
 
@@ -124,7 +124,7 @@ module.exports = {
  
  
          } catch (error) {
-             return resp.status(400).json({ error: error.message, success: false });
+             return resp.status(400).json({ error: error.message, success: false ,message:'internal Server Error'});
  
          }
      },
@@ -150,7 +150,7 @@ module.exports = {
             return resp.status(200).json({ message:'data updated', success: true,data:updateResult });
             
         } catch (error) {
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false ,message:"Internal Server Error"});
             
         }
      }

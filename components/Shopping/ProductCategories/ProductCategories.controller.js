@@ -10,63 +10,67 @@ const { default: mongoose } = require("mongoose");
 module.exports = {
     addCategory: async (req, res) => {
         try {
-            console.log("prasad", req.body);
-            const { companyId, categoryName, parentCategoryId, categoryLevel, Description, service_type, price, duration, serviceCategoryLevel = 0 } = req.body;
+            let { companyId, categoryName, parentCategoryId, categoryLevel, Description } = req.body;
+            if (!companyId || !categoryName || !categoryLevel || !Description) {
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
+                }
 
-            let imageName = '';
-
-            if (req.file) {
-                console.log("Uploaded file:", req.file);
-                const fileExtension = req.file.originalname.split('.').pop();
-                imageName = `${categoryName}.${fileExtension}`;
-
-                const oldPath = path.join(req.file.destination, req.file.filename);
-                const newPath = path.join(req.file.destination, imageName);
-
-                console.log("Old Path:", oldPath);
-                console.log("New Path:", newPath);
-
-                await fsPromises.rename(oldPath, newPath);
+                return res.status(400).json({
+                    success: false,
+                    message: 'Please Provide all Fields'
+                })
+            }
+            categoryLevel = Number(categoryLevel)
+            if (categoryLevel !== 0 && !parentCategoryId) {
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
+                }
+                return res.status(400).json({
+                    success: false,
+                    message: 'Please Provide parentCategoryId'
+                })
             }
 
-            if (categoryLevel !== '0' && !parentCategoryId) {
-                return res.status(400).send({ message: "Please provide parentCategoryId for subcategories" });
-            }
-
-            const newCategory = new dynamicCategoriesModel({
+            let ShoppingCategoryData = {
                 companyId,
                 categoryName,
-                parentCategoryId: parentCategoryId ? mongoose.Types.ObjectId(parentCategoryId) : null,
                 categoryLevel,
-                imageName,
-                Description
-            });
+                Description,
+            }
+
+            if (parentCategoryId) {
+                ShoppingCategoryData.parentCategoryId = parentCategoryId;
+            }
+
+            if (req.file?.filename) {
+                ShoppingCategoryData.imageName = req.file.filename
+            }
+
+            let newCategory = new dynamicCategoriesModel(ShoppingCategoryData);
 
             const categoryData = await newCategory.save();
 
-            const newService = new master_services({
-                companyId,
-                categoryId: categoryData._id,
-                service_type,
-                service_name: categoryName + " Services",
-                serviceCategoryLevel,
-                isActive: true,
-                description: Description,
-                price: price ? Number(price) : undefined,
-                duration
-            });
-
-            await newService.save();
-
-            res.status(200).send({
+            res.status(200).json({
                 success: true,
-                message: "Category and service added successfully",
-                categoryData,
-                newService
-            });
+                message: "Shopping Category Added Successfully",
+                data: categoryData
+            })
 
         } catch (error) {
-            console.error("Error:", error);
+            if (req.file?.filename) {
+                const newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
+                if (fs.existsSync(newImagePath)) {
+                    fs.unlinkSync(newImagePath);
+                }
+            }
+
             res.status(500).send({
                 success: false,
                 message: "Something went wrong",
@@ -79,15 +83,12 @@ module.exports = {
         try {
             const { parentCategoryId, companyId, categoryName } = req.query;
 
-            // Initialize the base query with isActive: true
             const query = { isActive: true };
 
-            // Conditionally add filters if they are provided
-            if (parentCategoryId) query.parentCategoryId = mongoose.Types.ObjectId(parentCategoryId);
-            if (companyId) query.companyId = mongoose.Types.ObjectId(companyId);
+            if (parentCategoryId) query.parentCategoryId = mongoose.Types.ObjectId.createFromHexString(parentCategoryId);
+            if (companyId) query.companyId = mongoose.Types.ObjectId.createFromHexString(companyId);
             if (categoryName) query.categoryName = new RegExp(categoryName, 'i'); // Case-insensitive regex search
 
-            // Fetch data based on constructed query
             const data = await dynamicCategoriesModel.find(query);
 
             res.status(200).send({
@@ -109,7 +110,6 @@ module.exports = {
         try {
             let { parentCategoryId, companyId, _id } = req.query;
 
-            // Check if companyId is present
             if (!companyId) {
                 return res.status(400).send({
                     success: false,
@@ -119,41 +119,33 @@ module.exports = {
 
             let categories;
 
-            // Fetch categories based on the presence of _id, parentCategoryId, or companyId
             if (_id) {
-                // Fetch the category by _id
                 categories = await dynamicCategoriesModel.find({ companyId, _id, isActive: true });
             } else if (parentCategoryId) {
-                // Fetch categories by parentCategoryId
                 categories = await dynamicCategoriesModel.find({ companyId, parentCategoryId, isActive: true });
             } else {
-                // Fetch all top-level categories (parentCategoryId is null)
                 categories = await dynamicCategoriesModel.find({ companyId, parentCategoryId: null, isActive: true });
             }
 
-            // Recursive function to build nested categories
             const buildCategoryTree = async (categories) => {
                 return Promise.all(
                     categories.map(async (category) => ({
-                        ...category._doc, // Spread category data
-                        subcategories: await getCategoryTreeRecursive(companyId, category._id), // Recursively fetch subcategories
+                        ...category._doc,
+                        subcategories: await getCategoryTreeRecursive(companyId, category._id),
                     }))
                 );
             };
 
-            // Function to recursively fetch subcategories
             const getCategoryTreeRecursive = async (companyId, parentCategoryId) => {
                 const subCategories = await dynamicCategoriesModel.find({ companyId, parentCategoryId, isActive: true });
                 if (!subCategories || subCategories.length === 0) {
-                    return []; // Base case: no more subcategories
+                    return [];
                 }
-                return buildCategoryTree(subCategories); // Recursively build subcategory tree
+                return buildCategoryTree(subCategories);
             };
 
-            // Build the category tree
             const categoryTree = await buildCategoryTree(categories);
 
-            // Send the response
             return res.status(200).send({
                 success: true,
                 message: "Success",
@@ -181,33 +173,24 @@ module.exports = {
             });
 
             if (!category) {
-                return res.status(404).send({ success: false, message: "Category not found" });
-            }
-
-            let updatedData = { ...req.body, updatedAt: new Date() };
-
-            if (req.file) {
-                const fileExtension = path.extname(req.file.filename);
-                const newImageName = `${categoryName}${fileExtension}`;
-
-                if (category.imageName) {
-                    const oldFilePath = path.join(__dirname, '../../public/master_categories', category.imageName);
-
-                    try {
-                        await fsPromises.access(oldFilePath);
-                        await fsPromises.unlink(oldFilePath);
-                    } catch (err) {
-                        // File doesn't exist or other error - we can continue
-                        console.log("Error deleting old file:", err.message);
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
                     }
                 }
+                return res.status(404).send({ success: false, message: "Category not found" });
+            }
+            let updatedData = { ...req.body, updatedAt: new Date() };
 
-                const newFilePath = path.join(__dirname, '../../public/master_categories', newImageName);
-                const currentFilePath = path.join(__dirname, '../../public/master_categories', req.file.filename);
-
-                await fsPromises.rename(currentFilePath, newFilePath);
-
-                updatedData.imageName = newImageName;
+            if (req.file?.filename) {
+                if (category?.imageName) {
+                    const oldFilePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', category?.imageName);
+                    if (fs.existsSync(oldFilePath)) {
+                        fs.unlinkSync(oldFilePath)
+                    }
+                }
+                updatedData.imageName = req.file.filename;
             }
 
             const updatedCategory = await dynamicCategoriesModel.findOneAndUpdate(
@@ -223,9 +206,15 @@ module.exports = {
             });
 
         } catch (error) {
+            if (req.file?.filename) {
+                const newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
+                if (fs.existsSync(newImagePath)) {
+                    fs.unlinkSync(newImagePath);
+                }
+            }
             console.log("error", error);
             res.status(500).send({
-                success: false, 
+                success: false,
                 message: "Something went wrong",
                 error: error.message
             });
@@ -268,24 +257,25 @@ module.exports = {
                 return res.status(404).send({ success: false, message: "Category not found" });
             }
 
-            if (!category.isActive) {
-                return res.status(400).send({ success: false, message: "Category is already inactive" });
-            }
-
             const productData = await ProductsModel.Products.find({ categoryId: id });
             let deletedProduct = '';
-            
+
             if (productData && productData.length > 0) {
                 const deleteProduct = await ProductsModel.Products.deleteMany({ categoryId: id });
                 deletedProduct = deleteProduct;
             }
 
             const result = await dynamicCategoriesModel.deleteOne({ _id: id });
-            
+
             if (result.deletedCount === 0) {
                 return res.status(400).json({ message: 'CATEGORY NOT DELETED', success: false });
             }
-
+            if (category?.imageName) {
+                const oldFilePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', category?.imageName);
+                if (fs.existsSync(oldFilePath)) {
+                    fs.unlinkSync(oldFilePath)
+                }
+            }
             res.status(200).json({ success: true, message: "category and product both deleted", data: result, deletedProduct: deletedProduct });
 
         } catch (error) {

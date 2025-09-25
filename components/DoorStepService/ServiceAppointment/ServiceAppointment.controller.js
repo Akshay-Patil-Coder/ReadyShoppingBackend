@@ -370,19 +370,19 @@ module.exports = {
         let { companyId, ServiceProductId, ServiceProviderId } = req.query;
 
         try {
-            let matchCondition = { companyId: mongoose.Types.ObjectId(companyId) };
+            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
             if (ServiceProductId) {
                 if (!mongoose.Types.ObjectId.isValid(ServiceProductId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.ServiceProductId = mongoose.Types.ObjectId(ServiceProductId);
+                matchCondition.ServiceProductId = mongoose.Types.ObjectId.createFromHexString(ServiceProductId);
             }
             if (ServiceProviderId) {
                 if (!mongoose.Types.ObjectId.isValid(ServiceProviderId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.ServiceProviderId = mongoose.Types.ObjectId(ServiceProviderId);
+                matchCondition.ServiceProviderId = mongoose.Types.ObjectId.createFromHexString(ServiceProviderId);
             }
             const data = await module.exports.getAppointmentsData(matchCondition);
 

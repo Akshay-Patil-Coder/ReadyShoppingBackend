@@ -394,19 +394,19 @@ module.exports = {
         const { SkillId, HeadCourceCatId, SubCourceCatId, CoachingUniversityId, companyId, ConnecterId, googleLocation } = req.query;
 
         try {
-            let matchCondition = { companyId: mongoose.Types.ObjectId(companyId) };
+            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
             if (HeadCourceCatId) {
                 if (!mongoose.Types.ObjectId.isValid(HeadCourceCatId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.HeadCourceCatId = { $in: [mongoose.Types.ObjectId(HeadCourceCatId)] };
+                matchCondition.HeadCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(HeadCourceCatId)] };
             }
             if (SkillId) {
                 if (!mongoose.Types.ObjectId.isValid(SkillId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.Skills = { $in: [mongoose.Types.ObjectId(SkillId)] };
+                matchCondition.Skills = { $in: [mongoose.Types.ObjectId.createFromHexString(SkillId)] };
             }
             if (googleLocation) {
                 matchCondition.googleLocation = String(googleLocation);
@@ -415,19 +415,19 @@ module.exports = {
                 if (!mongoose.Types.ObjectId.isValid(SubCourceCatId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.SubCourceCatId = { $in: [mongoose.Types.ObjectId(SubCourceCatId)] };
+                matchCondition.SubCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubCourceCatId)] };
             }
             if (ConnecterId) {
                 if (!mongoose.Types.ObjectId.isValid(ConnecterId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.ConnectedWith.connectedIds = { $in: [mongoose.Types.ObjectId(ConnecterId)] };
+                matchCondition.ConnectedWith.connectedIds = { $in: [mongoose.Types.ObjectId.createFromHexString(ConnecterId)] };
             }
             if (CoachingUniversityId) {
                 if (!mongoose.Types.ObjectId.isValid(CoachingUniversityId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition._id = mongoose.Types.ObjectId(CoachingUniversityId);
+                matchCondition._id = mongoose.Types.ObjectId.createFromHexString(CoachingUniversityId);
             }
 
             const data = await module.exports.getCoachingUniversityData(matchCondition);

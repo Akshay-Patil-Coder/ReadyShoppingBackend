@@ -37,34 +37,19 @@ const upload= multer({
     fileFilter: fileFilter 
 });
 
-router.post("/addbrands",authentication, upload.single('BrandImage'),(req,res)=>{
-  if (req.user.role === 'Admin' || req.user.role === 'Company') {
+router.post("/addbrands", upload.single('BrandImage'),(req,res)=>{
     return   brandController.addbrands(req,res)
-    }
-    res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
-  
-   
   });
 
 router.get('/getBrandsById',(req,res)=>{
     brandController.getBrandsById(req,res)
 })
  
-router.put('/updateSubCategoryList',authentication,(req,res)=>{
-  if (req.user.role === 'Admin' || req.user.role === 'Company') {
+router.put('/updateSubCategoryList',(req,res)=>{
     return   brandController.updateSubCategoryList(req,res)
-    }
-    res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
-  
-    
 })
-router.put('/updateBrandDetails',authentication,upload.single('BrandImage'),(req,res)=>{
-  if (req.user.role === 'Admin' || req.user.role === 'Company') {
+router.put('/updateBrandDetails',upload.single('BrandImage'),(req,res)=>{
     return   brandController.updateBrandDetails(req,res)
-    }
-    res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
-  
-   
 })
 
 

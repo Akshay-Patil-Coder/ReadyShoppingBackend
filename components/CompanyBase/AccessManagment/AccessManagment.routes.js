@@ -15,22 +15,12 @@ router.get('/getadminusers', async (req, res) => {
 router.get('/getadminusersforallcompany', async (req, res) => {
     await adminUserController.getadminusersforallcompany(req, res);
 });
-router.put('/deleteFunctionallity', authentication, async (req, res) => {
-    if (req.user.role === 'Admin') {
+router.put('/deleteFunctionallity', async (req, res) => {
         return await adminUserController.deleteFunctionallity(req, res);
-    }
-    res.status(400).json({ message: "Authentication Failed only admin eligible to add data", success: false })
-
-
 });
 
-router.delete('/deleteadminusers/:id', authentication, async (req, res) => {
-    if (req.user.role === 'Admin') {
+router.delete('/deleteadminusers/:id', async (req, res) => {
         return await adminUserController.deleteadminusers(req, res);
-    }
-    res.status(400).json({ message: "Authentication Failed only admin eligible to add data", success: false })
-
-
 });
 
 module.exports = router;

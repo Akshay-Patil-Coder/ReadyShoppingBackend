@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const adminuserschema = require('./AccessManagment.model');
-const { ObjectID } = require('mongodb');
 const Company = require('../Company/Company.model');
 
 
@@ -48,7 +47,7 @@ module.exports = {
         try {
             let query = {};
             if(req.query.companyId){
-                query.companyId = ObjectID(req.query.companyId)
+                query.companyId =  mongoose.Types.ObjectId.createFromHexString(req.query.companyId)
             }
 
             const users = await adminuserschema.find(query)

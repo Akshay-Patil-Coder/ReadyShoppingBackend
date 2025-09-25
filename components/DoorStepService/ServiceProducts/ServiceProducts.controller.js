@@ -156,19 +156,19 @@ module.exports = {
         const { HeadServiceId, SubServiceId, companyId, ServiceProductId, googleLocation, ProviderId, CategoryName } = req.query;
 
         try {
-            let matchCondition = { companyId: mongoose.Types.ObjectId(companyId) };
+            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
             if (HeadServiceId) {
                 if (!mongoose.Types.ObjectId.isValid(HeadServiceId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.HeadServiceId = { $in: [mongoose.Types.ObjectId(HeadServiceId)] };
+                matchCondition.HeadServiceId = { $in: [mongoose.Types.ObjectId.createFromHexString(HeadServiceId)] };
             }
             if (ProviderId) {
                 if (!mongoose.Types.ObjectId.isValid(ProviderId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.ProviderId = { $in: [mongoose.Types.ObjectId(ProviderId)] };
+                matchCondition.ProviderId = { $in: [mongoose.Types.ObjectId.createFromHexString(ProviderId)] };
             }
             if (googleLocation) {
                 matchCondition.googleLocation = String(googleLocation);
@@ -177,13 +177,13 @@ module.exports = {
                 if (!mongoose.Types.ObjectId.isValid(SubServiceId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.SubServiceId = { $in: [mongoose.Types.ObjectId(SubServiceId)] };
+                matchCondition.SubServiceId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubServiceId)] };
             }
             if (ServiceProductId) {
                 if (!mongoose.Types.ObjectId.isValid(ServiceProductId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition._id = mongoose.Types.ObjectId(ServiceProductId);
+                matchCondition._id = mongoose.Types.ObjectId.createFromHexString(ServiceProductId);
             }
             if (CategoryName) {
                 matchCondition.SubServiceName = { $regex: `^${CategoryName}$`, $options: "i" }

@@ -2,6 +2,7 @@ const { ObjectId } = require("mongodb")
 const serviceCategoryModel = require('./ServiceCategory.model')
 const fs = require('fs');
 const path = require('path');
+const { default: mongoose } = require("mongoose");
 
 
 module.exports = {
@@ -77,8 +78,8 @@ module.exports = {
 
             const query = { isActive: true };
 
-            if (serviceParentCategoryId) query.serviceParentCategoryId = new ObjectId(serviceParentCategoryId);
-            if (companyId) query.companyId = new ObjectId(companyId);
+            if (serviceParentCategoryId) query.serviceParentCategoryId = mongoose.Types.ObjectId.createFromHexString(serviceParentCategoryId);
+            if (companyId) query.companyId = mongoose.Types.ObjectId.createFromHexStringd(companyId);
             if (serviceCategoryName) query.serviceCategoryName = new RegExp(serviceCategoryName, 'i'); // Case-insensitive regex search
 
             const data = await serviceCategoryModel.find(query);

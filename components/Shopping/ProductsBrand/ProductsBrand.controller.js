@@ -9,9 +9,19 @@ module.exports = {
   addbrands: async (req, resp) => {
     try {
       let { BrandName, companyId, HeadCategoryId, SubCategoryId } = req.body;
-      SubCategoryId = JSON.parse(SubCategoryId);
-      console.log(SubCategoryId);
-
+      if (SubCategoryId) {
+        try {
+          SubCategoryId = JSON.parse(SubCategoryId);
+        } catch {
+          if (req.file?.filename) {
+            const newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
+            if (fs.existsSync(newImagePath)) {
+              fs.unlinkSync(newImagePath);
+            }
+          }
+          return resp.status(400).json({ message: 'Invalid SubCategoryId format', success: false });
+        }
+      }
       if (!BrandName || !companyId || !HeadCategoryId || !SubCategoryId) {
         if (req.file?.filename) {
           const newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
@@ -21,7 +31,7 @@ module.exports = {
       }
 
       const brandData = { BrandName, companyId, HeadCategoryId, SubCategoryId };
-      if (req.file) brandData.BrandImage = req.file.filename;
+      if (req.file?.filename) brandData.BrandImage = req.file.filename;
 
       const newBrand = new brandmodel.brandmodel(brandData);
       const result = await newBrand.save();
@@ -34,13 +44,13 @@ module.exports = {
         return resp.status(400).json({ message: 'Something went wrong while saving the brand', success: false });
       }
 
-      return resp.status(200).json({ data: result, success: true });
+      return resp.status(200).json({ data: result, success: true, message: 'Brand added successfully' });
     } catch (error) {
       if (req.file?.filename) {
         const newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
         if (fs.existsSync(newImagePath)) fs.unlinkSync(newImagePath);
       }
-      return resp.status(500).json({ error: error.message, success: false });
+      return resp.status(500).json({ message: "Internal Server Error", error: error.message, success: false });
     }
   },
 
@@ -70,25 +80,25 @@ module.exports = {
     const { HeadCategoryId, SubCategoryId, companyId, BrandId } = req.query;
 
     try {
-      let matchCondition = { companyId: mongoose.Types.ObjectId(companyId) };
+      let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
       if (HeadCategoryId) {
         if (!mongoose.Types.ObjectId.isValid(HeadCategoryId)) {
           return res.status(400).json({ message: 'Invalid ID format', success: false });
         }
-        matchCondition.HeadCategoryId = mongoose.Types.ObjectId(HeadCategoryId);
+        matchCondition.HeadCategoryId = mongoose.Types.ObjectId.createFromHexString(HeadCategoryId);
       }
       if (SubCategoryId) {
         if (!mongoose.Types.ObjectId.isValid(SubCategoryId)) {
           return res.status(400).json({ message: 'Invalid ID format', success: false });
         }
-        matchCondition.SubCategoryId = { $in: [mongoose.Types.ObjectId(SubCategoryId)] };
+        matchCondition.SubCategoryId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubCategoryId)] };
       }
       if (BrandId) {
         if (!mongoose.Types.ObjectId.isValid(BrandId)) {
           return res.status(400).json({ message: 'Invalid ID format', success: false });
         }
-        matchCondition._id = mongoose.Types.ObjectId(BrandId);
+        matchCondition._id = mongoose.Types.ObjectId.createFromHexString(BrandId);
       }
 
       const data = await module.exports.getBrandData(matchCondition);
@@ -97,9 +107,9 @@ module.exports = {
         return res.status(404).json({ message: 'No Brands found for this category', success: false });
       }
 
-      return res.status(200).json({ data, success: true });
+      return res.status(200).json({ data, success: true, message: "brands fetched successfully" });
     } catch (error) {
-      return res.status(400).json({ error: error.message, success: false });
+      return res.status(400).json({ message: "Internal Server Error", error: error.message, success: false });
     }
   },
 
@@ -110,7 +120,7 @@ module.exports = {
       const operation = req.query.operation;
 
       if (!BrandId || !SubCategoryId || SubCategoryId.length === 0) {
-        return resp.status(400).send('Please insert valid data');
+        return resp.status(400).send({ message: 'Please insert valid data', success: false });
       }
 
       let updatedResult;
@@ -128,10 +138,10 @@ module.exports = {
         );
       }
 
-      return resp.status(200).json({ data: updatedResult, success: true });
+      return resp.status(200).json({ data: updatedResult, success: true, message: "updated successfully" });
     } catch (error) {
       console.error(error);
-      return resp.status(400).json({ error: error.message, success: false });
+      return resp.status(400).json({ message: "Internal Server Error", error: error.message, success: false });
     }
   },
 
@@ -145,11 +155,11 @@ module.exports = {
           const newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
           if (fs.existsSync(newImagePath)) fs.unlinkSync(newImagePath);
         }
-        return resp.status(400).send('Please insert valid data');
+        return resp.status(400).send({ message: 'Please insert valid data', success: false });
       }
 
       const brandData = { BrandName };
-      if (req.file) {
+      if (req.file?.filename) {
         const existingBrand = await brandmodel.brandmodel.findOne({ _id: BrandId, companyId });
         if (existingBrand?.BrandImage) {
           const oldImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', existingBrand.BrandImage);
@@ -164,16 +174,16 @@ module.exports = {
       );
 
       if (!updatedResult) {
-        return resp.status(400).json({ message: 'Not updated', success: false });
+        return resp.status(400).json({ message: 'Not updated', success: false, message: "Brand detail not updated" });
       }
 
-      return resp.status(200).json({ data: updatedResult, success: true });
+      return resp.status(200).json({ data: updatedResult, success: true, message: "Brand detail updated successfully" });
     } catch (error) {
       if (req.file?.filename) {
         const newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
         if (fs.existsSync(newImagePath)) fs.unlinkSync(newImagePath);
       }
-      return resp.status(400).json({ error: error.message, success: false });
+      return resp.status(400).json({ message: "Internal Server Error", error: error.message, success: false });
     }
   },
 };

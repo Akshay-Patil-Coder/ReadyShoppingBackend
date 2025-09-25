@@ -2,6 +2,7 @@ const path = require("path")
 const fs = require('fs');
 const CoachingCategory = require("./CoachingCategories.model");
 const { ObjectId } = require("mongodb");
+const { default: mongoose } = require("mongoose");
 
 
 
@@ -15,7 +16,6 @@ module.exports = {
 
 
             if (!companyId || !coachingCategoryName || !coachingLevel || !Description) {
-                console.log("////////////////", req.body)
                 if (req.file?.filename) {
                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingCategoryImage', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
@@ -53,7 +53,7 @@ module.exports = {
                 coachingCategoryData.coachingParentCategoryId = coachingParentCategoryId;
             }
 
-            if (req.file) {
+            if (req.file?.filename) {
                 coachingCategoryData.coachingImage = req.file.filename
             }
 
@@ -89,8 +89,8 @@ module.exports = {
 
             let query = { isActive: true }
 
-            if (companyId) query.companyId = new ObjectId(companyId);
-            if (coachingParentCategoryId) query.coachingParentCategoryId = new ObjectId(coachingParentCategoryId);
+            if (companyId) query.companyId = mongoose.Types.ObjectId.createFromHexString(companyId);
+            if (coachingParentCategoryId) query.coachingParentCategoryId = mongoose.Types.ObjectId.createFromHexString(coachingParentCategoryId);
             if (coachingCategoryName) query.coachingCategoryName = new RegExp(coachingCategoryName, 'i')
 
             const data = await CoachingCategory.find(query)
@@ -169,16 +169,13 @@ module.exports = {
 
     updateCoachingCategory: async (req, res) => {
         try {
-            console.log("req.body//////////", req.body)
             let { coachingCategoryName } = req.body;
-            console.log("coachingCategoryName", coachingCategoryName)
             const category = await CoachingCategory.findOne({
                 $or: [
                     { _id: req.params.id },
                     { coachingCategoryName: coachingCategoryName }
                 ]
             })
-            console.log("category", category)
             if (!category) {
                 if (req.file?.filename) {
                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingCategoryImage', req.file.filename);
@@ -197,7 +194,7 @@ module.exports = {
             console.log("updated Data", updatedData)
 
 
-            if (req.file) {
+            if (req.file?.filename) {
                 if (category && category.coachingImage) {
                     let oldFilePath = path.join(__dirname, '..', '..', 'public', 'CoachingCategoryImage', category.coachingImage)
                     if (fs.existsSync(oldFilePath)) {
@@ -212,7 +209,7 @@ module.exports = {
                 { $set: updatedData },
                 { new: true }
             )
-
+            
             return res.status(200).json({
                 success: true,
                 message: "Category Updated Successfully",

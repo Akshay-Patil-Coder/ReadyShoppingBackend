@@ -97,7 +97,7 @@ module.exports = {
         const { CompanyGainerName, Email, companyId, CoachingGainerCompanyId, googleLocation } = req.query;
 
         try {
-            let matchCondition = { companyId: mongoose.Types.ObjectId(companyId) };
+            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
             if (CompanyGainerName) {
                 matchCondition.CompanyGainerName = String(CompanyGainerName);
@@ -112,7 +112,7 @@ module.exports = {
                 if (!mongoose.Types.ObjectId.isValid(CoachingGainerCompanyId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition._id = mongoose.Types.ObjectId(CoachingGainerCompanyId);
+                matchCondition._id = mongoose.Types.ObjectId.createFromHexString(CoachingGainerCompanyId);
             }
 
             const data = await module.exports.getCoachingGainerCompaniesData(matchCondition);

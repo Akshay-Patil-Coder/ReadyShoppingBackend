@@ -43,6 +43,12 @@ module.exports = {
                 data: savedUser
             });
         } catch (error) {
+             if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
+                }
             res.status(500).json({ success: false, message: error.message });
         }
     },
@@ -72,6 +78,12 @@ module.exports = {
             const existingUser = await masterUsers.findById(id);
 
             if (!existingUser) {
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
+                }
                 return res.status(404).json({ success: false, message: "User not found" });
             }
             if (!req.body.FunctionallityName || !id) {
@@ -86,10 +98,10 @@ module.exports = {
 
             let updatedData = { FunctionallityName: req.body.FunctionallityName };
 
-            if (req.file) {
+            if (req.file?.filename) {
 
-                const oldImagePath = path.join(__dirname, '../../public/FunctionallityLogos', existingUser.FunctionallityLogo);
-                if (existingUser.FunctionallityLogo && fs.existsSync(oldImagePath)) {
+                const oldImagePath = path.join(__dirname, '..','..','public','FunctionallityLogos', existingUser?.FunctionallityLogo);
+                if (existingUser?.FunctionallityLogo && fs.existsSync(oldImagePath)) {
                     fs.unlinkSync(oldImagePath);
                 }
 
@@ -118,36 +130,5 @@ module.exports = {
         }
     },
 
-    // deletemasterusers: async (req, res) => {
-    //     try {
-    //         const { id } = req.params; 
-    //         const user = await masterUsers.findById(id);
-
-    //         if (!user) {
-    //             return res.status(404).json({ success: false, message: "User not found" });
-    //         }
-
-
-    //         if (user.image) {
-    //             const imagePath = path.join(__dirname, '../../public/masterusers', user.image);
-    //             if (fs.existsSync(imagePath)) {
-    //                 fs.unlinkSync(imagePath);
-    //             }
-    //         }
-
-    //         await masterUsers.findByIdAndDelete(id);
-
-    //         res.status(200).json({
-    //             success: true,
-    //             message: "User deleted successfully"
-    //         });
-
-    //     } catch (error) {
-    //         res.status(500).json({
-    //             success: false,
-    //             message: error.message
-    //         });
-    //     }
-    // }
 
 };

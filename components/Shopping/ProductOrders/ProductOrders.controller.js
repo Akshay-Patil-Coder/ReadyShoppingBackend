@@ -29,16 +29,16 @@ module.exports = {
     getorders: async (req, res) => {
         let query = {};
         if (req.query.deliveryboyId) {
-            query.deliveryboyId = mongoose.Types.ObjectId(req.query.deliveryboyId);
+            query.deliveryboyId = mongoose.Types.ObjectId.createFromHexString(req.query.deliveryboyId);
         }
         if (req.query.user) {
-            query.user = mongoose.Types.ObjectId(req.query.user);
+            query.user = mongoose.Types.ObjectId.createFromHexString(req.query.user);
         }
         if (req.query.companyId) {
-            query.companyId = mongoose.Types.ObjectId(req.query.companyId);
+            query.companyId = mongoose.Types.ObjectId.createFromHexString(req.query.companyId);
         }
         if (req.query.cartId) {
-            query.cartId = mongoose.Types.ObjectId(req.query.cartId);
+            query.cartId = mongoose.Types.ObjectI.createFromHexStringd(req.query.cartId);
         }
         if (req.query.status) {
             query.status = req.query.status;
@@ -102,8 +102,8 @@ module.exports = {
             const { user, companyId, productId } = req.query;
 
             let query = {};
-            if (user) query.user = mongoose.Types.ObjectId(user);
-            if (companyId) query.companyId = mongoose.Types.ObjectId(companyId);
+            if (user) query.user = mongoose.Types.ObjectId.createFromHexString(user);
+            if (companyId) query.companyId = mongoose.Types.ObjectId.createFromHexString(companyId);
             
             console.log("req.qusssssss", req.query.productId);
             

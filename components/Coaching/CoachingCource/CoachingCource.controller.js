@@ -1568,7 +1568,7 @@ class CourseService {
         let { CourseId, CourceName, Skills, SkillsId, ProviderId, ProviderType, connectedId, connectedType, HeadCourceCatId, SubCourceCatId, companyId } = req.query;
         console.log("zzzzzzzzzzzzzzz", req.query)
         try {
-            let matchCondition = { companyId: mongoose.Types.ObjectId(companyId) };
+            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
             if (CourceName) {
                 matchCondition.CourceName = { $in: [String(CourceName)] };
@@ -1580,19 +1580,19 @@ class CourseService {
                 if (!mongoose.Types.ObjectId.isValid(SkillsId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.SkillsId = { $in: [mongoose.Types.ObjectId(SkillsId)] }
+                matchCondition.SkillsId = { $in: [mongoose.Types.ObjectId.createFromHexString(SkillsId)] }
             }
             if (ProviderId) {
                 if (!mongoose.Types.ObjectId.isValid(ProviderId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.ProviderId = mongoose.Types.ObjectId(ProviderId);
+                matchCondition.ProviderId = mongoose.Types.ObjectId.createFromHexString(ProviderId);
             }
             if (ProviderType) {
                 if (!mongoose.Types.ObjectId.isValid(ProviderType)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.ProviderType = mongoose.Types.ObjectId(ProviderType);
+                matchCondition.ProviderType = mongoose.Types.ObjectId.createFromHexString(ProviderType);
             }
 
             if (connectedType || connectedId) {
@@ -1604,10 +1604,10 @@ class CourseService {
                 }
                 const elemMatch = {};
                 if (connectedType) {
-                    elemMatch.connectedType = mongoose.Types.ObjectId(connectedType);
+                    elemMatch.connectedType = mongoose.Types.ObjectId.createFromHexString(connectedType);
                 }
                 if (connectedId) {
-                    elemMatch.connectedIds = { $in: [mongoose.Types.ObjectId(connectedId)] };
+                    elemMatch.connectedIds = { $in: [mongoose.Types.ObjectId.createFromHexString(connectedId)] };
                 }
                 matchCondition.ConnectedWith = { $elemMatch: elemMatch };
             }
@@ -1615,19 +1615,19 @@ class CourseService {
                 if (!mongoose.Types.ObjectId.isValid(HeadCourceCatId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.HeadCourceCatId = { $in: [mongoose.Types.ObjectId(HeadCourceCatId)] }
+                matchCondition.HeadCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(HeadCourceCatId)] }
             }
             if (SubCourceCatId) {
                 if (!mongoose.Types.ObjectId.isValid(SubCourceCatId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.SubCourceCatId = { $in: [mongoose.Types.ObjectId(SubCourceCatId)] };
+                matchCondition.SubCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubCourceCatId)] };
             }
             if (CourseId) {
                 if (!mongoose.Types.ObjectId.isValid(CourseId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition._id = mongoose.Types.ObjectId(CourseId)
+                matchCondition._id = mongoose.Types.ObjectId.createFromHexString(CourseId)
             }
             const data = await this.getCoachingCourceData(matchCondition);
 

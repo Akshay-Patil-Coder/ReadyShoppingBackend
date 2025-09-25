@@ -27,6 +27,7 @@ import { PaymentTokenModel } from './PaymentToken.model.js';
 import CoachingGainerCompaniesModel from '../CoachingGainerCompnay/CoachingGainerCompnay.model.js';
 import { CompanyGainerRequestModel } from "../CoachingGainerCompanyOrder/CoachingGainerCompanyOrder.model.js";
 import package_model from "../package/package.model";
+import mongoose from "mongoose";
 
 export const initiateTransaction = async (req, res) => {
   console.log("request query-------- in paytm", JSON.stringify(req.query));
@@ -1933,7 +1934,7 @@ export const getPaytmTransactionDetails = async (req, res) => {
   try {
     const paytmTransactionDetails = await paytmModel.aggregate([
       {
-        $match: { _id: mongoose.Types.ObjectId(req.params.paytmId) },
+        $match: { _id: mongoose.Types.ObjectId.createFromHexString(req.params.paytmId) },
       },
       {
         $lookup: {

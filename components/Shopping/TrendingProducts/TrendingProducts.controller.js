@@ -9,7 +9,7 @@ module.exports = {
             console.log(req.body, 'new testing');
 
             if (!categoryId || !SubCategoryId || !productsId || productsId.length === 0) {
-                return res.status(400).send('Please insert valid data');
+                return res.status(400).send({message:'Please insert valid data',success:false});
             }
 
             let result = await trendingmodel.trendingsproducts.findOne({ SubCategoryId, companyId });
@@ -25,29 +25,29 @@ module.exports = {
                     { new: true }
                 );
 
-                return res.status(200).json({ data: updatedResult, success: true });
+                return res.status(200).json({ data: updatedResult, success: true,message:'trending product added successfully' });
             }
         } catch (error) {
             console.error(error);
-            return res.status(400).json({ error: error.message, success: false });
+            return res.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
         }
     },
 
     gettrendingproducts: async (req, res) => {
         const { companyId, categoryId, SubCategoryId } = req.query;
         try {
-            let matchCondition = { companyId: mongoose.Types.ObjectId(companyId) };
+            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
             if (categoryId) {
                 if (!mongoose.Types.ObjectId.isValid(categoryId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.categoryId = mongoose.Types.ObjectId(categoryId);
+                matchCondition.categoryId = mongoose.Types.ObjectId.createFromHexString(categoryId);
             }
             if (SubCategoryId) {
                 if (!mongoose.Types.ObjectId.isValid(SubCategoryId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.SubCategoryId = mongoose.Types.ObjectId(SubCategoryId);
+                matchCondition.SubCategoryId = mongoose.Types.ObjectId.createFromHexString(SubCategoryId);
             }
            
 
@@ -87,12 +87,11 @@ module.exports = {
             if (data.length === 0) {
                 return res.status(404).json({ message: 'No trending products found for this category', success: false });
             }
-            // console.log('result of populated data', data);
-            return res.status(200).json({ data: data, success: true });
+            return res.status(200).json({ data: data, success: true ,message:'trending product fetched successfully'});
 
         } catch (error) {
             console.error(error);
-            return res.status(500).json({ error: error.message, success: false });
+            return res.status(500).json({ message:'Internal Server Error',error: error.message, success: false });
         }
     },
 
@@ -103,7 +102,7 @@ module.exports = {
             console.log(req.body, 'new testing');
 
             if (!SubCategoryId || !productsId || productsId.length === 0) {
-                return res.status(400).send('Please insert valid data');
+                return res.status(400).send({message:'Please insert valid data',success:false});
             }
 
 
@@ -114,31 +113,13 @@ module.exports = {
                     { new: true }
                 );
 
-                return res.status(200).json({ data: updatedResult, success: true });
+                return res.status(200).json({ message:'deleted successfully',data: updatedResult, success: true });
             }
         } catch (error) {
             console.error(error);
-            return res.status(400).json({ error: error.message, success: false });
+            return res.status(400).json({message:"Internal Server Error", error: error.message, success: false });
         }
 
     },
-
-    // deletetrendingproductsList: async (req, res) => {
-    //     try {
-
-    //         const data = await trendingmodel.trendingsproducts.findOneAndDelete({ _id: req.params._id })
-    //         res.status(200).send({
-    //             success: "true",
-    //             message: "successfully deleted",
-    //             data: data
-    //         })
-    //     } catch (error) {
-    //         res.status(200).send({
-    //             success: "false",
-    //             message: "Unsuccessfully deleted",
-    //             error: error.message
-    //         })
-    //     }
-    // },
 
 }

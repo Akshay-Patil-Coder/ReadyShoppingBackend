@@ -8,8 +8,8 @@ module.exports = {
             const { productId, userId, quantity, companyId, price } = req.body;
 
             const existingCart = await Cart.findOne({ 
-                userId: mongoose.Types.ObjectId(userId), 
-                companyId: mongoose.Types.ObjectId(companyId) 
+                userId: mongoose.Types.ObjectId.createFromHexString(userId), 
+                companyId: mongoose.Types.ObjectId.createFromHexString(companyId) 
             });
 
             if (existingCart) {
@@ -20,7 +20,7 @@ module.exports = {
                     existingCart.products[productIndex].totalPrice = existingCart.products[productIndex].quantity * existingCart.products[productIndex].price;
                 } else {
                     existingCart.products.push({
-                        productId: mongoose.Types.ObjectId(productId),
+                        productId: mongoose.Types.ObjectId.createFromHexString(productId),
                         quantity,
                         price,
                         totalPrice: quantity * price
@@ -36,10 +36,10 @@ module.exports = {
                 });
             } else {
                 const newCart = new Cart({
-                    userId: mongoose.Types.ObjectId(userId),
-                    companyId: mongoose.Types.ObjectId(companyId),
+                    userId: mongoose.Types.ObjectId.createFromHexString(userId),
+                    companyId: mongoose.Types.ObjectId.createFromHexString(companyId),
                     products: [{
-                        productId: mongoose.Types.ObjectId(productId),
+                        productId: mongoose.Types.ObjectId.createFromHexString(productId),
                         quantity,
                         price,
                         totalPrice: quantity * price
@@ -67,10 +67,10 @@ module.exports = {
             let query = {};
 
             if (req.query.companyId) {
-                query.companyId = mongoose.Types.ObjectId(req.query.companyId); 
+                query.companyId = mongoose.Types.ObjectId.createFromHexString(req.query.companyId); 
             }
             if (req.query.userId) {
-                query.userId = mongoose.Types.ObjectId(req.query.userId);
+                query.userId = mongoose.Types.ObjectId.createFromHexString(req.query.userId);
             }
 
             const data = await Cart.aggregate([

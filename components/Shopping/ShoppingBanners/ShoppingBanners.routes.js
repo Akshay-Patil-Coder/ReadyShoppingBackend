@@ -19,7 +19,7 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'banner-' + uniqueSuffix + path.basename(file.originalname, path.extname(file.originalname)) + path.extname(file.originalname));
+    cb(null, 'Banner-' + uniqueSuffix + path.basename(file.originalname, path.extname(file.originalname)) + path.extname(file.originalname));
   }
 });
 
@@ -36,33 +36,21 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
-router.post('/addbanner', authentication, upload.single('BannerImage'), (req, res) => {
-  if (req.user.role === 'Admin' || req.user.role === 'Company') {
+router.post('/addbanner', upload.single('BannerImage'), (req, res) => {
     return bannersController.addbanner(req, res);
-  }
-  res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 })
 router.get('/getBannersById', (req, res) => {
   bannersController.getBannersById(req, res)
 })
-router.put('/updateProductsById', authentication, (req, res) => {
-  if (req.user.role === 'Admin' || req.user.role === 'Company') {
+router.put('/updateProductsById', (req, res) => {
     return bannersController.updateProductsById(req, res)
-  }
-  res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 })
-router.put('/updateBannerDetails', authentication, upload.single('BannerImage'), (req, res) => {
-  if (req.user.role === 'Admin' || req.user.role === 'Company') {
+router.put('/updateBannerDetails', upload.single('BannerImage'), (req, res) => {
     return bannersController.updateBannerDetails(req, res)
-  }
-  res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 })
-router.delete('/deleteBanner', authentication, (req, res) => {
-  if (req.user.role === 'Admin' || req.user.role === 'Company') {
+router.delete('/deleteBanner', (req, res) => {
     return bannersController.deleteBanner(req, res)
-  }
-  res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
-})
+ })
 
 
 

@@ -123,7 +123,7 @@ module.exports = {
                 return resp.status(400).json({ message: 'Something went wrong while saving the company', success: false });
             }
 
-            return resp.status(200).json({ data: result, success: true });
+            return resp.status(200).json({ data: result, success: true,messgae:"company add3ed successfully" });
         } catch (error) {
            if (req.file?.filename) {
                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingCompanyImage', req.file.filename);
@@ -131,7 +131,7 @@ module.exports = {
                         fs.unlinkSync(newImagePath);
                     }
                 }
-            return resp.status(500).json({ error: error.message, success: false });
+            return resp.status(500).json({ error: error.message, success: false,message:"Internal Server Error" });
         }
     },
 
@@ -285,19 +285,19 @@ module.exports = {
         const { SkillId, HeadCourceCatId, SubCourceCatId, ConnecterId, companyId, CoachingCompanyId, googleLocation } = req.query;
 
         try {
-            let matchCondition = { companyId: mongoose.Types.ObjectId(companyId) };
+            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
             if (HeadCourceCatId) {
                 if (!mongoose.Types.ObjectId.isValid(HeadCourceCatId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.HeadCourceCatId = { $in: [mongoose.Types.ObjectId(HeadCourceCatId)] };
+                matchCondition.HeadCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(HeadCourceCatId)] };
             }
             if (SkillId) {
                 if (!mongoose.Types.ObjectId.isValid(SkillId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.Skills = { $in: [mongoose.Types.ObjectId(SkillId)] };
+                matchCondition.Skills = { $in: [mongoose.Types.ObjectId.createFromHexString(SkillId)] };
             }
             if (googleLocation) {
                 matchCondition.googleLocation = String(googleLocation);
@@ -306,19 +306,19 @@ module.exports = {
                 if (!mongoose.Types.ObjectId.isValid(SubCourceCatId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.SubCourceCatId = { $in: [mongoose.Types.ObjectId(SubCourceCatId)] };
+                matchCondition.SubCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubCourceCatId)] };
             }
             if (ConnecterId) {
                 if (!mongoose.Types.ObjectId.isValid(ConnecterId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.ConnectedWith.connectedIds = { $in: [mongoose.Types.ObjectId(ConnecterId)] };
+                matchCondition.ConnectedWith.connectedIds = { $in: [mongoose.Types.ObjectId.createFromHexString(ConnecterId)] };
             }
             if (CoachingCompanyId) {
                 if (!mongoose.Types.ObjectId.isValid(CoachingCompanyId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition._id = mongoose.Types.ObjectId(CoachingCompanyId);
+                matchCondition._id = mongoose.Types.ObjectId.createFromHexString(CoachingCompanyId);
             }
 
             const data = await module.exports.getCoachingCompaniesData(matchCondition);
@@ -327,10 +327,10 @@ module.exports = {
                 return res.status(404).json({ message: 'No company Found', success: false });
             }
 
-            return res.status(200).json({ data: data, success: true });
+            return res.status(200).json({ data: data, success: true,message:'company fetched' });
 
         } catch (error) {
-            res.status(400).json({ error: error.message, success: false });
+            res.status(400).json({ error: error.message, success: false,message:"Internal Server Erro" });
         }
     },
 
@@ -340,7 +340,7 @@ module.exports = {
             const companyId = req.query.companyId;
             const operation = req.query.operation;
             if (!CoachingCompanyId || !SubCourceCatId || SubCourceCatId.length === 0) {
-                return resp.status(400).send('Please insert valid data');
+                return resp.status(400).send({message:'Please insert valid data',success:false});
             }
 
 
@@ -352,7 +352,7 @@ module.exports = {
                         { new: true }
                     );
 
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true ,message:"category deleted"});
                 }
                 if (operation === 'add') {
                     let updatedResult = await CoachingCompaniesModel.findOneAndUpdate(
@@ -361,13 +361,13 @@ module.exports = {
                         { new: true }
                     );
 
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true,message:"category added" });
                 }
 
             }
         } catch (error) {
             console.error(error);
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
         }
 
     },
@@ -389,7 +389,7 @@ module.exports = {
                         { new: true }
                     );
 
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true,message:"category deleted" });
                 }
                 if (operation === 'add') {
                     let updatedResult = await CoachingCompaniesModel.findOneAndUpdate(
@@ -398,13 +398,13 @@ module.exports = {
                         { new: true }
                     );
 
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true ,message:"category added"});
                 }
 
             }
         } catch (error) {
             console.error(error);
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
         }
 
     },
@@ -414,7 +414,7 @@ module.exports = {
             const companyId = req.query.companyId;
             const operation = req.query.operation;
             if (!CoachingCompanyId || !CompanyOwnerName || CompanyOwnerName.length === 0) {
-                return resp.status(400).send('Please insert valid data');
+                return resp.status(400).send({message:'Please insert valid data',success:false});
             }
 
 
@@ -426,7 +426,7 @@ module.exports = {
                         { new: true }
                     );
 
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true,message:"owner deleted" });
                 }
                 if (operation === 'add') {
                     let updatedResult = await CoachingCompaniesModel.findOneAndUpdate(
@@ -435,13 +435,13 @@ module.exports = {
                         { new: true }
                     );
 
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true ,message:"owner added"});
                 }
 
             }
         } catch (error) {
             console.error(error);
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false,message:"Internal Servar Error" });
         }
 
     },
@@ -529,7 +529,7 @@ module.exports = {
                         fs.unlinkSync(newImagePath);
                     }
                 }
-                return resp.status(400).send('Please insert valid data');
+                return resp.status(400).send({message:'Please insert valid data',success:false});
 
             }
 
@@ -580,7 +580,7 @@ module.exports = {
                     return resp.status(400).json({ message: 'not updated', success: false });
                 }
                 else {
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true ,message:'successdully updated'});
                 }
 
             }
@@ -613,12 +613,12 @@ module.exports = {
                 return resp.status(200).json({ message: "Coaching Company deleted", success: true, data: result })
             }
             else {
-                return resp.status(400).json({ message: "please cannot found", success: false })
+                return resp.status(400).json({ message: "company cannot found", success: false })
             }
 
 
         } catch (error) {
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false ,message:'Internal Server Error'});
 
         }
     },

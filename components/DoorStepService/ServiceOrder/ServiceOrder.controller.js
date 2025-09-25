@@ -1,5 +1,6 @@
 const { ObjectID } = require('mongodb')
-const ServieOrderSchema = require('./ServiceOrder.model')
+const ServieOrderSchema = require('./ServiceOrder.model');
+const { default: mongoose } = require('mongoose');
 
 module.exports = {
 
@@ -52,10 +53,10 @@ module.exports = {
         let query = {}
         console.log("pri", req.query)
         if (req.query.user) {
-            query.user = ObjectID(req.query.user)
+            query.user = mongoose.Types.ObjectId.createFromHexString(req.query.user)
         }
         if (req.query.comapnyId) {
-            query.comapnyId = ObjectID(req.query.comapnyId)
+            query.comapnyId = mongoose.Types.ObjectId.createFromHexString(req.query.comapnyId)
         }
         // if(req.query.cartId){
         //     query.cartId  = ObjectID(req.query.cartId)

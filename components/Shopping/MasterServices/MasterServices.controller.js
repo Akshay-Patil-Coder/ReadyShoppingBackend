@@ -40,7 +40,7 @@ module.exports = {
                 });
             }
 
-            const parentServiceIdObj = parentServiceId ? mongoose.Types.ObjectId(parentServiceId) : null; // Changed to new ObjectId()
+            const parentServiceIdObj = parentServiceId ? mongoose.Types.ObjectId.createFromHexString(parentServiceId) : null; // Changed to new ObjectId()
 
             const newService = new master_services({
                 companyId,
@@ -77,8 +77,8 @@ module.exports = {
             const { parentServiceId, companyId, service_name } = req.query;
         
             const query = {
-                parentServiceId: parentServiceId ? mongoose.Types.ObjectId(parentServiceId) : undefined, // Changed to new ObjectId()
-                companyId: companyId ? mongoose.Types.ObjectId(companyId) : undefined, // Changed to new ObjectId()
+                parentServiceId: parentServiceId ? mongoose.Types.ObjectId.createFromHexString(parentServiceId) : undefined, // Changed to new ObjectId()
+                companyId: companyId ? mongoose.Types.ObjectId.createFromHexString(companyId) : undefined, // Changed to new ObjectId()
                 service_name: service_name ? new RegExp(service_name, 'i') : undefined,
             };
     

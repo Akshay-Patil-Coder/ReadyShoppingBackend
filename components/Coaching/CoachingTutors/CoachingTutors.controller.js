@@ -277,19 +277,19 @@ module.exports = {
     getCoachingTutorByData: async (req, res) => {
         const { SkillId, HeadCourceCatId, SubCourceCatId, CoachingTutorId, companyId, ConnecterId, googleLocation } = req.query;
         try {
-            let matchCondition = { companyId: mongoose.Types.ObjectId(companyId) };
+            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
             if (HeadCourceCatId) {
                 if (!mongoose.Types.ObjectId.isValid(HeadCourceCatId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.HeadCourceCatId = { $in: [mongoose.Types.ObjectId(HeadCourceCatId)] };
+                matchCondition.HeadCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(HeadCourceCatId)] };
             }
             if (SkillId) {
                 if (!mongoose.Types.ObjectId.isValid(SkillId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.Skills = { $in: [mongoose.Types.ObjectId(SkillId)] };
+                matchCondition.Skills = { $in: [mongoose.Types.ObjectId.createFromHexString(SkillId)] };
             }
             if (googleLocation) {
                 matchCondition.googleLocation = String(googleLocation);
@@ -298,19 +298,19 @@ module.exports = {
                 if (!mongoose.Types.ObjectId.isValid(SubCourceCatId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.SubCourceCatId = { $in: [mongoose.Types.ObjectId(SubCourceCatId)] };
+                matchCondition.SubCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubCourceCatId)] };
             }
             if (ConnecterId) {
                 if (!mongoose.Types.ObjectId.isValid(ConnecterId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.ConnectedWith.connectedIds = { $in: [mongoose.Types.ObjectId(ConnecterId)] };
+                matchCondition.ConnectedWith.connectedIds = { $in: [mongoose.Types.ObjectId.createFromHexString(ConnecterId)] };
             }
             if (CoachingTutorId) {
                 if (!mongoose.Types.ObjectId.isValid(CoachingTutorId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition._id = mongoose.Types.ObjectId(CoachingTutorId);
+                matchCondition._id = mongoose.Types.ObjectId.createFromHexString(CoachingTutorId);
             }
 
             const data = await module.exports.getCoachingTutorData(matchCondition);
@@ -396,7 +396,9 @@ module.exports = {
             }
         } catch (error) {
             console.error(error);
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: 
+                
+                error.message, success: false });
         }
 
     },
@@ -500,7 +502,7 @@ module.exports = {
                 if (Skills) {
                     CoachingTutorData.Skills = Skills;
                 }
-                if (req.file) {
+                if (req.file?.filename) {
                     const existingCoachingTutor = await CoachingTutorsModel.findOne({ _id: CoachingTutorId, companyId: companyId })
                     if (existingCoachingTutor && existingCoachingTutor.TutorImage) {
                         const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingTutorImage', existingCoachingTutor.TutorImage);
@@ -546,11 +548,6 @@ module.exports = {
                 if (!result) {
                     return resp.status(400).json({ message: "Coaching tutor cannot be deleted", success: false })
                 }
-                // const deleteServiceProduct = await serviceProductsModel.serviceProductsModel.deleteMany({ ProviderId: req.params.id })
-
-                // const deleteServiceAppointment = await ServiceAppointmentModel.ServiceAppointmentModel.deleteMany({ ServiceProviderId: req.params.id })
-
-
                 return resp.status(200).json({ message: "Coaching tutor deleted", success: true, data: result })
             }
             else {
@@ -581,6 +578,7 @@ module.exports = {
                 return resp.status(400).json({ message: 'password not match', success: false })
             }
             let Role = "Coaching Tutor"
+
             let token = jwt.sign(
                 { CoachingTutorId: findCoachingTutor._id, Email: findCoachingTutor.Email, companyId: findCoachingTutor.companyId, Role: Role },
                 process.env.ACCESS_TOKEN_SECRET,

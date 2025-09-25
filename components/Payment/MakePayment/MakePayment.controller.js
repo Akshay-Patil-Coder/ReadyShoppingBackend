@@ -1084,7 +1084,7 @@ exports.checkBankPaymentStatus = async (req, res) => {
                             //called data for mail
                             const doctorDetails =
                                 await consultancy_model.allDoctorSchema.findOne({
-                                    _id: mongoose.Types.ObjectId(result.doctor),
+                                    _id: mongoose.Types.ObjectId.createFromHexString(result.doctor),
                                 });
 
                             const adminData = await admin_model
@@ -1769,7 +1769,7 @@ function updateRecord(data, valid, userData, cb) {
                     result = r;
 
                     consultancy_model.allDoctorSchema.findOne(
-                        { _id: mongoose.Types.ObjectId(result.doctor) },
+                        { _id: mongoose.Types.ObjectId.createFromHexString(result.doctor) },
                         function (error, resp) {
                             doctorDetails = resp;
 

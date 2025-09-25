@@ -2,55 +2,103 @@ const ProductsModel = require('./Products.model')
 const mongoose = require('mongoose');
 const path = require('path')
 const fs = require('fs');
-const { query } = require('express');
 const { Parser } = require("json2csv");
 const csv = require("csv-parser");
-const { data } = require('jquery');
-const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
-
-const defaultImagePath = path.join(__dirname, "..", "..", "public", "varients", "default.png"); 
-
-if (!fs.existsSync(defaultImagePath)) {
-    fs.writeFileSync(defaultImagePath, ""); 
-}
 
 module.exports = {
     addproducts: async (req, res) => {
-        console.log(req.body)
+        let productImages = [];
+
+        if (req.files?.length) {
+            productImages = req.files.map(file => `${file.filename}`);
+        }
+
+        const cleanupImages = () => {
+            if (productImages.length) {
+                productImages.forEach(file => {
+                    let newImagePath = path.join(__dirname, '..', '..', 'public', 'Varients', file);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
+                });
+            }
+        };
+
         try {
             let {
                 companyId,
                 categoryId,
-                services,
                 productName,
-                categoryName,
                 product_description,
                 product_base_price,
                 dynamicFields,
                 BrandId,
-                offerPercentage
+                offerPercentage,
+                categoryName,
+                services,
             } = req.body;
-            dynamicFields = JSON.parse(dynamicFields)
-            if (!companyId || !categoryId || !productName || !BrandId) {
+
+            if (product_base_price) {
+                product_base_price = Number(product_base_price);
+                if (isNaN(product_base_price)) {
+                    cleanupImages();
+                    return res.status(400).send({
+                        success: false,
+                        message: "product_base_price must be a valid number"
+                    });
+                }
+            }
+            if (offerPercentage) {
+                offerPercentage = Number(offerPercentage);
+                if (isNaN(offerPercentage) || offerPercentage < 0 || offerPercentage >= 100) {
+                    cleanupImages();
+                    return res.status(400).send({
+                        success: false,
+                        message: "offerPercentage must be a number between 0 and 99"
+                    });
+                }
+            }
+            try {
+                if (typeof dynamicFields === "string") {
+                    try {
+                        dynamicFields = JSON.parse(dynamicFields);
+                    } catch {
+                        if (dynamicFields.includes(":")) {
+                            dynamicFields = dynamicFields.split(",").reduce((acc, curr) => {
+                                const [key, value] = curr.split(":");
+                                if (key && value) acc[key.trim()] = value.trim();
+                                return acc;
+                            }, {});
+                        } else {
+                            dynamicFields = {};
+                        }
+                    }
+                }
+            } catch (e) {
+                cleanupImages();
                 return res.status(400).send({
                     success: false,
-                    message: "Please send all required fields: companyId, categoryId, productName"
+                    message: "Invalid dynamicFields format"
                 });
             }
 
-            if (typeof dynamicFields === 'parse') {
-                dynamicFields = dynamicFields.split(',').reduce((acc, curr) => {
-                    const [key, value] = curr.split(':');
-                    acc[key.trim()] = value.trim();
-                    return acc;
-                }, {});
+
+            if (!companyId || !categoryId || !productName || !BrandId || !product_base_price) {
+                cleanupImages();
+                return res.status(400).send({
+                    success: false,
+                    message: "Please send all required fields"
+                });
             }
+
             const categoryKeys = await ProductsModel.productKeysModel.findOne({ categoryId });
+
             if (dynamicFields && Object.keys(dynamicFields).length > 0) {
                 if (categoryKeys) {
                     const dynamicFieldsArray = Object.keys(dynamicFields);
                     const mergedArray = [...categoryKeys.keys, ...dynamicFieldsArray];
                     const uniqueKeysArray = [...new Set(mergedArray)];
+
                     await ProductsModel.productKeysModel.findOneAndUpdate(
                         { categoryId },
                         { $set: { keys: uniqueKeysArray } }
@@ -68,13 +116,10 @@ module.exports = {
 
             const formattedName = productName.replace(/ /g, "_").toLowerCase();
 
-            const productImages = req.files.map(file => `${file.filename}`);
-
             const newProduct = new ProductsModel.Products({
                 companyId,
                 productName: formattedName,
                 categoryId,
-                services,
                 product_description,
                 product_base_price,
                 dynamicFields,
@@ -89,16 +134,35 @@ module.exports = {
             res.status(200).send({ success: true, message: "Successfully added", dt });
 
         } catch (error) {
+            cleanupImages();
             console.log("Error:", error);
             res.status(500).send({ success: false, message: "Error occurred", error: error.message });
         }
     },
 
+
     updateproducts: async (req, res) => {
+        let productImages = [];
+
+        if (req.files?.length) {
+            productImages = req.files.map(file => `${file.filename}`);
+        }
+
+        const cleanupImages = () => {
+            if (productImages.length) {
+                productImages.forEach(file => {
+                    let newImagePath = path.join(__dirname, '..', '..', 'public', 'Varients', file);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
+                });
+            }
+        };
         try {
-            const { dynamicFields } = req.body;
+            let { dynamicFields } = req.body;
 
             if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+                cleanupImages();
                 return res.status(400).send({
                     success: false,
                     message: "Invalid product ID"
@@ -107,6 +171,7 @@ module.exports = {
 
             const existingProduct = await ProductsModel.Products.findById(req.params.id);
             if (!existingProduct) {
+                cleanupImages();
                 return res.status(404).send({
                     success: false,
                     message: "Product not found"
@@ -115,35 +180,45 @@ module.exports = {
 
             // Handle images
             let updatedImages = [];
-            const publicFolder = path.join("E:", "readyshopping", "dist", "public", "varients");
 
             if (req.files && req.files.length > 0) {
                 updatedImages = req.files.map(file => `${file.filename}`);
 
                 console.log("New images uploaded:", updatedImages);
 
-                if (existingProduct.productimages.length > 0) {
-                    await Promise.all(existingProduct.productimages.map(async (imagePath) => {
-                        const imageFullPath = path.join(publicFolder, path.basename(imagePath));
-                        console.log("Deleting image:", imageFullPath);
-                        try {
-                            await fs.promises.unlink(imageFullPath);
-                        } catch (err) {
-                            console.error(`Error deleting image: ${imageFullPath}`, err.message);
-                        }
-                    }));
+                if (existingProduct.productimages?.length > 0) {
+                    await Promise.all(
+                        existingProduct.productimages.map(async (img) => {
+                            const imgPath = path.join(__dirname, '..', '..', 'public', 'Varients', img);
+                            try {
+                                await fs.promises.unlink(imgPath);
+                                console.log("Deleted old image:", imgPath);
+                            } catch (err) {
+                                console.error(`Error deleting image ${imgPath}:`, err.message);
+                            }
+                        })
+                    );
                 }
+
             } else {
                 updatedImages = existingProduct.productimages;
             }
 
+
             let parsedDynamicFields = dynamicFields;
-            if (dynamicFields && typeof dynamicFields === "string") {
-                parsedDynamicFields = dynamicFields.split(',').reduce((acc, curr) => {
-                    const [key, value] = curr.split(':');
-                    acc[key.trim()] = value.trim();
-                    return acc;
-                }, {});
+            if (dynamicFields) {
+                try {
+                    parsedDynamicFields = typeof dynamicFields === "string" && dynamicFields.trim().startsWith("{")
+                        ? JSON.parse(dynamicFields) 
+                        : dynamicFields.split(',').reduce((acc, curr) => {
+                            const [key, value] = curr.split(':');
+                            if (key && value) acc[key.trim()] = value.trim();
+                            return acc;
+                        }, {});
+                } catch (e) {
+                    cleanupImages()
+                    console.error("Invalid dynamicFields format:", e.message);
+                }
             }
 
             const updateData = {
@@ -171,6 +246,7 @@ module.exports = {
                 data: updatedProduct
             });
         } catch (error) {
+            cleanupImages();
             console.error("Error updating product:", error);
             res.status(500).send({
                 success: false,
@@ -183,8 +259,8 @@ module.exports = {
     getproducts: async (req, res) => {
         let query = {}
         if (req.query.id && req.query.companyId) {
-            query._id = mongoose.Types.ObjectId(req.query.id)
-            query.companyId = mongoose.Types.ObjectId(req.query.companyId)
+            query._id = mongoose.Types.ObjectId.createFromHexString(req.query.id)
+            query.companyId = mongoose.Types.ObjectId.createFromHexString(req.query.companyId)
         }
         else if (!req.query.id) return res.status(400).send({
             success: false,
@@ -233,13 +309,13 @@ module.exports = {
             $or: [{ isActive: true }]
         };
         if (req.query.categoryId) {
-            query.categoryId = mongoose.Types.ObjectId(req.query.categoryId);
+            query.categoryId = mongoose.Types.ObjectId.createFromHexString(req.query.categoryId);
         }
         if (req.query.companyId) {
-            query.companyId = mongoose.Types.ObjectId(req.query.companyId);
+            query.companyId = mongoose.Types.ObjectId.createFromHexString(req.query.companyId);
         }
         if (req.query._id) {
-            query._id = mongoose.Types.ObjectId(req.query._id);
+            query._id = mongoose.Types.ObjectId.createFromHexString(req.query._id);
         }
         if (req.query.BrandId) {
             query.BrandId = mongoose.Types.ObjectId(req.query.BrandId);
@@ -256,8 +332,8 @@ module.exports = {
                                 $match: {
                                     $expr: { $eq: ["$_id", "$$categoryId"] },
                                     ...(req.query.categoryName ? { categoryName: { $regex: `^${req.query.categoryName}$`, $options: "i" } } : {}),
-                                    ...(req.query.parentCategoryId ? { parentCategoryId: mongoose.Types.ObjectId(req.query.parentCategoryId) } : {}),
-                                    ...(req.query.companyId ? { companyId: mongoose.Types.ObjectId(req.query.companyId) } : {})
+                                    ...(req.query.parentCategoryId ? { parentCategoryId: mongoose.Types.ObjectId.createFromHexString(req.query.parentCategoryId) } : {}),
+                                    ...(req.query.companyId ? { companyId: mongoose.Types.ObjectId.createFromHexString(req.query.companyId) } : {})
                                 }
                             }
                         ],
@@ -365,10 +441,10 @@ module.exports = {
         let query = {}
 
         if (req.query._id) {
-            query._id = mongoose.Types.ObjectId(req.query._id)
+            query._id = mongoose.Types.ObjectId.createFromHexString(req.query._id)
         }
         if (req.query.companyId) {
-            query.companyId = mongoose.Types.ObjectId(req.query.companyId)
+            query.companyId = mongoose.Types.ObjectI.createFromHexStringd(req.query.companyId)
         }
 
         try {
@@ -412,10 +488,10 @@ module.exports = {
         let query = {}
 
         if (req.query._id) {
-            query._id = mongoose.Types.ObjectId(req.query._id)
+            query._id = mongoose.Types.ObjectI.createFromHexStringd(req.query._id)
         }
         if (req.query.companyId) {
-            query.companyId = mongoose.Types.ObjectId(req.query.companyId)
+            query.companyId = mongoose.Types.ObjectId.createFromHexString(req.query.companyId)
         }
 
         try {
@@ -459,10 +535,10 @@ module.exports = {
         let query = {}
 
         if (req.query._id) {
-            query._id = mongoose.Types.ObjectId(req.query._id)
+            query._id = mongoose.Types.ObjectId.createFromHexString(req.query._id)
         }
         if (req.query.companyId) {
-            query.companyId = mongoose.Types.ObjectId(req.query.companyId)
+            query.companyId = mongoose.Types.ObjectId.createFromHexString(req.query.companyId)
         }
 
         try {
@@ -506,10 +582,10 @@ module.exports = {
         let query = {}
 
         if (req.query._id) {
-            query._id = mongoose.Types.ObjectId(req.query._id)
+            query._id = mongoose.Types.ObjectId.createFromHexString(req.query._id)
         }
         if (req.query.companyId) {
-            query.companyId = mongoose.Types.ObjectId(req.query.companyId)
+            query.companyId = mongoose.Types.ObjectId.createFromHexString(req.query.companyId)
         }
 
         try {
@@ -648,9 +724,9 @@ module.exports = {
                 }
 
                 const data = new ProductsModel.Products({
-                    companyId: mongoose.Types.ObjectId(companyId),
-                    categoryId: mongoose.Types.ObjectId(categoryId),
-                    BrandId: mongoose.Types.ObjectId(BrandId),
+                    companyId: mongoose.Types.ObjectId.createFromHexString(companyId),
+                    categoryId: mongoose.Types.ObjectId.createFromHexString(categoryId),
+                    BrandId: mongoose.Types.ObjectId.createFromHexString(BrandId),
                     isActive: row.isActive && row.isActive.toLowerCase() === "false" ? false : true,
                     productimages: row.productimages ? row.productimages.split("|").map(img => img.trim()) : [],
                     productName: row.productName,
@@ -750,7 +826,7 @@ module.exports = {
     deletevarientsimages: async (req, res) => {
         try {
             const { id } = req.params;
-            const objectId = mongoose.Types.ObjectId(id);
+            const objectId = mongoose.Types.ObjectId.createFromHexString(id);
 
             const updatedVariant = await ProductsModel.ProductsImages.findOneAndUpdate(
                 { 'images._id': objectId },
@@ -795,7 +871,7 @@ module.exports = {
                 imageName = `${randomNum}.${extension}`;
             }
 
-            const objectId = mongoose.Types.ObjectId(id);
+            const objectId = mongoose.Types.ObjectId.createFromHexString(id);
 
             const updateFields = {};
 
@@ -837,10 +913,10 @@ module.exports = {
         try {
             let query = { isActive: true };
             if (req.query.varientsId) {
-                query.varientsId = mongoose.Types.ObjectId(req.query.varientsId);
+                query.varientsId = mongoose.Types.ObjectId.createFromHexString(req.query.varientsId);
             }
             if (req.query.productId) {
-                query.productId = mongoose.Types.ObjectId(req.query.productId);
+                query.productId = mongoose.Types.ObjectId.createFromHexString(req.query.productId);
             }
 
             const data = await ProductsModel.ProductsImages.aggregate([
@@ -890,7 +966,7 @@ module.exports = {
         })
         let query = {}
         if (req.query.categoryId) {
-            query.categoryId = mongoose.Types.ObjectId(req.query.categoryId)
+            query.categoryId = mongoose.Types.ObjectId.createFromHexString(req.query.categoryId)
         }
 
         try {
@@ -925,8 +1001,8 @@ module.exports = {
 
             const result = await ProductsModel.productKeysModel.findOneAndUpdate(
                 {
-                    categoryId: mongoose.Types.ObjectId(categoryId),
-                    companyId: mongoose.Types.ObjectId(companyId)
+                    categoryId: mongoose.Types.ObjectId.createFromHexString(categoryId),
+                    companyId: mongoose.Types.ObjectId.createFromHexString(companyId)
                 },
                 {
                     $addToSet: { keys: { $each: keysToAdd } }
@@ -936,8 +1012,8 @@ module.exports = {
 
             if (!result) {
                 const newVarientsKeys = new ProductsModel.productKeysModel({
-                    categoryId: mongoose.Types.ObjectId(categoryId),
-                    companyId: mongoose.Types.ObjectId(companyId),
+                    categoryId: mongoose.Types.ObjectId.createFromHexString(categoryId),
+                    companyId: mongoose.Types.ObjectId.createFromHexString(companyId),
                     keys: keysToAdd
                 });
 
@@ -974,8 +1050,8 @@ module.exports = {
 
             const result = await ProductsModel.productKeysModel.findOneAndUpdate(
                 {
-                    categoryId: mongoose.Types.ObjectId(categoryId),
-                    companyId: mongoose.Types.ObjectId(companyId)
+                    categoryId: mongoose.Types.ObjectId.createFromHexString(categoryId),
+                    companyId: mongoose.Types.ObjectId.createFromHexString(companyId)
                 },
                 {
                     $pull: { keys: keysToRemove }
@@ -1009,7 +1085,7 @@ module.exports = {
         const { categoryId, oldValue, newValue } = req.body;
 
         try {
-            const categoryObjectId = mongoose.Types.ObjectId(categoryId);
+            const categoryObjectId = mongoose.Types.ObjectId.createFromHexString(categoryId);
 
             const updatedDocument = await ProductsModel.productKeysModel.findOneAndUpdate(
                 {

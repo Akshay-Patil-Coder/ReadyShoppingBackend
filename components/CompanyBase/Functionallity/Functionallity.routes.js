@@ -36,23 +36,16 @@ const upload = multer({
 });
 
 
-router.post('/addmasterusers',authentication,upload.single('FunctionallityLogo'), (req, res) => {
-     if (req.user.role === 'Admin') {
+router.post('/addmasterusers',upload.single('FunctionallityLogo'), (req, res) => {
         return masteruserController.addmasterusers(req, res);
-      }
-      res.status(400).json({ message: "Authentication Failed only admin eligible to add data", success: false }) 
 });
 
 router.get('/getmasterusers', (req, res) => {
    return masteruserController.getmasterusers(req, res);
 });
-router.put('/updatemasterusers/:id',authentication,upload.single('FunctionallityLogo'), (req, res) => {
-    if (req.user.role === 'Admin') {
+router.put('/updatemasterusers/:id',upload.single('FunctionallityLogo'), (req, res) => {
         return masteruserController.updatemasterusers(req, res);
-      }
-      res.status(400).json({ message: "Authentication Failed only admin eligible to add data", success: false }) 
-});
+    });
 
-// router.delete('/deletemasterusers/:id', masteruserController.deletemasterusers);
 
 module.exports = router;
