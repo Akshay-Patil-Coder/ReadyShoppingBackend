@@ -259,10 +259,30 @@ module.exports = {
 
             const productData = await ProductsModel.Products.find({ categoryId: id });
             let deletedProduct = '';
-
             if (productData && productData.length > 0) {
-                const deleteProduct = await ProductsModel.Products.deleteMany({ categoryId: id });
-                deletedProduct = deleteProduct;
+                try {
+                    const deleteProduct = await ProductsModel.Products.deleteMany({ categoryId: id });
+
+                    for (const eachProduct of productData) {
+                        if (Array.isArray(eachProduct?.productimages) && eachProduct.productimages.length > 0) {
+                            for (const eachImage of eachProduct.productimages) {
+                                const productPath = path.join(__dirname, "..", "..", "public", "Varients", eachImage);
+                                try {
+                                    await fs.promises.unlink(productPath);
+                                    console.log(`Deleted: ${productPath}`);
+                                } catch (err) {
+                                    if (err.code !== "ENOENT") { 
+                                        console.error(`Error deleting ${productPath}:`, err.message);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    deletedProduct = deleteProduct;
+                } catch (err) {
+                    console.error("Error during product deletion:", err.message);
+                }
             }
 
             const result = await dynamicCategoriesModel.deleteOne({ _id: id });

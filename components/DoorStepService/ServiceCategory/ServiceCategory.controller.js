@@ -3,6 +3,7 @@ const serviceCategoryModel = require('./ServiceCategory.model')
 const fs = require('fs');
 const path = require('path');
 const { default: mongoose } = require("mongoose");
+const ServiceProductModel = require('../ServiceProducts/ServiceProducts.model')
 
 
 module.exports = {
@@ -15,22 +16,22 @@ module.exports = {
             serviceLevel = Number(serviceLevel);
 
             if (!companyId || !serviceCategoryName || serviceLevel < 0 || !Description) {
-               if(req.file?.filename){
-                 const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
-               }
                 return res.status(400).json({ message: 'please provide all fields', success: false })
             }
 
             if (serviceLevel !== 0 && !serviceParentCategoryId) {
-                 if(req.file?.filename){
-                 const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
-               }
                 return res.status(400).send({ message: "Please provide parentCategoryId for subservices" });
             }
             const ServiceCategoryData = {
@@ -57,12 +58,12 @@ module.exports = {
 
         } catch (error) {
             console.error("Error:", error);
-            if(req.file?.filename){
-                 const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
+            if (req.file?.filename) {
+                const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
                 if (fs.existsSync(newImagePath)) {
                     fs.unlinkSync(newImagePath);
                 }
-               }
+            }
             res.status(500).send({
                 success: false,
                 message: "Something went wrong",
@@ -167,19 +168,19 @@ module.exports = {
             });
             console.log(category, 'category')
             if (!category) {
-               if(req.file?.filename){
-                 const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                if (req.file?.filename) {
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
-               }
                 return res.status(404).send({ success: false, message: "Category not found" });
             }
 
             let updatedData = { ...req.body, updatedAt: new Date() };
             console.log(updatedData, 'updated data')
 
-            if (req.file) {
+            if (req.file?.filename) {
                 if (category && category.serviceImage) {
                     const oldImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', category.serviceImage);
                     if (fs.existsSync(oldImagePath)) {
@@ -206,18 +207,18 @@ module.exports = {
 
         } catch (error) {
             console.log("error", error);
-            if(req.file?.filename){
-                 const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
+            if (req.file?.filename) {
+                const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
                 if (fs.existsSync(newImagePath)) {
                     fs.unlinkSync(newImagePath);
                 }
-               }
+            }
             res.status(500).send({
                 success: false,
                 message: "Something went wrong",
                 error: error.message
             });
-        } 
+        }
     },
 
     toggleCategoriesStatus: async (req, res) => {
@@ -261,21 +262,39 @@ module.exports = {
                 return res.status(400).send({ success: false, message: "Category is already inactive" });
             }
 
+            const productData = await ServiceProductModel.serviceProductsModel.find({ SubServiceId: id });
+            let deletedProduct = '';
+            if (productData && productData.length > 0) {
+                try {
+                    const deleteProduct = await ServiceProductModel.serviceProductsModel.deleteMany({ SubServiceId: id });
 
+                    for (const eachProduct of productData) {
+                        if (Array.isArray(eachProduct?.productimages) && eachProduct.productimages.length > 0) {
+                            for (const eachImage of eachProduct.serviceImages) {
+                                const productPath = path.join(__dirname, "..", "..", "public", "ServiceProductImage", eachImage);
+                                try {
+                                    await fs.promises.unlink(productPath);
+                                    console.log(`Deleted: ${productPath}`);
+                                } catch (err) {
+                                    if (err.code !== "ENOENT") {
+                                        console.error(`Error deleting ${productPath}:`, err.message);
+                                    }
+                                }
+                            }
+                        }
+                    }
 
-            // const productData = await ProductsModel.Products.find({ categoryId: id })
-            // let deletedProduct = '';
-            // if (productData) {
-            //     const deleteProduct = await ProductsModel.Products.deleteMany({ categoryId: id })
-            //     deletedProduct = deleteProduct
-            // }
-
+                    deletedProduct = deleteProduct;
+                } catch (err) {
+                    console.error("Error during service product deletion:", err.message);
+                }
+            }
             const result = await serviceCategoryModel.deleteOne({ _id: id })
             if (!result) {
-                res.status(400).json({ message: 'CATEGORY NOT DELETED', success: false })
+                return res.status(400).json({ message: 'CATEGORY NOT DELETED', success: false })
             }
 
-            res.status(200).json({ success: true, message: "category and services both deleted", data: result });
+            res.status(200).json({ success: true, message: "category and services both deleted", data: result,deletedServices: deletedProduct });
 
         } catch (error) {
             console.error("error", error);

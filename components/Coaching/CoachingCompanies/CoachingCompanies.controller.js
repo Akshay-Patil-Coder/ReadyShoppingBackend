@@ -377,7 +377,7 @@ module.exports = {
             const companyId = req.query.companyId;
             const operation = req.query.operation;
             if (!CoachingCompanyId || !HeadCourceCatId || HeadCourceCatId.length === 0) {
-                return resp.status(400).send('Please insert valid data');
+                return resp.status(400).send({success:false,message:'Please insert valid data'});
             }
 
 
@@ -559,7 +559,7 @@ module.exports = {
                 if (Skills) {
                     CoachingCompanyData.Skills = Skills;
                 }
-                if (req.file) {
+                if (req.file?.filename) {
                     const existingCoachingCompany = await CoachingCompaniesModel.findOne({ _id: CoachingCompanyId, companyId: companyId })
                     if (existingCoachingCompany && existingCoachingCompany.CourseCompanyLogo) {
                         const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingCompanyImage', existingCoachingCompany.CourseCompanyLogo);
@@ -591,7 +591,7 @@ module.exports = {
                         fs.unlinkSync(newImagePath);
                     }
                 }
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false,message:'Internal Server Error' });
         }
     },
     deleteCoachingCompany: async (req, resp) => {
@@ -605,10 +605,12 @@ module.exports = {
                 if (!result) {
                     return resp.status(400).json({ message: "Coaching company cannot be deleted", success: false })
                 }
-                // const deleteServiceProduct = await serviceProductsModel.serviceProductsModel.deleteMany({ ProviderId: req.params.id })
-
-                // const deleteServiceAppointment = await ServiceAppointmentModel.ServiceAppointmentModel.deleteMany({ ServiceProviderId: req.params.id })
-
+                if (coachingcompanydata && coachingcompanydata.CourseCompanyLogo) {
+                        const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingCompanyImage', coachingcompanydata.CourseCompanyLogo);
+                        if (fs.existsSync(oldImagePath)) {
+                            fs.unlinkSync(oldImagePath);
+                        }
+                    }
 
                 return resp.status(200).json({ message: "Coaching Company deleted", success: true, data: result })
             }

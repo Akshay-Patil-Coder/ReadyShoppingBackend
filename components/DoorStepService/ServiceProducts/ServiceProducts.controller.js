@@ -20,7 +20,6 @@ module.exports = {
             }
 
             const data = await serviceProductsModel.find(query)
-            console.log("prasad", data)
             res.status(200).send({
                 success: true,
                 message: "Successfully fetched",
@@ -195,10 +194,10 @@ module.exports = {
             }
 
             // console.log('result of populated data', data);
-            return res.status(200).json({ data: data, success: true });
+            return res.status(200).json({ data: data, success: true ,message:'Data Fetched'});
 
         } catch (error) {
-            res.status(400).json({ error: error.message, success: false });
+            res.status(400).json({ error: error.message, success: false,message:'Internal Server Error' });
         }
     },
 
@@ -237,7 +236,7 @@ module.exports = {
                         }
                     });
                 }
-                return resp.status(400).send('Please insert valid data');
+                return resp.status(400).send({message:'Please insert valid data',success:false});
             }
 
             let serviceProductData = {
@@ -268,7 +267,7 @@ module.exports = {
                 const existingServiceProduct = await serviceProductsModel.findOne({ _id: ServiceProductId, companyId });
 
                 if (existingServiceProduct && existingServiceProduct.serviceImages) {
-                    const serviceImages = req.files.map(file => `${file.filename}`);
+                    const serviceImages = req.files.map(file => `${file?.filename}`);
                     const result = await serviceProductsModel.findOneAndUpdate(
                         { _id: ServiceProductId, companyId },
                         { $push: { serviceImages: { $each: serviceImages } } },
@@ -296,7 +295,7 @@ module.exports = {
             if (!updatedResult) {
                 return resp.status(400).json({ message: 'Service product not updated', success: false });
             } else {
-                return resp.status(200).json({ data: updatedResult, success: true });
+                return resp.status(200).json({ data: updatedResult, success: true ,message:"Updated"});
             }
 
         } catch (error) {
@@ -309,7 +308,7 @@ module.exports = {
                 });
             }
 
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
         }
     },
 
@@ -332,7 +331,7 @@ module.exports = {
 
 
         } catch (error) {
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
 
         }
     },
@@ -377,7 +376,7 @@ module.exports = {
 
         } catch (error) {
             console.error('Error deleting service image:', error);
-            return resp.status(500).json({ error: error.message, success: false });
+            return resp.status(500).json({ error: error.message, success: false ,message:"Internal Server Error"});
         }
     },
     updateServiceParts: async (req, resp) => {
@@ -434,7 +433,7 @@ module.exports = {
                 { $set: { service_base_price: finalPrice } }
             );
 
-            return resp.status(200).json({ data: newResult, success: true });
+            return resp.status(200).json({ data: newResult, success: true ,message:"Updated"});
 
         } catch (error) {
             console.error("Error:", error);

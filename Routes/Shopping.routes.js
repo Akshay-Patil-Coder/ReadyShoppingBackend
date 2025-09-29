@@ -19,5 +19,4 @@ exports.default = (app) => {
     app.use(BrandString, BrandRoutes)
     app.use(BannerString, BannerRoutes)
     app.use(TrendingProductString, TrendingProductRoutes)
- 
 }

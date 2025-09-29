@@ -105,7 +105,7 @@ module.exports = {
                     return resp.status(400).json({ message: 'Something went wrong while saving the banner', success: false });
                 }
 
-                return resp.status(200).json({ data: result, success: true });
+                return resp.status(200).json({ data: result, success: true,message:"Banner Added" });
             }
         } catch (error) {
             if(req.file?.filename){
@@ -114,7 +114,7 @@ module.exports = {
                         fs.unlinkSync(newImagePath);
                     }
                   }
-            return resp.status(500).json({ error: error.message, success: false });
+            return resp.status(500).json({ error: error.message, success: false ,message:"Internal Server Errr"});
         }
     },
 
@@ -212,10 +212,10 @@ module.exports = {
                 return res.status(404).json({ message: 'No banner found ', success: false });
             }
 
-            return res.status(200).json({ data: data, success: true });
+            return res.status(200).json({ data: data, success: true,message:"Data Fetched" });
 
         } catch (error) {
-            res.status(400).json({ error: error.message, success: false });
+            res.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
         }
     },
 
@@ -225,10 +225,10 @@ module.exports = {
             const companyId = req.query.companyId;
             const operation = req.query.operation;
             if (!BannerId || !ServicesId || ServicesId.length === 0) {
-                return resp.status(400).send('Please insert valid data');
+                return resp.status(400).send({message:'Please insert valid data',success:false});
             }
             if (BannerType !== 'Offer') {
-                return resp.status(400).send('Please provide banner type or banner type must be offer');
+                return resp.status(400).send({message:'Please provide banner type or banner type must be offer',success:false});
             }
 
 
@@ -247,7 +247,7 @@ module.exports = {
                         }
                     }
 
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true,message:"Deleted" });
                 }
                 if (operation === 'add') {
                     let updatedResult = await serviceBannerModel.findOneAndUpdate(
@@ -267,12 +267,12 @@ module.exports = {
                             await ServiceModel.serviceProductsModel.bulkWrite(updateOperations);
                         }
                     }
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true,message:"Added" });
                 }
 
             }
         } catch (error) {
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
         }
 
     },
@@ -303,19 +303,17 @@ module.exports = {
                     }
                 }
             }
-            if(bannerdatanew.BannerImage){
-                if(req.file?.filename){
-                      const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceBannerImage', req.file.filename);
+            if(bannerdatanew?.BannerImage){
+                      const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceBannerImage',bannerdatanew.BannerImage);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }
-                  }
             }
             let result = await serviceBannerModel.deleteOne({ _id: _id, companyId: companyId })
 
-            return res.status(200).json({ data: result, success: true });
+            return res.status(200).json({ data: result, success: true ,message:"Banner Deleted"});
         } catch (error) {
-            return res.status(400).json({ error: error.message, success: false });
+            return res.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
 
         }
     },
@@ -331,7 +329,7 @@ module.exports = {
                         fs.unlinkSync(newImagePath);
                     }
                   }
-                return resp.status(400).send('Please insert valid data');
+                return resp.status(400).send({message:'Please insert valid data',success:false});
 
             }
 
@@ -361,7 +359,7 @@ module.exports = {
                     return resp.status(400).json({ message: 'not updated', success: false });
                 }
                 else {
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true ,message:"Banner Details Updated"});
                 }
 
             }
@@ -372,7 +370,7 @@ module.exports = {
                         fs.unlinkSync(newImagePath);
                     }
                   }
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
         }
     }
 

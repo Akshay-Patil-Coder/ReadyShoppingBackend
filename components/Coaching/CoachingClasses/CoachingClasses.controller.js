@@ -91,7 +91,7 @@ module.exports = {
                     fs.unlinkSync(newImagePath);
                 }
             }
-            return resp.status(500).json({ error: error.message, success: false });
+            return resp.status(500).json({ error: error.message, success: false,message:"Internal Server Error" });
         }
     },
 
@@ -174,10 +174,10 @@ module.exports = {
                 return res.status(404).json({ message: 'No Class Found', success: false });
             }
 
-            return res.status(200).json({ data: data, success: true });
+            return res.status(200).json({ data: data, success: true,message:"data fetched successfully" });
 
         } catch (error) {
-            res.status(400).json({ error: error.message, success: false });
+            res.status(400).json({ error: error.message, success: false,message:"Internal Server Error"});
         }
     },
 
@@ -187,7 +187,7 @@ module.exports = {
             const companyId = req.query.companyId;
             const operation = req.query.operation;
             if (!ClassId || !SubCourceCatId || SubCourceCatId.length === 0) {
-                return resp.status(400).send('Please insert valid data');
+                return resp.status(400).send({message:'Please insert valid data',success:false});
             }
 
 
@@ -199,7 +199,7 @@ module.exports = {
                         { new: true }
                     );
 
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true,message:"Deleted"});
                 }
                 if (operation === 'add') {
                     let updatedResult = await CoachingClassesModel.findOneAndUpdate(
@@ -208,13 +208,13 @@ module.exports = {
                         { new: true }
                     );
 
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true,message:"Added" });
                 }
 
             }
         } catch (error) {
             console.error(error);
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
         }
 
     },
@@ -224,7 +224,7 @@ module.exports = {
             const companyId = req.query.companyId;
             const operation = req.query.operation;
             if (!ClassId || !HeadCourceCatId || HeadCourceCatId.length === 0) {
-                return resp.status(400).send('Please insert valid data');
+                return resp.status(400).send({message:'Please insert valid data',success:false});
             }
 
 
@@ -236,7 +236,7 @@ module.exports = {
                         { new: true }
                     );
 
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true,message:"Deleted" });
                 }
                 if (operation === 'add') {
                     let updatedResult = await CoachingClassesModel.findOneAndUpdate(
@@ -245,13 +245,13 @@ module.exports = {
                         { new: true }
                     );
 
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true,message:"Added" });
                 }
 
             }
         } catch (error) {
             console.error(error);
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false,message:'Internal Server Error' });
         }
 
     },
@@ -261,7 +261,7 @@ module.exports = {
             const companyId = req.query.companyId;
             const operation = req.query.operation;
             if (!ClassId || !ClassOwnerName || ClassOwnerName.length === 0) {
-                return resp.status(400).send('Please insert valid data');
+                return resp.status(400).send({message:'Please insert valid data',success:false});
             }
 
 
@@ -273,7 +273,7 @@ module.exports = {
                         { new: true }
                     );
 
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true ,message:'Deleted'});
                 }
                 if (operation === 'add') {
                     let updatedResult = await CoachingClassesModel.findOneAndUpdate(
@@ -282,13 +282,13 @@ module.exports = {
                         { new: true }
                     );
 
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true,message:'Added' });
                 }
 
             }
         } catch (error) {
             console.error(error);
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false ,message:'Internal Server Error'});
         }
 
     },
@@ -335,7 +335,7 @@ module.exports = {
                         fs.unlinkSync(newImagePath);
                     }
                 }
-                return resp.status(400).send('Please insert valid data');
+                return resp.status(400).send({message:'Please insert valid data',success:false});
 
             }
 
@@ -358,7 +358,7 @@ module.exports = {
                     HeadCourceCatId,
                     SubCourceCatId
                 }
-                if (req.file) {
+                if (req.file?.filename) {
                     const existingCoachingClass = await CoachingClassesModel.findOne({ _id: ClassId, companyId: companyId })
                     if (existingCoachingClass && existingCoachingClass.ClassLogo) {
                         const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingClassesImage', existingCoachingClass.ClassLogo);
@@ -382,7 +382,7 @@ module.exports = {
                     return resp.status(400).json({ message: 'not updated', success: false });
                 }
                 else {
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true,message:"Class Detail Updated" });
                 }
 
             }
@@ -393,7 +393,7 @@ module.exports = {
                     fs.unlinkSync(newImagePath);
                 }
             }
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false,message:'Internal Server Error' });
         }
     },
     deleteCoachingClass: async (req, resp) => {
@@ -407,10 +407,12 @@ module.exports = {
                 if (!result) {
                     return resp.status(400).json({ message: "Coaching Classes cannot be deleted", success: false })
                 }
-                // const deleteServiceProduct = await serviceProductsModel.serviceProductsModel.deleteMany({ ProviderId: req.params.id })
-
-                // const deleteServiceAppointment = await ServiceAppointmentModel.ServiceAppointmentModel.deleteMany({ ServiceProviderId: req.params.id })
-
+                 if (coachingclassdata && coachingclassdata.ClassLogo) {
+                        const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingClassesImage', coachingclassdata.ClassLogo);
+                        if (fs.existsSync(oldImagePath)) {
+                            fs.unlinkSync(oldImagePath);
+                        }
+                    }
 
                 return resp.status(200).json({ message: "Coaching Classes deleted", success: true, data: result })
             }
@@ -420,7 +422,7 @@ module.exports = {
 
 
         } catch (error) {
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false,message:'Internal Server Error' });
 
         }
     },

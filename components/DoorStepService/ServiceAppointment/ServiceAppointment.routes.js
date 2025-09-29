@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const serviceAppointment = require('./ServiceAppointment.controller')
-const { authentication } = require('../middleware/middleware.controller')
+const { authentication } = require('../../Middleware/Middleware.controller')
 
 
 router.post('/addAppointments', authentication, (req, res) => {

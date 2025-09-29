@@ -209,7 +209,7 @@ module.exports = {
                 { $set: updatedData },
                 { new: true }
             )
-            
+
             return res.status(200).json({
                 success: true,
                 message: "Category Updated Successfully",
@@ -275,14 +275,18 @@ module.exports = {
             }
 
             let result = await CoachingCategory.deleteOne({ _id: id })
-            console.log("result", result)
             if (!result) {
                 res.status(400).json({
                     success: false,
                     message: "Category not deleted"
                 })
             }
-
+            if (category && category.coachingImage) {
+                const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingCategoryImage', category.coachingImage);
+                if (fs.existsSync(oldImagePath)) {
+                    fs.unlinkSync(oldImagePath);
+                }
+            }
             res.status(200).json({
                 success: true,
                 message: "Category deleted",

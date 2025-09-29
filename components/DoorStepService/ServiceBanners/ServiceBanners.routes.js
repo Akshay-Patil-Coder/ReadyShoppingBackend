@@ -4,7 +4,7 @@ const multer = require('multer')
 const path = require('path')
 const fs = require('fs')
 const serviceBannersController = require('./ServiceBanners.controller')
-const { authentication } = require('../middleware/middleware.controller')
+const { authentication } = require('../../Middleware/Middleware.controller')
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {

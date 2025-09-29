@@ -117,7 +117,7 @@ module.exports = {
                 return resp.status(400).json({ message: 'Something went wrong while saving the tutor', success: false });
             }
 
-            return resp.status(200).json({ data: result, success: true });
+            return resp.status(200).json({ data: result, success: true ,message:"Tutor Added"});
         } catch (error) {
               if (req.file?.filename) {
                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingTutorImage', req.file.filename);
@@ -125,7 +125,7 @@ module.exports = {
                         fs.unlinkSync(newImagePath);
                     }
                 }
-            return resp.status(500).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
         }
     },
 
@@ -319,10 +319,10 @@ module.exports = {
                 return res.status(404).json({ message: 'No tutor Found', success: false });
             }
 
-            return res.status(200).json({ data: data, success: true });
+            return res.status(200).json({ data: data, success: true,message:"Data Fetched" });
 
         } catch (error) {
-            res.status(400).json({ error: error.message, success: false });
+            res.status(400).json({ error: error.message, success: false ,message:"Internal Server Error"});
         }
     },
 
@@ -332,7 +332,7 @@ module.exports = {
             const companyId = req.query.companyId;
             const operation = req.query.operation;
             if (!CoachingTutorId || !SubCourceCatId || SubCourceCatId.length === 0) {
-                return resp.status(400).send('Please insert valid data');
+                return resp.status(400).send({message:'Please insert valid data',success:false});
             }
 
 
@@ -369,7 +369,7 @@ module.exports = {
             const companyId = req.query.companyId;
             const operation = req.query.operation;
             if (!CoachingTutorId || !HeadCourceCatId || HeadCourceCatId.length === 0) {
-                return resp.status(400).send('Please insert valid data');
+                return resp.status(400).send({message:'Please insert valid data',success:false});
             }
 
 
@@ -473,7 +473,7 @@ module.exports = {
                         fs.unlinkSync(newImagePath);
                     }
                 }
-                return resp.status(400).send('Please insert valid data');
+                return resp.status(400).send({message:'Please insert valid data',success:false});
 
             }
 
@@ -523,7 +523,7 @@ module.exports = {
                     return resp.status(400).json({ message: 'not updated', success: false });
                 }
                 else {
-                    return resp.status(200).json({ data: updatedResult, success: true });
+                    return resp.status(200).json({ data: updatedResult, success: true,message:'Tutor Detail Updated' });
                 }
 
             }
@@ -534,7 +534,7 @@ module.exports = {
                         fs.unlinkSync(newImagePath);
                     }
                 }
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false,message:"Internal Server Error"});
         }
     },
     deleteCoachingTutor: async (req, resp) => {
@@ -548,6 +548,12 @@ module.exports = {
                 if (!result) {
                     return resp.status(400).json({ message: "Coaching tutor cannot be deleted", success: false })
                 }
+                 if (coachingtutordata && coachingtutordata.TutorImage) {
+                        const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingTutorImage', coachingtutordata.TutorImage);
+                        if (fs.existsSync(oldImagePath)) {
+                            fs.unlinkSync(oldImagePath);
+                        }
+                    }
                 return resp.status(200).json({ message: "Coaching tutor deleted", success: true, data: result })
             }
             else {
@@ -556,7 +562,7 @@ module.exports = {
 
 
         } catch (error) {
-            return resp.status(400).json({ error: error.message, success: false });
+            return resp.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
 
         }
     },

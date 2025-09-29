@@ -340,7 +340,7 @@ module.exports = {
             return resp.status(400).json({ message: 'appointment data not found', success: false })
 
         } catch (error) {
-            return resp.status(400).json({ error: error.message, success: false })
+            return resp.status(400).json({ error: error.message, success: false ,message:"Internal Server Error"})
 
         }
     },
@@ -390,9 +390,10 @@ module.exports = {
                 return res.status(400).json({ message: 'Slots not available', success: false });
             }
 
-            return res.status(200).json({ data: data, success: true });
+            return res.status(200).json({ data: data, success: true,message:"Data Fetched" });
 
         } catch (error) {
+            return res.status(400).json({ error:error.message,success: false,message:"Internal Server Error" });
 
         }
     }

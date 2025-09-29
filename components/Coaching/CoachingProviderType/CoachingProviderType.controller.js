@@ -45,7 +45,7 @@ module.exports = {
                 data: savedCoachingProviderType
             });
         } catch (error) {
-            res.status(500).json({ success: false, message: error.message });
+            res.status(500).json({ success: false, error: error.message,message:"Internal Server Error" });
         }
     },
 
@@ -88,7 +88,7 @@ module.exports = {
 
             let updatedData = { CourceProviderType: req.body.CourceProviderType };
 
-            if (req.file) {
+            if (req.file?.filename) {
 
                 const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', existingUser.CourceProviderTypeImage);
                 if (existingUser.CourceProviderTypeImage && fs.existsSync(oldImagePath)) {
@@ -115,7 +115,8 @@ module.exports = {
             }
             res.status(500).json({
                 success: false,
-                message: error.message
+                error: error.message,
+                message:"Internal Server Error"
             });
         }
     },

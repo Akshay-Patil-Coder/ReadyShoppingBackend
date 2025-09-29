@@ -6,8 +6,7 @@ const path = require('path')
 const fs = require('fs')
 const serviceProviderController = require('./ServiceProvider.controller')
 const router = express.Router()
-const { authentication } = require('../middleware/middleware.controller')
-const { success } = require('../paytm/paytm.controller')
+const { authentication } = require('../../Middleware/Middleware.controller')
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
