@@ -37,7 +37,7 @@ const UserSchema = new mongoose.Schema({
         PostalCode: {
             type: Number
         },
-        Lattitude: {
+        Latitude: {
             type: Number
         },
         Longitude: {
@@ -58,10 +58,14 @@ const UserSchema = new mongoose.Schema({
         default: true
     },
     ActiveOtp: {
-        type: Number
+        type: String
     },
     OtpTime:{
         type:Date
+    },
+    PhoneIsVerfied:{
+        type:Boolean,
+        default:false
     }
 },
     {
@@ -112,12 +116,12 @@ const User = mongoose.model('User', UserSchema);
 //     Identification: { type: String, default: 0 }
 // }, { timestamps: true });
 
-userSchema.methods.generateHash = function (password) {
-    return bcrypt.hashSync(password, bcrypt.genSaltSync(9));
-};
-userSchema.methods.comparePassword = function (password) {
-    return bcrypt.compare(password, this.password);
-};
+// userSchema.methods.generateHash = function (password) {
+//     return bcrypt.hashSync(password, bcrypt.genSaltSync(9));
+// };
+// userSchema.methods.comparePassword = function (password) {
+//     return bcrypt.compare(password, this.password);
+// };
 
 
 // const smsContentSchema = new mongoose.Schema({

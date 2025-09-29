@@ -4,8 +4,8 @@ require('dotenv').config();
 const path = require('path');
 // const CoachingRoutes = require('./Routes/Coaching.routes')
 const OtherRoutes = require('./Routes/Other.routes')
-const ShoppingRoutes = require('./Routes/Shopping.routes')
-const CoachingRoutes = require('./Routes/Coaching.routes')
+// const ShoppingRoutes = require('./Routes/Shopping.routes')
+// const CoachingRoutes = require('./Routes/Coaching.routes')
 const app = express();
 app.use(express.json());
 
@@ -20,8 +20,8 @@ app.use(express.json());
 })();
 
 OtherRoutes.default(app); 
-ShoppingRoutes.default(app);
-CoachingRoutes.default(app);
+// ShoppingRoutes.default(app);
+// CoachingRoutes.default(app);
 
 // const staticPaths = {
 //   '/api/v1/report': '../outputfiles/',
