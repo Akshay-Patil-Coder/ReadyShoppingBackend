@@ -33,7 +33,6 @@ const UserSchema = new mongoose.Schema({
         AddressType: {
             type: String,
             default: "Home",
-            enum: ["Home", "Office"]
         },
         Street: {
             type: String
@@ -62,7 +61,6 @@ const UserSchema = new mongoose.Schema({
     }],
     Gender: {
         type: String,
-        enum: ["Male", "Female"]
     },
     DOB: {
         type: String
