@@ -2,405 +2,589 @@ const bannersSchema = require('./ShoppingBanners.model');
 const mongoose = require('mongoose')
 const path = require('path')
 const fs = require('fs')
-const ProductsModel = require('../Products/Products.model')
+const { VariantProduct } = require('../VariantsProducts/VariantsProducts.model');
+
 module.exports = {
 
-    addbanner: async (req, resp) => {
+    addbanner: async (req, res) => {
         try {
-            let { companyId, BannerName, SubCategoryId, HeadCategoryId, BrandId, Position, ProductsId, OfferPercentage, BannerType } = req.body;
-            if (ProductsId) {
-                try {
-                    ProductsId = JSON.parse(ProductsId);
-                } catch {
-                    if (req.file?.filename) {
-                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-                        if (fs.existsSync(newImagePath)) {
-                            fs.unlinkSync(newImagePath);
-                        }
-                    }
-                    return resp.status(400).json({ message: 'Invalid ProductsId format', success: false });
-                }
-            }
+            let {
+                companyId,
+                BannerName,
+                SubCategoryId,
+                HeadCategoryId,
+                BrandId,
+                Position,
+                VariantsProductsIds,
+                OfferPercentage,
+                BannerType
+            } = req.body;
 
-            if (BannerType == 'Brand') {
-                if (!companyId || !BannerName || !SubCategoryId || !HeadCategoryId || !BrandId) {
-                    if (req.file?.filename) {
-                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-                        if (fs.existsSync(newImagePath)) {
-                            fs.unlinkSync(newImagePath);
-                        }
-                    }
-                    return resp.status(400).json({ message: 'please filled all required fields', success: false })
-                }
-                const bannerData = {
-                    companyId,
-                    BannerName,
-                    SubCategoryId,
-                    HeadCategoryId,
-                    BrandId,
-                    Position,
-                    BannerType,
-                };
-
-                if (req.file) {
-                    bannerData.BannerImage = req.file.filename;
-                }
-                else {
-                    return resp.status(400).json({ message: 'please Upload The Image', success: false })
-                }
-
-
-                const newBanner = new bannersSchema(bannerData);
-                const result = await newBanner.save();
-                if (!result) {
-                    if (req.file?.filename) {
-                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-                        if (fs.existsSync(newImagePath)) {
-                            fs.unlinkSync(newImagePath);
-                        }
-                    }
-
-                    return resp.status(400).json({ message: 'Something went wrong while saving the banner', success: false });
-                }
-
-                return resp.status(200).json({ data: result, success: true, message: "Banner Added Successfully" });
-            }
-            else if (BannerType == 'Offer') {
-                if (!companyId || !BannerName || !SubCategoryId || !HeadCategoryId || !ProductsId || !OfferPercentage) {
-                    if (req.file?.filename) {
-                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-                        if (fs.existsSync(newImagePath)) {
-                            fs.unlinkSync(newImagePath);
-                        }
-                    }
-                    return resp.status(400).json({ message: 'please filled all required fields', success: false })
-                }
-
-                if (OfferPercentage) {
-                    OfferPercentage = Number(OfferPercentage);
-                    if (isNaN(OfferPercentage) || OfferPercentage < 0 || OfferPercentage >= 100) {
-                        if (req.file?.filename) {
-                            const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-                            if (fs.existsSync(newImagePath)) {
-                                fs.unlinkSync(newImagePath);
-                            }
-                        }
-                        return resp.status(400).send({
-                            success: false,
-                            message: "OfferPercentage must be a number between 0 and 99"
-                        });
-                    }
-                }
-                const bannerData = {
-                    companyId,
-                    BannerName,
-                    SubCategoryId,
-                    HeadCategoryId,
-                    ProductsId,
-                    OfferPercentage,
-                    Position,
-                    BannerType,
-                };
-
+            const deleteBannerImage = () => {
                 if (req.file?.filename) {
-                    bannerData.BannerImage = req.file.filename;
+                    const filePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
                 }
-                else {
-                    return resp.status(400).json({ message: 'please Upload The Image', success: false })
-                }
-                if (ProductsId && ProductsId.length !== 0) {
-                    await ProductsModel.Products.updateMany(
-                        { _id: { $in: ProductsId } },
-                        { $set: { offerPercentage: OfferPercentage } }
-                    );
-                }
-                const newBanner = new bannersSchema(bannerData);
-                const result = await newBanner.save();
-                if (!result) {
-                    if (req.file?.filename) {
-                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-                        if (fs.existsSync(newImagePath)) {
-                            fs.unlinkSync(newImagePath);
-                        }
-                    }
+            };
 
-                    return resp.status(400).json({ message: 'Something went wrong while saving the banner', success: false });
+            if (VariantsProductsIds) {
+                try {
+                    VariantsProductsIds = JSON.parse(VariantsProductsIds);
+                } catch {
+                    deleteBannerImage();
+                    return res.status(400).json({ message: 'Invalid VariantsProductsIds format', success: false });
                 }
-
-                return resp.status(200).json({ data: result, success: true, message: "Banner Added Successfully" });
             }
+
+            if (!companyId || !BannerName || !HeadCategoryId || !SubCategoryId || !BannerType) {
+                deleteBannerImage();
+                return res.status(400).json({ message: 'Please fill all required fields', success: false });
+            }
+
+            if (!req.file?.filename) {
+                return res.status(400).json({ message: 'Please upload the banner image', success: false });
+            }
+
+            const bannerData = {
+                companyId,
+                BannerName,
+                SubCategoryId,
+                HeadCategoryId,
+                Position,
+                BannerType,
+                BannerImage: req.file.filename
+            };
+
+            if (BannerType === 'Brand') {
+                if (!BrandId) {
+                    deleteBannerImage();
+                    return res.status(400).json({ message: 'BrandId is required for Brand banners', success: false });
+                }
+
+                bannerData.BrandId = BrandId;
+            }
+
+            else if (BannerType === 'Offer') {
+                if (!VariantsProductsIds || VariantsProductsIds.length === 0 || !OfferPercentage) {
+                    deleteBannerImage();
+                    return res.status(400).json({ message: 'VariantsProductsIds and OfferPercentage are required for Offer banners', success: false });
+                }
+
+                OfferPercentage = Number(OfferPercentage);
+                if (isNaN(OfferPercentage) || OfferPercentage <= 0 || OfferPercentage >= 100) {
+                    deleteBannerImage();
+                    return res.status(400).json({
+                        success: false,
+                        message: 'OfferPercentage must be a number between 1 and 99'
+                    });
+                }
+
+                bannerData.VariantsProductsIds = VariantsProductsIds;
+                bannerData.OfferPercentage = OfferPercentage;
+
+                await VariantProduct.updateMany(
+                    { _id: { $in: VariantsProductsIds } },
+                    { $set: { OfferPercentage } }
+                );
+            }
+
+            const newBanner = new bannersSchema(bannerData);
+            const result = await newBanner.save();
+
+            if (!result) {
+                deleteBannerImage();
+                return res.status(400).json({ message: 'Something went wrong while saving the banner', success: false });
+            }
+
+            return res.status(200).json({
+                data: result,
+                success: true,
+                message: 'Banner added successfully'
+            });
+
         } catch (error) {
             if (req.file?.filename) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
-                }
+                const filePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
             }
-            return resp.status(500).json({ message: "Internal Server Error", error: error.message, success: false });
+
+            console.error('Error in addbanner:', error);
+            return res.status(500).json({
+                message: 'Internal Server Error',
+                error: error.message,
+                success: false
+            });
         }
     },
 
 
     getBannersData: async (matchCondition) => {
-
         return await bannersSchema.aggregate([
             { $match: matchCondition },
+
             {
                 $lookup: {
-                    from: "categgggories",
+                    from: "categories",
                     localField: "HeadCategoryId",
                     foreignField: "_id",
-                    as: "HeadCategoryInfo",
+                    as: "HeadCategory"
                 }
             },
+
             {
                 $lookup: {
-                    from: "categgggories",
+                    from: "categories",
                     localField: "SubCategoryId",
                     foreignField: "_id",
-                    as: "SubCategoriesInfo",
-                }
-            }, {
-                $lookup: {
-                    from: "products",
-                    localField: "ProductsId",
-                    foreignField: "_id",
-                    as: "ProductsInfo",
+                    as: "SubCategory"
                 }
             },
+
             {
                 $lookup: {
-                    from: "brands",
-                    localField: "BrandId",
+                    from: "variantproducts",
+                    localField: "VariantsProductsIds",
                     foreignField: "_id",
-                    as: "BrandsInfo",
+                    as: "VariantProducts"
+                }
+            },
+
+            {
+                $lookup: {
+                    from: "products",
+                    localField: "VariantProducts.ProductId",
+                    foreignField: "_id",
+                    as: "ProductData"
+                }
+            },
+
+            {
+                $lookup: {
+                    from: "productservices",
+                    localField: "ProductData.ProductServices.ProductServiceId",
+                    foreignField: "_id",
+                    as: "ProductServicesData"
+                }
+            },
+
+            {
+                $addFields: {
+                    "ProductData": {
+                        $map: {
+                            input: "$ProductData",
+                            as: "p",
+                            in: {
+                                $mergeObjects: [
+                                    "$$p",
+                                    {
+                                        ProductServices: {
+                                            $map: {
+                                                input: "$$p.ProductServices",
+                                                as: "ps",
+                                                in: {
+                                                    $mergeObjects: [
+                                                        "$$ps",
+                                                        {
+                                                            ProductServiceData: {
+                                                                $arrayElemAt: [
+                                                                    {
+                                                                        $filter: {
+                                                                            input: "$ProductServicesData",
+                                                                            as: "psd",
+                                                                            cond: { $eq: ["$$psd._id", "$$ps.ProductServiceId"] }
+                                                                        }
+                                                                    },
+                                                                    0
+                                                                ]
+                                                            }
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+
+            {
+                $lookup: {
+                    from: "variants",
+                    localField: "VariantProducts.VariantFields.VariantId",
+                    foreignField: "_id",
+                    as: "VariantDetails"
+                }
+            },
+
+            {
+                $lookup: {
+                    from: "batches",
+                    localField: "VariantProducts.BatchIds",
+                    foreignField: "_id",
+                    as: "BatchesInfo"
+                }
+            },
+
+            {
+                $addFields: {
+                    "VariantProducts": {
+                        $map: {
+                            input: "$VariantProducts",
+                            as: "vp",
+                            in: {
+                                $mergeObjects: [
+                                    "$$vp",
+                                    {
+                                        VariantFields: {
+                                            $map: {
+                                                input: "$$vp.VariantFields",
+                                                as: "vf",
+                                                in: {
+                                                    $mergeObjects: [
+                                                        "$$vf",
+                                                        {
+                                                            VariantName: {
+                                                                $arrayElemAt: [
+                                                                    {
+                                                                        $map: {
+                                                                            input: {
+                                                                                $filter: {
+                                                                                    input: "$VariantDetails",
+                                                                                    as: "v",
+                                                                                    cond: { $eq: ["$$v._id", "$$vf.VariantId"] }
+                                                                                }
+                                                                            },
+                                                                            as: "v",
+                                                                            in: "$$v.VariantName"
+                                                                        }
+                                                                    },
+                                                                    0
+                                                                ]
+                                                            },
+                                                            VariantValue: {
+                                                                $arrayElemAt: [
+                                                                    {
+                                                                        $map: {
+                                                                            input: {
+                                                                                $filter: {
+                                                                                    input: "$VariantDetails",
+                                                                                    as: "v",
+                                                                                    cond: { $eq: ["$$v._id", "$$vf.VariantId"] }
+                                                                                }
+                                                                            },
+                                                                            as: "v",
+                                                                            in: "$$v.Value"
+                                                                        }
+                                                                    },
+                                                                    0
+                                                                ]
+                                                            }
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        },
+                                        BatchesInfo: {
+                                            $filter: {
+                                                input: "$BatchesInfo",
+                                                as: "b",
+                                                cond: { $in: ["$$b._id", "$$vp.BatchIds"] }
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+
+            {
+                $addFields: {
+                    ProductData: {
+                        $map: {
+                            input: "$ProductData",
+                            as: "p",
+                            in: {
+                                $mergeObjects: [
+                                    "$$p",
+                                    {
+                                        VariantProducts: {
+                                            $filter: {
+                                                input: "$VariantProducts",
+                                                as: "vp",
+                                                cond: { $eq: ["$$vp.ProductId", "$$p._id"] }
+                                            }
+                                        },
+                                        Brands: "$BrandId" ? [{ _id: "$BrandId" }] : [],
+                                        HeadCategory: "$HeadCategory",
+                                        SubCategory: "$SubCategory"
+                                    }
+                                ]
+                            }
+                        }
+                    }
                 }
             }
         ]);
-
     },
+
+
     getBannersById: async (req, res) => {
         const { Position, BannerType, companyId, BrandId, SubCategoryId, HeadCategoryId, BannerId } = req.query;
 
         try {
-            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
+            if (!mongoose.Types.ObjectId.isValid(companyId)) {
+                return res.status(400).json({ message: 'Invalid companyId', success: false });
+            }
+
+            let matchCondition = { companyId: new mongoose.Types.ObjectId(String(companyId)) };
 
             if (HeadCategoryId) {
                 if (!mongoose.Types.ObjectId.isValid(HeadCategoryId)) {
-                    return res.status(400).json({ message: 'Invalid ID format', success: false });
+                    return res.status(400).json({ message: 'Invalid HeadCategoryId format', success: false });
                 }
-                matchCondition.HeadCategoryId = mongoose.Types.ObjectId.createFromHexString(HeadCategoryId);
+                matchCondition.HeadCategoryId = new mongoose.Types.ObjectId(String(HeadCategoryId));
             }
+
             if (SubCategoryId) {
                 if (!mongoose.Types.ObjectId.isValid(SubCategoryId)) {
-                    return res.status(400).json({ message: 'Invalid ID format', success: false });
+                    return res.status(400).json({ message: 'Invalid SubCategoryId format', success: false });
                 }
-                matchCondition.SubCategoryId = mongoose.Types.ObjectId.createFromHexString(SubCategoryId);
+                matchCondition.SubCategoryId = new mongoose.Types.ObjectId(String(SubCategoryId));
             }
+
             if (BannerId) {
                 if (!mongoose.Types.ObjectId.isValid(BannerId)) {
-                    return res.status(400).json({ message: 'Invalid ID format', success: false });
+                    return res.status(400).json({ message: 'Invalid BannerId format', success: false });
                 }
-                matchCondition._id = mongoose.Types.ObjectId.createFromHexString(BannerId);
+                matchCondition._id = new mongoose.Types.ObjectId(String(BannerId));
             }
+
             if (BrandId) {
                 if (!mongoose.Types.ObjectId.isValid(BrandId)) {
-                    return res.status(400).json({ message: 'Invalid ID format', success: false });
+                    return res.status(400).json({ message: 'Invalid BrandId format', success: false });
                 }
-                matchCondition.BrandId = mongoose.Types.ObjectId.createFromHexString(BrandId);
+                matchCondition.BrandId = new mongoose.Types.ObjectId(String(BrandId));
             }
+
             if (Position) {
                 if (Position !== "SUB" && Position !== "HEAD") {
-                    return res.status(400).json({ message: 'please provide Position', success: false });
+                    return res.status(400).json({ message: 'Invalid Position. Use "SUB" or "HEAD".', success: false });
                 }
-                else {
-                    matchCondition.Position = Position;
-
-                }
+                matchCondition.Position = Position;
             }
+
             if (BannerType) {
                 if (BannerType !== "Brand" && BannerType !== "Offer") {
-                    return res.status(400).json({ message: 'please provide Banner Type', success: false });
+                    return res.status(400).json({ message: 'Invalid BannerType. Use "Brand" or "Offer".', success: false });
                 }
-                else {
-                    matchCondition.BannerType = BannerType;
-
-                }
+                matchCondition.BannerType = BannerType;
             }
 
             const data = await module.exports.getBannersData(matchCondition);
 
-            if (data.length === 0) {
-                return res.status(404).json({ message: 'No Banners found for this Data', success: false });
+            if (!data || data.length === 0) {
+                return res.status(404).json({ message: 'No banners found for the given criteria', success: false });
             }
 
-            return res.status(200).json({ data: data, success: true, message: "Banner Fetched Successfully" });
+            return res.status(200).json({ data, success: true, message: "Banners fetched successfully" });
 
         } catch (error) {
-            res.status(400).json({ message: "Internal Server Error", error: error.message, success: false });
+            console.error("Error in getBannersById:", error);
+            return res.status(500).json({ message: "Internal Server Error", error: error.message, success: false });
         }
     },
+
 
     updateProductsById: async (req, resp) => {
         try {
-            let { BannerId, ProductsId, BannerType } = req.body;
+            let { BannerId, VariantsProductsId, BannerType } = req.body;
             const companyId = req.query.companyId;
             const operation = req.query.operation;
-            if (!BannerId || !ProductsId || ProductsId.length === 0) {
-                return resp.status(400).send({ messgae: 'Please insert valid data', success: false });
+
+            if (!BannerId || !VariantsProductsId || VariantsProductsId.length === 0) {
+                return resp.status(400).json({ message: 'Please insert valid data', success: false });
             }
+
             if (BannerType !== 'Offer') {
-                return resp.status(400).send({ message: 'Please provide banner type or banner type must be offer', success: false });
+                return resp.status(400).json({ message: 'BannerType must be "Offer"', success: false });
             }
 
+            const bannerObjectId = new mongoose.Types.ObjectId(String(BannerId));
+            const companyObjectId = new mongoose.Types.ObjectId(String(companyId));
+            const variantObjectIds = VariantsProductsId.map(id => new mongoose.Types.ObjectId(String(id)));
 
-            else {
-                if (operation === 'delete') {
-                    let updatedResult = await bannersSchema.findOneAndUpdate(
-                        { _id: BannerId, companyId: companyId, BannerType: BannerType },
-                        { $pull: { ProductsId: { $in: ProductsId } } },
-                        { new: true }
+            if (operation === 'delete') {
+                let updatedResult = await bannersSchema.findOneAndUpdate(
+                    { _id: bannerObjectId, companyId: companyObjectId, BannerType },
+                    { $pull: { VariantsProductsIds: { $in: variantObjectIds } } },
+                    { new: true }
+                );
+
+                if (updatedResult && updatedResult.BannerType === 'Offer') {
+                    await VariantProduct.updateMany(
+                        { _id: { $in: variantObjectIds }, OfferPercentage: updatedResult.OfferPercentage },
+                        { $set: { OfferPercentage: null } }
                     );
-
-                    if (ProductsId && updatedResult.BannerType === 'Offer') {
-                        let productdata = await ProductsModel.Products.findOne({ _id: ProductsId });
-                        if (productdata.offerPercentage == updatedResult.OfferPercentage) {
-                            const updateProduct = await ProductsModel.Products.updateOne({ _id: ProductsId }, { $set: { offerPercentage: null } })
-                        }
-                    }
-
-                    return resp.status(200).json({ data: updatedResult, success: true, message: "product deleted successfully from given offer banner" });
-                }
-                if (operation === 'add') {
-                    let updatedResult = await bannersSchema.findOneAndUpdate(
-                        { _id: BannerId, companyId: companyId, BannerType: BannerType },
-                        { $addToSet: { ProductsId: { $each: ProductsId } } },
-                        { new: true }
-                    );
-                    if (ProductsId && ProductsId.length !== 0 && updatedResult.BannerType == 'Offer') {
-                        const updateOperations = ProductsId.map(Prod_id => ({
-                            updateOne: {
-                                filter: { _id: Prod_id },
-                                update: { $set: { offerPercentage: updatedResult.OfferPercentage } }
-                            }
-                        }));
-
-                        if (updateOperations.length > 0) {
-                            await ProductsModel.Products.bulkWrite(updateOperations);
-                        }
-                    }
-                    return resp.status(200).json({ data: updatedResult, success: true, message: 'product added successfully in given offer banner' });
                 }
 
+                return resp.status(200).json({
+                    data: updatedResult,
+                    success: true,
+                    message: "Product(s) deleted successfully from the offer banner"
+                });
             }
+
+            if (operation === 'add') {
+                let updatedResult = await bannersSchema.findOneAndUpdate(
+                    { _id: bannerObjectId, companyId: companyObjectId, BannerType },
+                    { $addToSet: { VariantsProductsIds: { $each: variantObjectIds } } },
+                    { new: true }
+                );
+
+                if (updatedResult && updatedResult.BannerType === 'Offer') {
+                    await VariantProduct.updateMany(
+                        { _id: { $in: variantObjectIds } },
+                        { $set: { OfferPercentage: updatedResult.OfferPercentage } }
+                    );
+                }
+
+                return resp.status(200).json({
+                    data: updatedResult,
+                    success: true,
+                    message: "Product(s) added successfully to the offer banner"
+                });
+            }
+
+            return resp.status(400).json({
+                message: "Invalid operation type. Use 'add' or 'delete'.",
+                success: false
+            });
+
         } catch (error) {
-            return resp.status(400).json({ message: "Internal Server Error", error: error.message, success: false });
+            console.error("Error in updateProductsById:", error);
+            return resp.status(500).json({
+                message: "Internal Server Error",
+                error: error.message,
+                success: false
+            });
         }
-
     },
+
     deleteBanner: async (req, res) => {
         try {
-            let _id = req.query._id;
-            let companyId = req.query.companyId;
+            const { _id, companyId } = req.query;
+
             if (!_id || !companyId) {
-                return res.status(400).json({ message: 'provide brand id and company id', success: false });
+                return res.status(400).json({ message: 'Provide banner id and company id', success: false });
             }
-            if (_id) {
-                if (!mongoose.Types.ObjectId.isValid(_id)) {
-                    return res.status(400).json({ message: 'Invalid ID format', success: false });
-                }
-            }
-            if (companyId) {
-                if (!mongoose.Types.ObjectId.isValid(companyId)) {
-                    return res.status(400).json({ message: 'Invalid ID format', success: true });
-                }
-            }
-            let bannerdatanew = await bannersSchema.findOne({ _id: _id, companyId: companyId })
-            if (bannerdatanew && bannerdatanew.BannerType == 'Offer') {
-                for (ProdId of bannerdatanew.ProductsId) {
-                    let productdata = await ProductsModel.Products.findOne({ _id: ProdId });
-                    if (productdata.offerPercentage == bannerdatanew.OfferPercentage) {
-                        const updateProduct = await ProductsModel.Products.updateOne({ _id: ProdId }, { $set: { offerPercentage: null } })
-                    }
-                }
-            }
-            if (bannerdatanew?.BannerImage) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', bannerdatanew.BannerImage);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
-                    }
-            }
-            let result = await bannersSchema.deleteOne({ _id: _id, companyId: companyId })
 
-            return res.status(200).json({ data: result, success: true, message: "banner deleted successfully" });
+            if (!mongoose.Types.ObjectId.isValid(_id)) {
+                return res.status(400).json({ message: 'Invalid banner ID format', success: false });
+            }
+            if (!mongoose.Types.ObjectId.isValid(companyId)) {
+                return res.status(400).json({ message: 'Invalid company ID format', success: false });
+            }
+
+            const bannerObjectId = new mongoose.Types.ObjectId(String(_id));
+            const companyObjectId = new mongoose.Types.ObjectId(String(companyId));
+
+            const bannerData = await bannersSchema.findOne({ _id: bannerObjectId, companyId: companyObjectId });
+            if (!bannerData) {
+                return res.status(404).json({ message: 'Banner not found', success: false });
+            }
+
+            let productObjectIds = [];
+            if (bannerData.BannerType === 'Offer' && bannerData.VariantsProductsIds?.length) {
+                productObjectIds = bannerData.VariantsProductsIds.map(pid => new mongoose.Types.ObjectId(String(pid)));
+
+                for (const prodObjectId of productObjectIds) {
+                    const productData = await VariantProduct.findOne({ _id: prodObjectId });
+                    if (productData && productData.OfferPercentage === bannerData.OfferPercentage) {
+                        await VariantProduct.updateOne({ _id: prodObjectId }, { $set: { OfferPercentage: null } });
+                    }
+                }
+            }
+
+            if (bannerData.BannerImage) {
+                const imagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', bannerData.BannerImage);
+                if (fs.existsSync(imagePath)) {
+                    fs.unlinkSync(imagePath);
+                }
+            }
+
+            const result = await bannersSchema.deleteOne({ _id: bannerObjectId, companyId: companyObjectId });
+
+            return res.status(200).json({ data: result, success: true, message: "Banner deleted successfully" });
+
         } catch (error) {
-            return res.status(400).json({ error: error.message, success: false, message: "Internal Server Error" });
-
+            console.error("Error deleting banner:", error);
+            return res.status(500).json({ error: error.message, success: false, message: "Internal Server Error" });
         }
     },
+
     updateBannerDetails: async (req, resp) => {
         try {
             const { BannerId, BannerName } = req.body;
-            const companyId = req.query.companyId;
+            const { companyId } = req.query;
 
             if (!BannerId || !BannerName) {
                 if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
-                    }
+                    const imagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                    if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
                 }
+                return resp.status(400).json({ message: 'BannerId and BannerName are required', success: false });
             }
 
+            if (!mongoose.Types.ObjectId.isValid(BannerId)) {
+                return resp.status(400).json({ message: 'Invalid BannerId', success: false });
+            }
+            if (!mongoose.Types.ObjectId.isValid(companyId)) {
+                return resp.status(400).json({ message: 'Invalid companyId', success: false });
+            }
 
-            else {
-                const bannerData = {
-                    BannerName
+            const bannerObjectId = new mongoose.Types.ObjectId(String(BannerId));
+            const companyObjectId = new mongoose.Types.ObjectId(String(companyId));
+
+            const bannerData = { BannerName };
+
+            if (req.file?.filename) {
+                const existingBanner = await bannersSchema.findOne({ _id: bannerObjectId, companyId: companyObjectId });
+                if (existingBanner?.BannerImage) {
+                    const existingImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', existingBanner.BannerImage);
+                    if (fs.existsSync(existingImagePath)) fs.unlinkSync(existingImagePath);
                 }
+                bannerData.BannerImage = req.file.filename;
+            }
+
+            const updatedResult = await bannersSchema.updateOne(
+                { _id: bannerObjectId, companyId: companyObjectId },
+                { $set: bannerData }
+            );
+
+            if (!updatedResult.modifiedCount) {
                 if (req.file?.filename) {
-                    const existingBanner = await bannersSchema.findOne({ _id: BannerId, companyId: companyId })
-                    if (existingBanner && existingBanner.BannerImage) {
-                            const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', existingBanner.BannerImage);
-                            if (fs.existsSync(newImagePath)) {
-                                fs.unlinkSync(newImagePath);
-                            }
-                    }
-                    bannerData.BannerImage = req.file.filename;
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                    if (fs.existsSync(newImagePath)) fs.unlinkSync(newImagePath);
                 }
-
-                let updatedResult = await bannersSchema.updateOne(
-                    { _id: BannerId, companyId: companyId },
-                    {
-                        $set: bannerData
-                    }
-                );
-                if (!updatedResult) {
-                      if (req.file?.filename) {
-                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-                        if (fs.existsSync(newImagePath)) {
-                            fs.unlinkSync(newImagePath);
-                        }
-                    }
-                    return resp.status(400).json({ message: 'not updated', success: false });
-                }
-                else {
-                  
-                    return resp.status(200).json({ data: updatedResult, success: true, message: "updated successfully" });
-                }
-
+                return resp.status(400).json({ message: 'Banner not updated', success: false });
             }
+
+            return resp.status(200).json({ data: updatedResult, success: true, message: "Banner updated successfully" });
+
         } catch (error) {
             if (req.file?.filename) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
-                }
+                const imagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
             }
-            return resp.status(400).json({ error: error.message, success: false, message: "Internal Server Error" });
+            console.error("Error in updateBannerDetails:", error);
+            return resp.status(500).json({ message: "Internal Server Error", error: error.message, success: false });
         }
     }
-
-
 
 
 }

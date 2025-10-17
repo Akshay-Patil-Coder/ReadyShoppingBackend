@@ -36,7 +36,9 @@ router.get('/getCategory', (req, res) => {
 router.get('/getCategoryTree', (req, res) => {
     dynamicCategoryController.getCategoryTree(req, res);
 });
-
+router.get('/getCategoryWithLeafNodes', (req, res) => {
+    dynamicCategoryController.getCategoryWithLeafNodes(req, res);
+});
 router.put('/updateCategory/:id',  upload.single('image'), (req, res) => {
         return dynamicCategoryController.updateCategory(req, res);
   });
@@ -45,7 +47,7 @@ router.post('/toggleCategoriesStatus',  (req, res) => {
         return dynamicCategoryController.toggleCategoriesStatus(req, res);
    });
 
-router.delete('/deleteCategories/:id', (req, res) => {
+router.delete('/deleteCategories', (req, res) => {
         return dynamicCategoryController.deleteCategories(req, res);
 });
 

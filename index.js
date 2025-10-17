@@ -4,23 +4,30 @@ require('dotenv').config();
 const path = require('path');
 // const CoachingRoutes = require('./Routes/Coaching.routes')
 const OtherRoutes = require('./Routes/Other.routes')
-// const ShoppingRoutes = require('./Routes/Shopping.routes')
+const ShoppingRoutes = require('./Routes/Shopping.routes')
 // const CoachingRoutes = require('./Routes/Coaching.routes')
+const cors = require('cors')
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cors({
+  origin: '*',
+  methods: ["GET", "POST", "PUT", "DELETE", "PETCH", "HEAD"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
 
-(async () => {
-  try {
-    await mongoose.connect(process.env.MONGO_URL);
-    console.log('✅ Connected to MongoDB');
-  } catch (err) {
-    console.error('❌ Error connecting to MongoDB:', err);
-    process.exit(1);
-  }
-})();
+  (async () => {
+    try {
+      await mongoose.connect(process.env.MONGO_URL);
+      console.log('✅ Connected to MongoDB');
+    } catch (err) {
+      console.error('❌ Error connecting to MongoDB:', err);
+      process.exit(1);
+    }
+  })();
 
-OtherRoutes.default(app); 
-// ShoppingRoutes.default(app);
+OtherRoutes.default(app);
+ShoppingRoutes.default(app);
 // CoachingRoutes.default(app);
 
 // const staticPaths = {

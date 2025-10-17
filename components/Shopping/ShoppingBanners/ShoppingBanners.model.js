@@ -15,27 +15,23 @@ const bannersSchema = new mongoose.Schema({
     },
     SubCategoryId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Categgggory',
         required: true
     },
     HeadCategoryId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Categgggory',
         required: true
     },
     BrandId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'brands'
     },
     Position: {
         type: String,
         default: "SUB",
         required: true
     },
-    ProductsId: [
+    VariantsProductsIds: [
         {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'products',
         }
     ],
     OfferPercentage: {
@@ -47,7 +43,7 @@ const bannersSchema = new mongoose.Schema({
         default: 'Brand',
         required: true,
     },
-    IsActive: {
+    isActive: {
         type: Boolean,
         default: true
     }

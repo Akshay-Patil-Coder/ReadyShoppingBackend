@@ -65,10 +65,10 @@ router.get('/getproducts', (req, res) => {
 router.get('/getproductsList', (req, res) => {
     productsController.getproductsList(req, res);
 });
-router.delete('/deleteproducts/:id', authentication, (req, res) => {
-    if (req.user.role === 'Admin' || req.user.role === 'Company') {
+router.delete('/deleteproducts/:id', (req, res) => {
+    // if (req.user.role === 'Admin' || req.user.role === 'Company') {
         return productsController.deleteproducts(req, res);
-    }
+    // }
     res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 });
 router.get('/exploreproducts', (req, res) => {
@@ -84,47 +84,47 @@ router.get('/recentlyviewed', (req, res) => {
     productsController.recentlyviewed(req, res);
 });
 //********************************varients***************************************/
-router.post('/addvarientsimages', authentication, upload.array('images'), (req, res) => {
-    if (req.user.role === 'Admin' || req.user.role === 'Company') {
+router.post('/addvarientsimages',  upload.array('images'), (req, res) => {
+    // if (req.user.role === 'Admin' || req.user.role === 'Company') {
         return productsController.addvarientsimages(req, res);
-    }
+    // }
     res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 });
 router.get('/getvarientsimages', (req, res) => {
     productsController.getvarientsimages(req, res);
 });
-router.put('/updatevarientsimages/:id', authentication, upload.single('imageName'), (req, res) => {
-    if (req.user.role === 'Admin' || req.user.role === 'Company') {
+router.put('/updatevarientsimages/:id',upload.single('imageName'), (req, res) => {
+    // if (req.user.role === 'Admin' || req.user.role === 'Company') {
         return productsController.updatevarientsimages(req, res);
-    }
+    // }
     res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 });
 
-router.delete('/deletevarientsimages/:id', authentication, (req, res) => {
-    if (req.user.role === 'Admin' || req.user.role === 'Company') {
+router.delete('/deletevarientsimages/:id', (req, res) => {
+    // if (req.user.role === 'Admin' || req.user.role === 'Company') {
         return productsController.deletevarientsimages(req, res);
-    }
+    // }
     res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 });
 
 
 //****************************keys***********************************************/
-router.post('/addKeys', authentication, (req, res) => {
-    if (req.user.role === 'Admin' || req.user.role === 'Company') {
+router.post('/addKeys',  (req, res) => {
+    // if (req.user.role === 'Admin' || req.user.role === 'Company') {0
         return productsController.addKeys(req, res);
-    }
+    // }
     res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 });
-router.delete('/deleteKeys', authentication, (req, res) => {
-    if (req.user.role === 'Admin' || req.user.role === 'Company') {
+router.delete('/deleteKeys',  (req, res) => {
+    // if (req.user.role === 'Admin' || req.user.role === 'Company') {
         return productsController.deleteKeys(req, res);
-    }
+    // }
     res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 });
-router.put('/updateKeys', authentication, (req, res) => {
-    if (req.user.role === 'Admin' || req.user.role === 'Company') {
+router.put('/updateKeys',(req, res) => {
+    // if (req.user.role === 'Admin' || req.user.role === 'Company') {
         return productsController.updateKeys(req, res);
-    }
+    // }
     res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 });
 router.get('/getKeys', (req, res) => {

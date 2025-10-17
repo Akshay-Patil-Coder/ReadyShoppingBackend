@@ -6,32 +6,30 @@ const trendingSchema = mongoose.Schema(
 
         companyId: {
             type: mongoose.Schema.Types.ObjectId,
-            required : true
+            required: true
         },
-        categoryId: {
+        HeadCategoryId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref:'Categgggory',
-            required : true,
+            required: true,
         },
         SubCategoryId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref:'Categgggory',
-            required : true,
+            required: true,
         },
-      productsId:[
-        {
-            type:mongoose.Schema.Types.ObjectId,
-            ref:'Product',            
-        }
-      ],
-        
+        VariantsProductsIds: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+            }
+        ],
+
         isActive: {
             type: Boolean,
-            default :true,
-  
-}},{
-    timestamps:true
+            default: true,
+
+        }
+    }, {
+    timestamps: true
 }
 )
-const trendingsproducts = mongoose.model('trendingsproducts',trendingSchema)
+const trendingsproducts = mongoose.model('trendingsproducts', trendingSchema)
 module.exports.trendingsproducts = trendingsproducts;

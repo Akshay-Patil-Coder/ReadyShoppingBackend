@@ -17,8 +17,5 @@ router.put('/deletetrendingproducts', (req, res) => {
     return trendingproductsController.deletetrendingproducts(req, res)
 })
 
-// router.delete('/deletetrendingproductsList/:id',(req,res)=>{
-//   trendingproductsController.deletetrendingproductsList(req,res)
-// })
 
 module.exports = router

@@ -56,12 +56,17 @@ router.post('/updateDetail', (req, res) => {
   return userController.updateDetail(req, res)
 })
 
-router.get('/getCurrentLocation', (req, res) => {
+router.post('/getCurrentLocation', (req, res) => {
   return userController.getCurrentLocation(req, res)
 })
 router.post('/updateUserAddress', (req, res) => {
-  return userController.getCurrentLocation(req, res)
+  return userController.updateUserAddress(req, res)
 })
-
+router.post('/getUserDetail', (req, res) => {
+  return userController.getUserDetail(req, res)
+})
+router.post('/getUserDetailByData', (req, res) => {
+  return userController.getUserDetailByData(req, res)
+})
 
 module.exports = router

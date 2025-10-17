@@ -1,0 +1,1524 @@
+const { ObjectId } = require('mongodb');
+const { VariantProduct, Product, Batch } = require('./VariantsProducts.model');
+const { Variant } = require('../Variants/Variants.model');
+const { ProductService } = require('../ProductServices/ProductServices.model')
+const { ProductRating } = require('../ProductRating/ProductRating.model')
+const mongoose = require('mongoose');
+const fs = require('fs');
+const path = require('path');
+const { is } = require('bluebird');
+const { getSystemErrorMap } = require('util');
+
+module.exports = {
+    addVariantProduct: async (req, res) => {
+        const {
+            companyId,
+            HeadCategoryId,
+            SubCategoryId,
+            BrandId,
+            ProductServices,
+            ProductName,
+            CommonDescription,
+            CommonImages,
+            VariantProductDatas
+        } = req.body;
+
+
+        const clearFiles = (files) => {
+            if (!Array.isArray(files)) return;
+            files.forEach((file) => {
+                const filePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', file);
+                try {
+                    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                } catch (err) {
+                    console.warn('⚠️ Failed to delete product image:', err.message);
+                }
+            });
+        };
+        const clearVideo = (files) => {
+            if (!Array.isArray(files)) return;
+            files.forEach((file) => {
+                const filePath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', file);
+                try {
+                    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                } catch (err) {
+                    console.warn('⚠️ Failed to delete product image:', err.message);
+                }
+            });
+        }
+        let AllProductImages = [];
+
+        let AllProductVideos = [];
+
+        if (req.files) {
+            if (Array.isArray(req.files.ProductImages) && req.files.ProductImages.length > 0) {
+                AllProductImages = req.files.ProductImages.map(file => file.filename);
+            }
+
+            if (Array.isArray(req.files.ProductVideos) && req.files.ProductVideos.length > 0) {
+                AllProductVideos = req.files.ProductVideos.map(file => file.filename);
+            }
+        }
+
+        try {
+            const jsonFields = ['ProductServices', 'CommonDescription', 'CommonImages', 'VariantProductDatas'];
+            for (const key of jsonFields) {
+                if (req.body[key]) {
+                    try {
+                        req.body[key] = JSON.parse(req.body[key]);
+                    } catch {
+                        clearFiles(AllProductImages);
+                        throw new Error(`Invalid JSON format in field: ${key}`);
+                    }
+                }
+            }
+        } catch (error) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+
+        try {
+            if (!companyId || !HeadCategoryId || !SubCategoryId || !BrandId || !ProductName) {
+                clearFiles(AllProductImages);
+                return res.status(400).json({ success: false, message: 'Missing required fields.' });
+            }
+
+            let ProductData = { companyId, HeadCategoryId, SubCategoryId, BrandId, ProductName };
+
+            if (Array.isArray(req.body.ProductServices) && req.body.ProductServices.length > 0) {
+                const ProductServicesData = [];
+                for (const EachService of req.body.ProductServices) {
+                    const FoundService = await ProductService.findById(EachService?.ProductServiceId);
+                    if (FoundService) ProductServicesData.push(EachService);
+                }
+                if (ProductServicesData.length > 0) ProductData.ProductServices = ProductServicesData;
+            }
+
+            let CommonFilteredImages = [];
+            if (Array.isArray(req.body.CommonImages) && req.body.CommonImages.length > 0) {
+                CommonFilteredImages = AllProductImages?.filter((img) =>
+                    req.body.CommonImages.some((cImg) => img.endsWith(cImg))
+                );
+                if (CommonFilteredImages?.length) ProductData.CommonImages = CommonFilteredImages;
+            }
+            if (Array.isArray(AllProductVideos) && AllProductVideos.length > 0) {
+                ProductData.CommonVideos = AllProductVideos;
+            }
+
+            const cd = req.body.CommonDescription;
+            if (cd && (cd.Head || (Array.isArray(cd.Points) && cd.Points.length) || cd.TextDescription)) {
+                ProductData.CommonDescription = cd;
+            }
+
+            const AddProduct = await new Product(ProductData).save();
+            if (!AddProduct) {
+                clearFiles(AllProductImages);
+                clearFiles(AllProductVideos);
+                return res.status(400).json({ success: false, message: 'Product not added. Validation failed.' });
+            }
+
+            const VariantIds = [];
+            if (Array.isArray(req.body.VariantProductDatas) && req.body.VariantProductDatas.length > 0) {
+                for (const EachVariantProduct of req.body.VariantProductDatas) {
+                    if (!EachVariantProduct?.Price) continue;
+
+                    if (EachVariantProduct?.VariantProductImage && !Array.isArray(EachVariantProduct.VariantProductImage)) {
+                        EachVariantProduct.VariantProductImage = [EachVariantProduct.VariantProductImage];
+                    }
+
+                    if (
+                        (!EachVariantProduct?.VariantProductImage?.length || EachVariantProduct.VariantProductImage.length === 0) &&
+                        CommonFilteredImages.length === 0
+                    ) continue;
+
+                    let VariantData = { companyId, HeadCategoryId, SubCategoryId, ProductId: AddProduct._id };
+
+                    if (Array.isArray(EachVariantProduct?.VariantProductImage) && EachVariantProduct.VariantProductImage.length > 0) {
+                        VariantData.VariantProductImage = EachVariantProduct.VariantProductImage.map(img =>
+                            AllProductImages.find(f => f.endsWith(img)) || null
+                        ).filter(Boolean);
+                        if (VariantData.VariantProductImage.length == 0) {
+                            VariantData.VariantProductImage = CommonFilteredImages.length ? [CommonFilteredImages?.[0]] : [];
+
+                        }
+
+                    } else {
+                        VariantData.VariantProductImage = CommonFilteredImages.length ? [CommonFilteredImages?.[0]] : [];
+                    }
+                    if (EachVariantProduct.BatchIds) {
+                        EachVariantProduct.BatchIds = Array.isArray(EachVariantProduct.BatchIds)
+                            ? EachVariantProduct.BatchIds
+                            : [EachVariantProduct.BatchIds];
+                    } if (EachVariantProduct?.BatchIds?.length > 0) {
+                        const FoundBatches = await Batch.find(
+                            { _id: { $in: EachVariantProduct.BatchIds } },
+                            { _id: 1 }
+                        );
+
+                        if (FoundBatches.length > 0) {
+                            VariantData.BatchIds = FoundBatches.map(batch => batch._id);
+                        }
+                    }
+
+                    VariantData.VariantProductName = EachVariantProduct?.VariantProductName || ProductName;
+                    VariantData.Price = EachVariantProduct?.Price || 0;
+                    if (EachVariantProduct?.OfferPercentage) VariantData.OfferPercentage = EachVariantProduct.OfferPercentage;
+
+                    VariantData.InventoryBaseStock = EachVariantProduct?.InventoryBaseStock || {
+                        InventoryBase: false,
+                        Stock: 0,
+                        AvailableStock: 0
+                    };
+
+                    if (Array.isArray(EachVariantProduct.Specification)) {
+                        const validSpecs = EachVariantProduct.Specification.filter(
+                            (s) => s.SpecificationKey && s.SpecificationValue
+                        );
+                        if (validSpecs.length) VariantData.Specification = validSpecs;
+                    }
+
+                    if (Array.isArray(EachVariantProduct.VariantFields)) {
+                        const validVariantFields = [];
+                        for (const EachVariant of EachVariantProduct.VariantFields) {
+                            const FoundVariant = await Variant.findById(EachVariant?.VariantId);
+                            if (FoundVariant && EachVariant?.VariantValue) {
+                                validVariantFields.push({
+                                    VariantId: EachVariant.VariantId,
+                                    VariantValue: EachVariant.VariantValue
+                                });
+                            }
+                        }
+                        if (validVariantFields.length) VariantData.VariantFields = validVariantFields;
+                    }
+
+                    const ap = EachVariantProduct?.AboutProduct;
+                    if (ap && (ap.Head || (Array.isArray(ap.Points) && ap.Points.length) || ap.TextDescription)) {
+                        VariantData.AboutProduct = ap;
+                    }
+
+                    const AddVariantProduct = await new VariantProduct(VariantData).save();
+                    if (AddVariantProduct) {
+                        VariantIds.push(AddVariantProduct._id);
+
+                        if (Array.isArray(EachVariantProduct.VariantFields)) {
+                            await Promise.all(
+                                EachVariantProduct.VariantFields.map(async (EachVariant) => {
+                                    const findVariant = await Variant.findOne({
+                                        _id: EachVariant?.VariantId,
+                                        'VariantValues.Value': EachVariant?.VariantValue
+                                    });
+
+                                    if (findVariant) {
+                                        await Variant.findOneAndUpdate(
+                                            { _id: EachVariant?.VariantId, 'VariantValues.Value': EachVariant?.VariantValue },
+                                            { $inc: { 'VariantValues.$.Count': 1 } }
+                                        );
+                                    } else {
+                                        await Variant.findOneAndUpdate(
+                                            { _id: EachVariant?.VariantId },
+                                            { $push: { VariantValues: { Value: EachVariant?.VariantValue, Count: 1 } } }
+                                        );
+                                    }
+                                })
+                            );
+                        }
+                    }
+                }
+            }
+
+            if (VariantIds.length > 0) {
+                const UpdatedProduct = await Product.findByIdAndUpdate(
+                    AddProduct._id,
+                    { $set: { VariantProductIds: VariantIds } },
+                    { new: true }
+                );
+
+                return res.status(201).json({
+                    success: true,
+                    message: 'Product and variant(s) added successfully.',
+                    data: UpdatedProduct
+                });
+            } else {
+                clearFiles(AllProductImages);
+                clearFiles(AllProductVideos);
+                if (AddProduct?._id) await Product.findByIdAndDelete(AddProduct._id);
+                return res.status(400).json({
+                    success: false,
+                    message: 'No valid variant products found. Product deleted.'
+                });
+            }
+        } catch (error) {
+            clearFiles(AllProductImages);
+            clearFiles(AllProductImages);
+            console.error('❌ VariantProductAddError:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Internal Server Error',
+                error: error.message
+            });
+        }
+    },
+
+
+    UpdateVariantProduct: async (req, res) => {
+        let {
+            ProductId,
+            companyId,
+            VariantProductName,
+            VariantFields,
+            OfferPercentage,
+            Price,
+            InventoryBaseStock,
+            Specification,
+            AboutProduct,
+            VariantProductId,
+            Operation,
+            ImageName,
+        } = req.body;
+
+        const uploadedImages = req.files?.length ? req.files.map(f => f.filename) : [];
+
+        const cleanupFiles = async (files, ProductId, companyId, VariantProductId = null) => {
+            if (!Array.isArray(files) || files.length === 0) return;
+            for (const file of files) {
+                try {
+                    let usedInVariant;
+                    if (VariantProductId) {
+                        usedInVariant = await VariantProduct.findOne({
+                            ProductId,
+                            companyId,
+                            _id: { $ne: VariantProductId },
+                            VariantProductImage: { $in: [file] }
+                        });
+                    } else {
+                        usedInVariant = await VariantProduct.findOne({
+                            ProductId,
+                            companyId,
+                            VariantProductImage: { $in: [file] }
+                        });
+                    }
+
+                    const usedInProduct = await Product.findOne({
+                        _id: ProductId,
+                        companyId,
+                        CommonImages: { $in: [file] }
+                    });
+
+                    if (!usedInVariant && !usedInProduct) {
+                        const filePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', file);
+                        if (fs.existsSync(filePath)) {
+                            fs.unlinkSync(filePath);
+                            console.log(`🗑️ Deleted unused file: ${file}`);
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`⚠️ File delete error for ${file}:`, err.message);
+                }
+            }
+        };
+
+        try {
+            const jsonFields = ['InventoryBaseStock', 'Specification', 'AboutProduct', 'VariantFields'];
+            for (const key of jsonFields) {
+                if (req.body[key]) {
+                    try {
+                        req.body[key] = typeof req.body[key] === 'string' ? JSON.parse(req.body[key]) : req.body[key];
+                    } catch {
+                        await cleanupFiles(uploadedImages, ProductId, companyId);
+                        return res.status(400).json({ success: false, message: `Invalid JSON format in field: ${key}` });
+                    }
+                }
+            }
+
+            VariantFields = req.body.VariantFields;
+            Specification = req.body.Specification;
+            InventoryBaseStock = req.body.InventoryBaseStock;
+            AboutProduct = req.body.AboutProduct;
+
+            console.log('Parsed body:', req.body);
+
+            if (!ProductId || !companyId) {
+                await cleanupFiles(uploadedImages, ProductId, companyId);
+                return res.status(400).json({ message: "Missing required fields", success: false });
+            }
+
+            const product = await Product.findOne({ _id: ProductId, companyId });
+            if (!product) {
+                await cleanupFiles(uploadedImages, ProductId, companyId);
+                return res.status(404).json({ message: "Product not found", success: false });
+            }
+
+            const VariantProductData = {
+                ProductId,
+                companyId,
+                VariantProductName: VariantProductName || product.ProductName,
+                VariantFields: Array.isArray(VariantFields) ? VariantFields.map(v => ({
+                    VariantId: v.VariantId,
+                    VariantValue: v.VariantValue
+                })) : [],
+                OfferPercentage,
+                Price,
+                InventoryBaseStock: InventoryBaseStock || { InventoryBase: false, Stock: 0, AvailableStock: 0 },
+                Specification: Array.isArray(Specification) ? Specification.filter(s => s.SpecificationKey && s.SpecificationValue) : [],
+                AboutProduct: AboutProduct && (AboutProduct.Head || (Array.isArray(AboutProduct.Points) && AboutProduct.Points.length) || AboutProduct.TextDescription) ? AboutProduct : undefined
+            };
+
+            if (!VariantProductData.Specification?.length) delete VariantProductData.Specification;
+            if (!VariantProductData.VariantFields?.length) delete VariantProductData.VariantFields;
+            if (!VariantProductData.AboutProduct) delete VariantProductData.AboutProduct;
+
+            VariantProductData.HeadCategoryId = product.HeadCategoryId;
+            VariantProductData.SubCategoryId = product.SubCategoryId;
+
+            const updateVariantCounts = async (fields, increment = true) => {
+                if (!Array.isArray(fields)) return;
+                for (const f of fields) {
+                    try {
+                        const query = {
+                            _id: f?.VariantId,
+                            "VariantValues.Value": f?.VariantValue,
+                            ...(increment ? {} : { "VariantValues.Count": { $gt: 0 } })
+                        };
+                        const found = await Variant.findOne(query);
+                        if (found) {
+                            await Variant.findOneAndUpdate(
+                                { _id: f?.VariantId, "VariantValues.Value": f?.VariantValue },
+                                { $inc: { "VariantValues.$.Count": increment ? 1 : -1 } },
+                                { new: true }
+                            );
+                        } else if (increment) {
+                            await Variant.findOneAndUpdate(
+                                { _id: f?.VariantId },
+                                { $push: { VariantValues: { Value: f?.VariantValue, Count: 1 } } },
+                                { new: true }
+                            );
+                        }
+                    } catch (err) {
+                        console.warn(`⚠️ Variant count update failed: ${err.message}`);
+                    }
+                }
+            };
+
+            if (Operation === 'add') {
+                if (VariantProductId) {
+                    const existing = await VariantProduct.findOne({ _id: VariantProductId, companyId });
+                    if (!existing) {
+                        await cleanupFiles(uploadedImages, ProductId, companyId);
+                        return res.status(404).json({ message: "Variant product not found", success: false });
+                    }
+
+                    await updateVariantCounts(existing.VariantFields, false);
+                    await updateVariantCounts(VariantProductData.VariantFields, true);
+
+                    if (uploadedImages.length > 0) {
+                        VariantProductData.VariantProductImage = [...(existing?.VariantProductImage || []), ...uploadedImages];
+                    }
+
+                    const updated = await VariantProduct.findOneAndUpdate(
+                        { _id: VariantProductId, companyId },
+                        { $set: VariantProductData },
+                        { new: true }
+                    );
+
+                    return res.status(200).json({ success: true, message: "Variant product updated successfully", data: updated });
+                }
+
+                if (!Price) {
+                    await cleanupFiles(uploadedImages, ProductId, companyId);
+                    return res.status(400).json({ message: "Price required", success: false });
+                }
+
+                if ((!uploadedImages?.length || uploadedImages?.length === 0) && product?.CommonImages.length === 0) {
+                    return res.status(400).json({ message: "Please provide image to add product", success: false });
+                }
+
+                VariantProductData.VariantProductImage = uploadedImages.length ? uploadedImages : [product?.CommonImages[0]] || [];
+
+                const newVariant = await new VariantProduct(VariantProductData).save();
+                await updateVariantCounts(VariantProductData.VariantFields, true);
+                await Product.findOneAndUpdate(
+                    { _id: ProductId, companyId },
+                    { $addToSet: { VariantProductIds: newVariant._id } },
+                    { new: true }
+                );
+                return res.status(200).json({ success: true, message: "Variant product added successfully", data: newVariant });
+
+            } else if (Operation === 'delete') {
+                if (!VariantProductId) {
+                    await cleanupFiles(uploadedImages, ProductId, companyId);
+                    return res.status(400).json({ message: "VariantProductId required", success: false });
+                }
+
+                const existing = await VariantProduct.findOne({ _id: VariantProductId, companyId });
+                if (!existing) {
+                    await cleanupFiles(uploadedImages, ProductId, companyId, VariantProductId);
+                    return res.status(404).json({ message: "Variant product not found", success: false });
+                }
+
+                if (ImageName) {
+                    ImageName = Array.isArray(ImageName) ? ImageName : [ImageName];
+                    await cleanupFiles(ImageName, ProductId, companyId, VariantProductId);
+                    await cleanupFiles(uploadedImages, ProductId, companyId, VariantProductId);
+                    await VariantProduct.findByIdAndUpdate(VariantProductId, { $pull: { VariantProductImage: { $in: ImageName } } });
+                    return res.status(200).json({ message: "Images deleted", success: true });
+                }
+
+                await updateVariantCounts(existing.VariantFields, false);
+                await cleanupFiles(existing.VariantProductImage, ProductId, companyId, VariantProductId);
+
+                await VariantProduct.deleteOne({ _id: VariantProductId, companyId });
+                await Product.findOneAndUpdate(
+                    { _id: ProductId, companyId },
+                    { $pull: { VariantProductIds: VariantProductId } },
+                    { new: true }
+                );
+
+                return res.status(200).json({ success: true, message: "Variant product deleted successfully" });
+            }
+
+            await cleanupFiles(uploadedImages);
+            return res.status(400).json({ success: false, message: "Invalid Operation" });
+
+        } catch (error) {
+            await cleanupFiles(uploadedImages);
+            console.error("❌ Error in UpdateVariantProduct:", error);
+            return res.status(500).json({ success: false, message: "Internal Server Error", error: error.message });
+        }
+    },
+
+
+
+    UpdateProductDetail: async (req, res) => {
+        let { ProductId, companyId, ProductName, CommonDescription, ProductServices } = req.body;
+
+        try {
+            if (!ProductId || !companyId) {
+                return res.status(400).json({
+                    message: "Please provide company id and product id to update product details",
+                    success: false
+                });
+            }
+
+            let FindedProduct = await Product.findOne({ _id: ProductId, companyId });
+            if (!FindedProduct) {
+                return res.status(404).json({ message: "Product not found", success: false });
+            }
+
+            let ProductData = { ProductName, CommonDescription, ProductServices };
+
+            Object.keys(ProductData).forEach(key => ProductData[key] === undefined && delete ProductData[key]);
+
+            if (Array.isArray(ProductServices) && ProductServices.length > 0) {
+                const ValidServices = [];
+                for (const EachService of ProductServices) {
+                    const FoundService = await ProductService.findById(EachService?.ProductServiceId);
+                    if (FoundService) ValidServices.push(EachService);
+                }
+                if (ValidServices.length > 0) ProductData.ProductServices = ValidServices;
+            }
+
+            if (
+                CommonDescription &&
+                (CommonDescription.Head ||
+                    (Array.isArray(CommonDescription.Points) && CommonDescription.Points.length > 0) ||
+                    CommonDescription.TextDescription)
+            ) {
+                ProductData.CommonDescription = CommonDescription;
+            } else {
+                delete ProductData.CommonDescription;
+            }
+
+            let UpdateProduct = await Product.findOneAndUpdate(
+                { _id: ProductId, companyId },
+                { $set: ProductData },
+                { new: true }
+            );
+
+            if (!UpdateProduct) {
+                return res.status(400).json({ message: 'Product not updated', success: false });
+            }
+
+            return res.status(200).json({
+                message: 'Product updated successfully',
+                success: true,
+                data: UpdateProduct
+            });
+
+        } catch (error) {
+            console.error("❌ UpdateProductDetailError:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Internal Server Error",
+                error: error.message
+            });
+        }
+    },
+
+    UpdateCommonImages: async (req, res) => {
+        try {
+            const { ProductId, companyId, Operation, ImageName } = req.body;
+            const AllProductImages = req.files?.length ? req.files.map(f => f.filename) : [];
+
+            const clearFiles = async (files) => {
+                if (!files?.length) return;
+                try {
+                    files.forEach(file => {
+                        const filePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', file);
+                        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                    });
+                } catch (err) {
+                    console.warn('⚠️ Error deleting product images:', err.message);
+                }
+            };
+
+            if (!ProductId || !companyId) {
+                await clearFiles(AllProductImages);
+                return res.status(400).json({
+                    success: false,
+                    message: "Please provide company id and product id to update images"
+                });
+            }
+
+            const product = await Product.findOne({ _id: ProductId, companyId });
+            if (!product) {
+                await clearFiles(AllProductImages);
+                return res.status(404).json({
+                    success: false,
+                    message: "Product not found"
+                });
+            }
+
+            let updatedProduct;
+
+            if (Operation === "add") {
+                if (AllProductImages.length === 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "No images uploaded to add"
+                    });
+                }
+
+                if (ImageName) {
+                    const FilteredImages = product.CommonImages.filter(img => img !== ImageName);
+                    FilteredImages.push(...AllProductImages);
+
+                    updatedProduct = await Product.findOneAndUpdate(
+                        { _id: ProductId, companyId },
+                        { $set: { CommonImages: FilteredImages } },
+                        { new: true }
+                    );
+
+                    const variantUsingImage = await VariantProduct.findOne({
+                        ProductId,
+                        companyId,
+                        VariantProductImage: ImageName
+                    });
+
+                    if (!variantUsingImage) {
+                        const oldImagePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', ImageName);
+                        if (fs.existsSync(oldImagePath)) fs.unlinkSync(oldImagePath);
+                    }
+
+                    return res.status(200).json({
+                        success: true,
+                        message: "Image replaced successfully",
+                        data: updatedProduct.CommonImages
+                    });
+                }
+
+                updatedProduct = await Product.findOneAndUpdate(
+                    { _id: ProductId, companyId },
+                    { $addToSet: { CommonImages: { $each: AllProductImages } } },
+                    { new: true }
+                );
+
+                return res.status(200).json({
+                    success: true,
+                    message: "Images added successfully",
+                    data: updatedProduct.CommonImages
+                });
+            }
+
+            else if (Operation === "delete") {
+                if (!ImageName) {
+                    await clearFiles(AllProductImages);
+                    return res.status(400).json({
+                        success: false,
+                        message: "Please provide image name(s) to delete"
+                    });
+                }
+
+                const imageArray = Array.isArray(ImageName) ? ImageName : [ImageName];
+
+                updatedProduct = await Product.findOneAndUpdate(
+                    { _id: ProductId, companyId },
+                    { $pull: { CommonImages: { $in: imageArray } } },
+                    { new: true }
+                );
+
+                for (const img of imageArray) {
+                    const variantUsingImage = await VariantProduct.findOne({
+                        ProductId,
+                        companyId,
+                        VariantProductImage: img
+                    });
+
+                    if (!variantUsingImage) {
+                        const filePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', img);
+                        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                    }
+                }
+
+                return res.status(200).json({
+                    success: true,
+                    message: "Images deleted successfully",
+                    data: updatedProduct.CommonImages
+                });
+            }
+
+            await clearFiles(AllProductImages);
+            return res.status(400).json({
+                success: false,
+                message: "Invalid operation type"
+            });
+
+        } catch (error) {
+            console.error("❌ UpdateCommonImagesError:", error);
+            await clearFiles(AllProductImages);
+
+            return res.status(500).json({
+                success: false,
+                message: "Internal Server Error",
+                error: error.message
+            });
+        }
+    },
+
+    DeleteProductWithVariant: async (req, res) => {
+        const { ProductId, companyId } = req.body;
+
+        const clearFiles = async (files) => {
+            if (!Array.isArray(files) || files.length === 0) return;
+            for (const file of files) {
+                try {
+                    const filePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', file);
+                    if (fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath);
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Image not deleted:', error.message);
+                }
+            }
+        };
+
+        const clearVideos = async (files) => {
+            if (!Array.isArray(files) || files.length === 0) return;
+            for (const file of files) {
+                try {
+                    const filePath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', file);
+                    if (fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath);
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Video not deleted:', error.message);
+                }
+            }
+        };
+
+        try {
+            if (!ProductId || !companyId) {
+                return res.status(400).json({
+                    message: "Please provide both ProductId and companyId",
+                    success: false,
+                });
+            }
+
+            const FindedProduct = await Product.findOne({ _id: ProductId, companyId });
+            if (!FindedProduct) {
+                return res.status(404).json({
+                    message: "Product not found",
+                    success: false,
+                });
+            }
+
+            if (Array.isArray(FindedProduct.VariantProductIds) && FindedProduct.VariantProductIds.length > 0) {
+                for (const EachVariantId of FindedProduct.VariantProductIds) {
+                    const FindedVariantProduct = await VariantProduct.findOne({
+                        _id: EachVariantId,
+                        companyId,
+                        ProductId,
+                    });
+
+                    if (!FindedVariantProduct) continue;
+
+                    if (Array.isArray(FindedVariantProduct.VariantProductImage) && FindedVariantProduct.VariantProductImage.length > 0) {
+                        await clearFiles(FindedVariantProduct.VariantProductImage);
+                    }
+
+                    if (Array.isArray(FindedVariantProduct.VariantFields)) {
+                        for (const EachVariant of FindedVariantProduct.VariantFields) {
+                            try {
+                                await Variant.findOneAndUpdate(
+                                    {
+                                        _id: EachVariant.VariantId,
+                                        "VariantValues.Value": EachVariant.VariantValue,
+                                        "VariantValues.Count": { $gt: 0 },
+                                    },
+                                    { $inc: { "VariantValues.$.Count": -1 } },
+                                    { new: true }
+                                );
+                            } catch (error) {
+                                console.warn('⚠️ Variant count decrement failed:', error.message);
+                            }
+                        }
+                    }
+
+                    await VariantProduct.deleteOne({
+                        _id: EachVariantId,
+                        companyId,
+                        ProductId,
+                    });
+                }
+            }
+
+            if (Array.isArray(FindedProduct.CommonImages) && FindedProduct.CommonImages.length > 0) {
+                await clearFiles(FindedProduct.CommonImages);
+            }
+            if (Array.isArray(FindedProduct.CommonVideos) && FindedProduct.CommonVideos.length > 0) {
+                await clearVideos(FindedProduct.CommonVideos);
+            }
+
+            try {
+                await ProductRating.deleteMany({ ProductId });
+            } catch (error) {
+                console.warn('⚠️ Rating and review not deleted:', error.message);
+            }
+
+            const DeleteProduct = await Product.deleteOne({ _id: ProductId, companyId });
+
+            if (DeleteProduct.deletedCount === 0) {
+                return res.status(400).json({
+                    message: "Product not deleted",
+                    success: false,
+                });
+            }
+
+            return res.status(200).json({
+                message: "✅ Product and its variants deleted successfully",
+                success: true,
+            });
+
+        } catch (error) {
+            console.error("❌ DeleteProductError:", error);
+            return res.status(500).json({
+                message: "Internal Server Error",
+                success: false,
+                error: error.message,
+            });
+        }
+    },
+
+    HideAndShowVariantProduct: async (req, res) => {
+        const { ProductId, VariantIds, companyId, isActive } = req.body;
+
+        try {
+            if (!ProductId || !companyId || typeof isActive === 'undefined') {
+                return res.status(400).json({
+                    message: "Provide all required fields: ProductId, companyId, and isActive",
+                    success: false,
+                });
+            }
+
+            const FindedProduct = await Product.findOne({ _id: ProductId, companyId });
+            if (!FindedProduct) {
+                return res.status(404).json({
+                    message: "Product not found",
+                    success: false,
+                });
+            }
+
+            if (VariantIds && VariantIds.length > 0) {
+                const ArrayIds = Array.isArray(VariantIds) ? VariantIds : [VariantIds];
+                try {
+                    await VariantProduct.updateMany(
+                        { _id: { $in: ArrayIds }, companyId },
+                        { $set: { isActive } }
+                    );
+                } catch (error) {
+                    console.warn(`Variants Not ${isActive ? 'activated' : 'deactivated'} `)
+                }
+
+                return res.status(200).json({
+                    message: `Variants ${isActive ? 'activated' : 'deactivated'} successfully`,
+                    success: true,
+                });
+            }
+
+            if (Array.isArray(FindedProduct.VariantProductIds) && FindedProduct.VariantProductIds.length > 0) {
+                try {
+                    await VariantProduct.updateMany(
+                        { _id: { $in: FindedProduct.VariantProductIds }, companyId },
+                        { $set: { isActive } }
+                    );
+                } catch (error) {
+                    console.warn(`Variants Not ${isActive ? 'activated' : 'deactivated'} `)
+
+                }
+            }
+
+            const UpdatedProduct = await Product.findOneAndUpdate(
+                { _id: ProductId, companyId },
+                { $set: { isActive } },
+                { new: true }
+            );
+
+            if (!UpdatedProduct) {
+                return res.status(400).json({
+                    message: "Product not updated",
+                    success: false,
+                });
+            }
+
+            return res.status(200).json({
+                message: `Product and its variants ${isActive ? 'activated' : 'deactivated'} successfully`,
+                success: true,
+            });
+
+        } catch (error) {
+            console.error("❌ HideAndShowVariantProduct Error:", error);
+            return res.status(500).json({
+                message: "Internal Server Error",
+                success: false,
+                error: error.message,
+            });
+        }
+    },
+
+    getProductData: async (matchCondition) => {
+        const data = await Product.aggregate([
+            { $match: matchCondition },
+
+            {
+                $lookup: {
+                    from: 'categgggories',
+                    localField: 'HeadCategoryId',
+                    foreignField: '_id',
+                    as: 'HeadCategory'
+                }
+            },
+
+            {
+                $lookup: {
+                    from: 'categgggories',
+                    localField: 'SubCategoryId',
+                    foreignField: '_id',
+                    as: 'SubCategories'
+                }
+            },
+
+            {
+                $lookup: {
+                    from: 'brands',
+                    localField: 'BrandId',
+                    foreignField: '_id',
+                    as: 'Brands'
+                }
+            },
+
+            {
+                $lookup: {
+                    from: 'productservices',
+                    localField: 'ProductServices.ProductServiceId',
+                    foreignField: '_id',
+                    as: 'ProductServicesData'
+                }
+            },
+
+            {
+                $addFields: {
+                    ProductServices: {
+                        $map: {
+                            input: "$ProductServices",
+                            as: "ps",
+                            in: {
+                                $mergeObjects: [
+                                    "$$ps",
+                                    {
+                                        ProductServiceData: {
+                                            $arrayElemAt: [
+                                                {
+                                                    $filter: {
+                                                        input: "$ProductServicesData",
+                                                        as: "psd",
+                                                        cond: { $eq: ["$$psd._id", "$$ps.ProductServiceId"] }
+                                                    }
+                                                },
+                                                0
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+
+            {
+                $lookup: {
+                    from: 'variantproducts',
+                    localField: 'VariantProductIds',
+                    foreignField: '_id',
+                    as: 'VariantProducts'
+                }
+            },
+
+            {
+                $lookup: {
+                    from: 'variants',
+                    localField: 'VariantProducts.VariantFields.VariantId',
+                    foreignField: '_id',
+                    as: 'VariantNames'
+                }
+            },
+            {
+                $lookup: {
+                    from: 'batches',
+                    localField: 'VariantProducts.BatchIds',
+                    foreignField: '_id',
+                    as: 'Batches'
+                }
+            },
+
+            {
+                $addFields: {
+                    VariantProducts: {
+                        $map: {
+                            input: "$VariantProducts",
+                            as: "vp",
+                            in: {
+                                $mergeObjects: [
+                                    "$$vp",
+                                    {
+                                        VariantFields: {
+                                            $map: {
+                                                input: "$$vp.VariantFields",
+                                                as: "vf",
+                                                in: {
+                                                    $mergeObjects: [
+                                                        "$$vf",
+                                                        {
+                                                            VariantName: {
+                                                                $arrayElemAt: [
+                                                                    {
+                                                                        $map: {
+                                                                            input: {
+                                                                                $filter: {
+                                                                                    input: "$VariantNames",
+                                                                                    as: "vn",
+                                                                                    cond: { $eq: ["$$vn._id", "$$vf.VariantId"] }
+                                                                                }
+                                                                            },
+                                                                            as: "vn",
+                                                                            in: "$$vn.VariantName"
+                                                                        }
+                                                                    },
+                                                                    0
+                                                                ]
+                                                            },
+                                                            Extension: {
+                                                                $arrayElemAt: [
+                                                                    {
+                                                                        $map: {
+                                                                            input: {
+                                                                                $filter: {
+                                                                                    input: "$VariantNames",
+                                                                                    as: "vn",
+                                                                                    cond: { $eq: ["$$vn._id", "$$vf.VariantId"] }
+                                                                                }
+                                                                            },
+                                                                            as: "vn",
+                                                                            in: "$$vn.Extension"
+                                                                        }
+                                                                    },
+                                                                    0
+                                                                ]
+                                                            }
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        },
+                                        BatchesInfo: {
+                                            $map: {
+                                                input: {
+                                                    $filter: {
+                                                        input: "$Batches",
+                                                        as: "b",
+                                                        cond: { $in: ["$$b._id", { $ifNull: ["$$vp.BatchIds", []] }] }
+                                                    }
+                                                },
+                                                as: "b",
+                                                in: {
+                                                    _id: "$$b._id",
+                                                    BatchName: "$$b.BatchName",
+                                                    BatchLogo: "$$b.BatchLogo"
+                                                }
+                                            }
+                                        }
+
+
+                                    },
+
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                $lookup: {
+                    from: 'productratings',
+                    localField: 'RatingIds',
+                    foreignField: '_id',
+                    as: 'Reviews'
+                }
+            },
+
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'Reviews.UserId',
+                    foreignField: '_id',
+                    as: 'ReviewUsers'
+                }
+            },
+
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'Reviews.ResponseOnReview.UserId',
+                    foreignField: '_id',
+                    as: 'ResponseUsers'
+                }
+            },
+
+            {
+                $addFields: {
+                    Reviews: {
+                        $map: {
+                            input: "$Reviews",
+                            as: "rev",
+                            in: {
+                                _id: "$$rev._id",
+                                ReviewText: "$$rev.ReviewText",
+                                ReviewImages: "$$rev.ReviewImages",
+                                RatingStar: "$$rev.RatingStar",
+                                TotalLike: "$$rev.TotalLike",
+                                TotalDislike: "$$rev.TotalDislike",
+                                createdAt: "$$rev.createdAt",
+                                UserData: {
+                                    $arrayElemAt: [
+                                        {
+                                            $map: {
+                                                input: {
+                                                    $filter: {
+                                                        input: "$ReviewUsers",
+                                                        cond: { $eq: ["$$this._id", "$$rev.UserId"] }
+                                                    }
+                                                },
+                                                as: "u",
+                                                in: { UserName: "$$u.UserName", UserProfile: "$$u.UserProfile" }
+                                            }
+                                        },
+                                        0
+                                    ]
+                                },
+                                ResponseOnReview: {
+                                    $map: {
+                                        input: "$$rev.ResponseOnReview",
+                                        as: "resp",
+                                        in: {
+                                            _id: "$$resp._id",
+                                            LikeOrDislike: "$$resp.LikeOrDislike",
+                                            createdAt: "$$resp.createdAt",
+                                            UserData: {
+                                                $arrayElemAt: [
+                                                    {
+                                                        $map: {
+                                                            input: {
+                                                                $filter: {
+                                                                    input: "$ResponseUsers",
+                                                                    cond: { $eq: ["$$this._id", "$$resp.UserId"] }
+                                                                }
+                                                            },
+                                                            as: "u",
+                                                            in: { UserName: "$$u.UserName", UserProfile: "$$u.UserProfile" }
+                                                        }
+                                                    },
+                                                    0
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+
+            { $project: { ProductServicesData: 0, VariantNames: 0, Batches: 0, ReviewUsers: 0, ResponseUsers: 0 } }
+
+        ]);
+        return data;
+    },
+    getProductsById: async (req, res) => {
+        try {
+            const {
+                HeadCategoryId,
+                SubCategoryId,
+                companyId,
+                ProductId,
+                ProductName,
+                InventoryBase,
+                VariantProductId,
+                BrandId,
+                BatchIds,
+                BatchName
+            } = req.query;
+
+
+            const { VariantFilters } = req.body;
+
+            if (!companyId) {
+                return res.status(400).json({ message: 'companyId is required', success: false });
+            }
+
+            const validateObjectId = (id, fieldName) => {
+                if (!mongoose.Types.ObjectId.isValid(id)) {
+                    throw new Error(`Invalid ${fieldName} format`);
+                }
+                return new mongoose.Types.ObjectId(String(id));
+            };
+
+            let matchCondition = { companyId: validateObjectId(companyId, 'companyId') };
+
+            if (HeadCategoryId) matchCondition.HeadCategoryId = validateObjectId(HeadCategoryId, 'HeadCategoryId');
+            if (SubCategoryId) matchCondition.SubCategoryId = validateObjectId(SubCategoryId, 'SubCategoryId');
+            if (ProductId) matchCondition._id = validateObjectId(ProductId, 'ProductId');
+            if (VariantProductId) matchCondition.VariantProductIds = { $in: [validateObjectId(VariantProductId, 'VariantProductId')] };
+            if (BrandId) matchCondition.BrandId = validateObjectId(BrandId, 'BrandId')
+            const data = await module.exports.getProductData(matchCondition);
+            if (!data || data.length === 0) {
+                return res.status(404).json({ message: 'No Products found for this criteria', success: false });
+            }
+
+            let filteredData = data;
+
+            if (ProductName) {
+                const regex = new RegExp(ProductName, 'i');
+                filteredData = filteredData.filter(product =>
+                    regex.test(product.ProductName) ||
+                    product.VariantProducts.some(vp => regex.test(vp.VariantProductName))
+                );
+            }
+
+            if (VariantFilters && Array.isArray(VariantFilters) && VariantFilters.length > 0) {
+                const variantPairs = VariantFilters.map(pair => {
+                    if (!pair.VariantId || !pair.VariantValue) {
+                        throw new Error('Each variant filter must have both VariantId and VariantValue');
+                    }
+                    if (!mongoose.Types.ObjectId.isValid(pair.VariantId)) {
+                        throw new Error(`Invalid VariantId format: ${pair.VariantId}`);
+                    }
+                    return {
+                        VariantId: validateObjectId(pair.VariantId, 'VariantId'),
+                        VariantValue: new RegExp(pair.VariantValue, 'i')
+                    };
+                });
+
+                filteredData = filteredData.map(product => {
+                    const matchedVariants = product.VariantProducts.filter(vp =>
+                        variantPairs.every(pair =>
+                            vp.VariantFields.some(
+                                vf => vf.VariantId.equals(pair.VariantId) && pair.VariantValue.test(vf.VariantValue)
+                            )
+                        )
+                    );
+
+                    return { ...product, VariantProducts: matchedVariants };
+                }).filter(p => p.VariantProducts.length > 0);
+            }
+            if (BatchIds) {
+                const batchIdsArray = Array.isArray(BatchIds) ? BatchIds : [BatchIds];
+                const batchObjectIds = batchIdsArray.map(id => validateObjectId(id, 'BatchId'));
+
+                filteredData = filteredData.map(product => {
+                    const matchedVariants = product.VariantProducts.filter(vp =>
+                        vp.BatchesInfo.some(b => batchObjectIds.some(bid => b._id.equals(bid)))
+                    );
+                    return { ...product, VariantProducts: matchedVariants };
+                }).filter(p => p.VariantProducts.length > 0);
+            }
+            if (BatchName) {
+                const regex = new RegExp(BatchName, 'i');
+                filteredData = filteredData.map(product => {
+                    const matchedVariants = product.VariantProducts.filter(vp =>
+                        vp.BatchesInfo.some(b => regex.test(b.BatchName))
+                    );
+                    return { ...product, VariantProducts: matchedVariants };
+                }).filter(p => p.VariantProducts.length > 0);
+            }
+            if (InventoryBase) {
+                filteredData = filteredData.filter(product =>
+                    product.VariantProducts.some(vp =>
+                        vp.InventoryBaseStock?.InventoryBase === InventoryBase
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: 'Products fetched successfully',
+                data: filteredData
+            });
+
+        } catch (error) {
+            console.error("getProductsByIdError:", error);
+            return res.status(500).json({
+                message: 'Internal Server Error',
+                error: error.message,
+                success: false
+            });
+        }
+    },
+    addBatch: async (req, res) => {
+        const { BatchName } = req.body;
+
+        const cleanupFiles = (file) => {
+            try {
+                if (file) {
+                    const filePath = path.join(__dirname, "..", "..", "public", "BatchImages", file);
+                    if (fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath);
+                    }
+                }
+            } catch (error) {
+                console.warn("Error deleting batch image:", error.message);
+            }
+        };
+
+        try {
+            if (!BatchName) {
+                cleanupFiles(req?.file?.filename);
+                return res.status(400).json({ message: "Please provide all fields", success: false });
+            }
+
+            if (!req?.file?.filename) {
+                return res.status(400).json({ message: "Please provide a batch image", success: false });
+            }
+
+            const BatchData = {
+                BatchName,
+                BatchLogo: req.file.filename,
+            };
+
+            const SaveBatch = await new Batch(BatchData).save();
+
+            if (!SaveBatch) {
+                cleanupFiles(req?.file?.filename);
+                return res.status(400).json({ message: "Batch not added", success: false });
+            }
+
+            return res.status(200).json({
+                message: "Batch added successfully",
+                success: true,
+                data: SaveBatch,
+            });
+
+        } catch (error) {
+            console.error("BatchAddError:", error.message);
+            cleanupFiles(req?.file?.filename);
+            return res.status(500).json({
+                message: "Internal server error",
+                success: false,
+                error: error.message,
+            });
+        }
+    },
+    getBatch: async (req, res) => {
+        const { BatchId, BatchName } = req.query;
+
+        try {
+            let matchCondition = {}
+            if (BatchId) {
+                matchCondition._id = new mongoose.Types.ObjectId(String(BatchId));
+            }
+
+            if (BatchName) {
+                matchCondition.BatchName = { $regex: BatchName, $options: "i" };
+            }
+
+            const data = await Batch.find(matchCondition)
+            if (!data.length) {
+                return res.status(404).json({
+                    message: "No batches found",
+                    success: false
+                });
+            }
+
+            return res.status(200).json({
+                message: "Batch data fetched successfully",
+                success: true,
+                data
+            });
+
+        } catch (error) {
+            console.error("getBatchError:", error.message);
+            return res.status(500).json({
+                message: "Internal server error",
+                success: false,
+                error: error.message
+            });
+        }
+    },
+    updateBatch: async (req, res) => {
+        const { BatchId, BatchName } = req.body;
+
+        const cleanupFiles = (file) => {
+            try {
+                if (file) {
+                    const filePath = path.join(__dirname, "..", "..", "public", "BatchImages", file);
+                    if (fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath);
+                    }
+                }
+            } catch (error) {
+                console.warn("Error deleting batch image:", error.message);
+            }
+        };
+
+        try {
+            if (!BatchId) {
+                cleanupFiles(req?.file?.filename);
+                return res.status(400).json({
+                    message: "BatchId and companyId are required",
+                    success: false
+                });
+            }
+
+            const existingBatch = await Batch.findOne({ _id: BatchId });
+            if (!existingBatch) {
+                cleanupFiles(req?.file?.filename);
+                return res.status(404).json({
+                    message: "Batch not found",
+                    success: false
+                });
+            }
+
+            let updatedLogo = existingBatch.BatchLogo;
+            if (req?.file?.filename) {
+                cleanupFiles(existingBatch.BatchLogo);
+                updatedLogo = req.file.filename;
+            }
+
+            const updateData = {};
+            if (BatchName) updateData.BatchName = BatchName;
+            if (updatedLogo) updateData.BatchLogo = updatedLogo;
+
+            const updatedBatch = await Batch.findByIdAndUpdate(
+                BatchId,
+                { $set: updateData },
+                { new: true }
+            );
+
+            return res.status(200).json({
+                message: "Batch updated successfully",
+                success: true,
+                data: updatedBatch
+            });
+
+        } catch (error) {
+            console.error("BatchUpdateError:", error.message);
+            cleanupFiles(req?.file?.filename);
+            return res.status(500).json({
+                message: "Internal server error",
+                success: false,
+                error: error.message
+            });
+        }
+    },
+    EditBatchOfVariantProduct: async (req, res) => {
+        let { VarianProductIds, BatchIds, companyId, Operation } = req.body;
+
+        try {
+            if (!companyId) {
+                return res.status(400).json({ message: "companyId is required", success: false });
+            }
+
+            if (VarianProductIds) VarianProductIds = Array.isArray(VarianProductIds) ? VarianProductIds : [VarianProductIds];
+            if (BatchIds) BatchIds = Array.isArray(BatchIds) ? BatchIds : [BatchIds];
+
+            if (!VarianProductIds.length) {
+                return res.status(400).json({ message: "Please provide VariantProductIds", success: false });
+            }
+
+            if (!BatchIds.length) {
+                return res.status(400).json({ message: "Please provide BatchIds", success: false });
+            }
+
+            if (!Operation || !["add", "delete"].includes(Operation)) {
+                return res.status(400).json({ message: "Invalid or missing Operation type (use 'add' or 'delete')", success: false });
+            }
+
+            const validBatches = await Batch.find({ _id: { $in: BatchIds } }).select("_id");
+            if (validBatches.length === 0) {
+                return res.status(404).json({ message: "No valid batches found", success: false });
+            }
+
+            const validBatchIds = validBatches.map(b => b._id);
+
+            let updatedCount = 0;
+
+            for (const variantProductId of VarianProductIds) {
+                const variantProduct = await VariantProduct.findOne({ _id: variantProductId, companyId });
+
+                if (!variantProduct) continue;
+                if (Operation === "add") {
+                    await VariantProduct.findByIdAndUpdate(variantProductId, {
+                        $addToSet: { BatchIds: { $each: validBatchIds } }
+                    });
+                } else if (Operation === "delete") {
+                    await VariantProduct.findByIdAndUpdate(variantProductId, {
+                        $pull: { BatchIds: { $in: validBatchIds } }
+                    });
+                }
+
+                updatedCount++;
+            }
+
+            if (updatedCount === 0) {
+                return res.status(404).json({
+                    message: "No matching VariantProducts found or updated",
+                    success: false
+                });
+            }
+
+            return res.status(200).json({
+                message: `Batches ${Operation === "add" ? "added to" : "removed from"} ${updatedCount} variant product(s) successfully`,
+                success: true,
+                updatedCount
+            });
+
+        } catch (error) {
+            console.error("addBatchToVariantProductError:", error.message);
+            return res.status(500).json({
+                message: "Internal server error",
+                success: false,
+                error: error.message
+            });
+        }
+    }
+
+
+};

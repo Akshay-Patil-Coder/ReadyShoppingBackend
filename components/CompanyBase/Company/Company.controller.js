@@ -357,15 +357,20 @@ module.exports = {
         }
     },
     verifyToken: async (req, resp) => {
-        let { token } = req.body;
-        if (!token) {
-            return resp.status(400).json({ message: 'please provide token', success: false })
+        try {
+            let { token } = req.body;
+            if (!token) {
+                return resp.status(400).json({ message: 'please provide token', success: false })
+            }
+            let data = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET)
+            if (!data) {
+                return resp.status(400).json({ message: "token is expired or data not found", success: false })
+            }
+            console.log(data, 'data')
+            resp.status(200).json({ message: 'token verified successfully', data: data })
+
+        } catch (error) {
+            return resp.status(400).json({message:"TokenExpiredError",success:false})
         }
-        let data = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET)
-        if (!data) {
-            return resp.status(400).json({ message: "token is expired or data not found", success: false })
-        }
-        console.log(data, 'data')
-        resp.status(200).json({ message: 'token verified successfully', data: data })
     }
 };

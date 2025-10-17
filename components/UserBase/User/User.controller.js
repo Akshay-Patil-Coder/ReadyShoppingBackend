@@ -4,7 +4,8 @@ const superagent = require("superagent");
 const jwt = require('jsonwebtoken')
 const bcrypt = require("bcrypt");
 const path = require("path");
-const fs = require('fs')
+const fs = require('fs');
+const { default: mongoose } = require("mongoose");
 
 
 
@@ -37,12 +38,16 @@ module.exports = {
           leadSource: "fch app",
         };
 
-        axios.post('https://lmsapi.dealmoneyonline.com/api/v2/fch/addLead', lmsData, {
-          headers: { "Content-Type": "application/json" }
-        })
-          .then(response => console.log("Dialer API response", response.data))
-          .catch(err => console.log("Dialer API error", err.message));
-
+        try {
+          const response = await axios.post(
+            'https://lmsapi.dealmoneyonline.com/api/v2/fch/addLead',
+            lmsData,
+            { headers: { "Content-Type": "application/json" } }
+          );
+          console.log("Dialer API response", response.data);
+        } catch (err) {
+          console.log("Dialer API error", err.message);
+        }
         const otpResponse = await module.exports.OtpSend(phone);
         return res.status(201).json({ success: true, message: "Otp Sended", data: otpResponse, firstTimeLogin: true });
 
@@ -166,11 +171,10 @@ module.exports = {
         : Math.floor(1000 + Math.random() * 9000);
 
       if (user.Phone !== "9819289042") {
-        const msg = `Use ${OTP} as your login OTP. Your OTP is confidential. FamilyCare never calls asking for OTP.`;
+        const msg = `Use ${OTP} as your website login OTP. Your OTP is confidential. familycare never calls you asking for OTP.`
 
-        const url = `https://sms.cell24x7.com:1111/mspProducerM/sendSMS?user=familycare&pwd=Info@2020&sender=FMLYCR&mobile=91${user.Phone}&msg=${encodeURIComponent(msg)}&mt=0&tempId=1007941987415973745`;
+        const url = `https://sms.cell24x7.com:1111/mspProducerM/sendSMS?user=familycare&pwd=Info@2020&sender=FMLYCR&mobile=${user.Phone}&msg=${msg}&mt=0&tempId=1007457883683974747`;
 
-        console.log("Resend OTP URL:", url);
 
         try {
           await axios.get(url);
@@ -372,94 +376,227 @@ module.exports = {
     }
   },
 
-updateUserAddress: async (req, res) => {
-  try {
-    let { Latitude, Longitude, Street, City, State, Country, PostalCode, ManualAddress, Operation, _id, companyId, AddressId } = req.body;
+  updateUserAddress: async (req, res) => {
+    try {
+      let { Latitude, Longitude, Street, City, State, Country, PostalCode, ManualAddress, Operation, _id, companyId, AddressId, DefaultAddress, AddresserName, AddressType, AddresserNumber } = req.body;
 
-    if (!_id || !companyId) {
-      return res.status(400).json({
-        message: "Please provide required details to update",
-        success: false
-      });
-    }
+      if (!_id || !companyId) {
+        return res.status(400).json({
+          message: "Please provide required details to update",
+          success: false
+        });
+      }
+      let FindedUser = await User.findOne({ _id, companyId })
+      if (!FindedUser) {
+        return res.status(400).json({
+          message: "User Not Found",
+          success: false
+        });
+      }
+      const addressData = { Latitude, Longitude, Street, City, State, Country, PostalCode, ManualAddress, DefaultAddress, AddresserName, AddressType, AddresserNumber };
+      Object.keys(addressData).forEach(key => addressData[key] === undefined && delete addressData[key]);
 
-    const addressData = { Latitude, Longitude, Street, City, State, Country, PostalCode, ManualAddress };
-    Object.keys(addressData).forEach(key => addressData[key] === undefined && delete addressData[key]);
+      if (Object.keys(addressData).length === 0 && Operation !== 'delete') {
+        return res.status(400).json({
+          message: "No valid fields provided",
+          success: false
+        });
+      }
 
-    if (Object.keys(addressData).length === 0 && Operation !== 'delete') {
-      return res.status(400).json({
-        message: "No valid fields provided",
-        success: false
-      });
-    }
+      let updatedUser;
 
-    let updatedUser;
+      const fetchLatLng = async () => {
+        if (!Latitude || !Longitude) {
+          const address = [Street, City, State, Country, PostalCode].filter(Boolean).join(', ');
+          const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+          const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+          const response = await axios.get(url);
+          const results = response.data.results;
 
-    const fetchLatLng = async () => {
-      if (!Latitude || !Longitude) {
-        const address = [Street, City, State, Country, PostalCode].filter(Boolean).join(', ');
-        const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
-        const response = await axios.get(url);
-        const results = response.data.results;
+          if (!results || results.length === 0) {
+            return
+          }
 
-        if (!results || results.length === 0) {
-         return
+          const location = results[0].geometry.location;
+          addressData.Latitude = location.lat;
+          addressData.Longitude = location.lng;
+        }
+      };
+
+      if (Operation === 'add') {
+        await fetchLatLng();
+
+        if (AddressId) {
+          updatedUser = await User.findOneAndUpdate(
+            { _id, companyId, "Address._id": AddressId },
+            { $set: Object.fromEntries(Object.entries(addressData).map(([k, v]) => [`Address.$.${k}`, v])) },
+            { new: true }
+          );
+          if (addressData.DefaultAddress === true) {
+            for (const each of updatedUser.Address) {
+              if (each._id.toString() !== AddressId.toString()) {
+                await User.findOneAndUpdate(
+                  { _id, companyId, "Address._id": each._id },
+                  { $set: { "Address.$.DefaultAddress": false } }
+                );
+              }
+            }
+          }
+        } else {
+          updatedUser = await User.findOneAndUpdate(
+            { _id, companyId },
+            { $push: { Address: addressData } },
+            { new: true }
+          );
+          const newAddress = updatedUser.Address[updatedUser.Address.length - 1];
+          if (addressData.DefaultAddress === true && newAddress?._id) {
+            for (const each of updatedUser.Address) {
+              if (each._id.toString() !== newAddress._id.toString()) {
+                await User.findOneAndUpdate(
+                  { _id, companyId, "Address._id": each._id },
+                  { $set: { "Address.$.DefaultAddress": false } }
+                );
+              }
+            }
+          }
+        }
+      } else if (Operation === 'delete') {
+        if (!AddressId) {
+          return res.status(400).json({ message: "AddressId is required for delete", success: false });
         }
 
-        const location = results[0].geometry.location;
-        addressData.Latitude = location.lat;
-        addressData.Longitude = location.lng;
-      }
-    };
-
-    if (Operation === 'add') {
-      await fetchLatLng();
-
-      if (AddressId) {
-        updatedUser = await User.findOneAndUpdate(
-          { _id, companyId, "Address._id": AddressId },
-          { $set: Object.fromEntries(Object.entries(addressData).map(([k, v]) => [`Address.$.${k}`, v])) },
-          { new: true }
-        );
-      } else {
         updatedUser = await User.findOneAndUpdate(
           { _id, companyId },
-          { $push: { Address: addressData } },
+          { $pull: { Address: { _id: AddressId } } },
           { new: true }
         );
+        
+      } else {
+        return res.status(400).json({ message: "Invalid operation", success: false });
       }
 
-    } else if (Operation === 'delete') {
-      if (!AddressId) {
-        return res.status(400).json({ message: "AddressId is required for delete", success: false });
-      }
+      return res.status(200).json({
+        message: "Address updated successfully",
+        success: true,
+        data: updatedUser.Address
+      });
 
-      updatedUser = await User.findOneAndUpdate(
-        { _id, companyId },
-        { $pull: { Address: { _id: AddressId } } },
-        { new: true }
-      );
-
-    } else {
-      return res.status(400).json({ message: "Invalid operation", success: false });
+    } catch (error) {
+      console.error("updateUserAddress error:", error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        success: false,
+        error: error.message
+      });
     }
+  },
+  getUserDetail: async (req, res) => {
+    let { _id, companyId } = req.body;
+    try {
+      if (!_id || !companyId) {
+        return res.status(400).json({ message: "please provide detail to find user", success: false })
+      }
+      let FindedUser = await User.findOne({ _id, companyId })
+      if (!FindedUser) {
+        return res.status(400).json({ message: "user not found", success: false })
+      }
+      return res.status(200).json({ message: "user fetched", success: true, data: FindedUser })
 
-    return res.status(200).json({
-      message: "Address updated successfully",
-      success: true,
-      data: updatedUser.Address
-    });
+    } catch (error) {
+      console.error("fetchUserDetail  error:", error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        success: false,
+        error: error.message
+      });
+    }
+  },
+  getUserData: async (matchCondition) => {
+    return await User.aggregate([
+      { $match: matchCondition },
+      {
+        $project: {
+          ActiveOtp: 0,
+          OtpTime: 0,
+          PhoneIsVerfied: 0
+        }
+      }
+    ]);
+  },
+  getUserDetailByData: async (req, res) => {
+    let { UserId, companyId, UserName, Email, Phone, Address, Gender, DOB, isActive, PhoneIsVerfied, ManualAddress } = req.body;
 
-  } catch (error) {
-    console.error("updateUserAddress error:", error);
-    return res.status(500).json({
-      message: "Internal Server Error",
-      success: false,
-      error: error.message
-    });
+    try {
+      if (!companyId) {
+        return res.status(400).json({ message: "companyId is required", success: false });
+      }
+
+      let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
+      if (UserId) {
+        matchCondition._id = mongoose.Types.ObjectId.createFromHexString(UserId);
+      }
+      if (UserName) {
+        matchCondition.UserName = { $regex: UserName, $options: "i" };
+      }
+      if (Email) {
+        matchCondition.Email = { $regex: Email, $options: "i" };
+      }
+      if (Phone) {
+        matchCondition.Phone = Number(Phone);
+      }
+      if (Gender) {
+        matchCondition.Gender = Gender;
+      }
+      if (DOB) {
+        matchCondition.DOB = DOB;
+      }
+      if (typeof isActive !== "undefined") {
+        matchCondition.isActive = isActive;
+      }
+      if (typeof PhoneIsVerfied !== "undefined") {
+        matchCondition.PhoneIsVerfied = PhoneIsVerfied;
+      }
+
+      if (Address) {
+        let addressConditions = [];
+
+        if (Address.Street) {
+          addressConditions.push({ "Address.Street": { $regex: Address.Street, $options: "i" } });
+        }
+        if (Address.City) {
+          addressConditions.push({ "Address.City": { $regex: Address.City, $options: "i" } });
+        }
+        if (Address.State) {
+          addressConditions.push({ "Address.State": { $regex: Address.State, $options: "i" } });
+        }
+        if (Address.Country) {
+          addressConditions.push({ "Address.Country": { $regex: Address.Country, $options: "i" } });
+        }
+        if (Address.PostalCode) {
+          addressConditions.push({ "Address.PostalCode": Address.PostalCode });
+        }
+
+        if (addressConditions.length > 0) {
+          matchCondition.$and = [...(matchCondition.$and || []), ...addressConditions];
+        }
+      }
+      if (ManualAddress) {
+        matchCondition.ManualAddress = { $regex: ManualAddress, $options: "i" };
+
+      }
+      const data = await module.exports.getUserData(matchCondition);
+
+      if (!data || data.length === 0) {
+        return res.status(404).json({ message: 'No users found matching criteria', success: false });
+      }
+
+      return res.status(200).json({ data, success: true, message: "Users fetched successfully" });
+
+    } catch (error) {
+      console.error("getUserDetailByData error:", error);
+      return res.status(500).json({ message: "Internal Server Error", error: error.message, success: false });
+    }
   }
-}
 
 }
 
