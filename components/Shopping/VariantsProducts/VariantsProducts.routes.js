@@ -58,13 +58,31 @@ router.post(
   "/addVariantProduct",
   upload.fields([
     { name: 'ProductImages', maxCount: 1000 },
-    { name: 'ProductVideos', maxCount: 5 }
+    { name: 'ProductVideos', maxCount: 5 },
   ]),
   (req, res) => {
     return VariantProductController.addVariantProduct(req, res);
   }
 );
 
+router.post(
+  "/addVariantProductCSV",
+  upload.fields([
+    { name: 'ProductImages', maxCount: 1000 },
+    { name: 'ProductVideos', maxCount: 5 },
+    { name: 'CSVFile', maxCount: 1 }
+  ]),
+  (req, res) => {
+    return VariantProductController.addVariantProductCSV(req, res);
+  }
+);
+
+router.get(
+  "/getVariantProductCsv",
+  (req, res) => {
+    return VariantProductController.getVariantProductCsv(req, res);
+  }
+);
 router.put("/UpdateVariantProduct", upload.array('ProductImages', 100), (req, res) => {
   return VariantProductController.UpdateVariantProduct(req, res)
 });
@@ -73,6 +91,9 @@ router.put("/UpdateProductDetail", (req, res) => {
 });
 router.put("/UpdateCommonImages", upload.array('ProductImages', 100), (req, res) => {
   return VariantProductController.UpdateCommonImages(req, res)
+});
+router.put("/UpdateCommonVideos", upload.array('ProductVideos', 10), (req, res) => {
+  return VariantProductController.UpdateCommonVideos(req, res)
 });
 router.delete("/DeleteProductWithVariant", (req, res) => {
   return VariantProductController.DeleteProductWithVariant(req, res)
@@ -124,5 +145,7 @@ router.put("/updateBatch", upload2.single('BatchLogo'), (req, res) => {
 router.post("/EditBatchOfVariantProduct", (req, res) => {
   return VariantProductController.EditBatchOfVariantProduct(req, res)
 });
+
+
 
 module.exports = router
