@@ -13,7 +13,7 @@ const accessChats = async (req, resp) => {
             { users: { $elemMatch: { $eq: userId } } },
         ],
     })
-        .populate("users", "-password")
+        .populate("readyshoppingusers", "-password")
         .populate("latestMessage");
 
     isChat = await User.default.populate(isChat, {
@@ -30,7 +30,7 @@ const accessChats = async (req, resp) => {
         try {
             const createChat = await Chat.create(chatData);
             const fullChat = await Chat.findOne({ _id: createChat._id }).populate(
-                "users",
+                "readyshoppingusers",
                 "-password"
             );
             resp.status(200).send(fullChat);

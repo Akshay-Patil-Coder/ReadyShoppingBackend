@@ -93,6 +93,7 @@ module.exports = {
 
                 return res.status(400).json({ message: 'Something went wrong while saving the brand', success: false });
             }
+            
             if (CompanyDomain) {
                 const redirectLink = `https://${CompanyDomain}.shop.readytechnologies.in`;
                 const adminPanelLink = `https://adminshop.readytechnologies.in`;
@@ -370,7 +371,7 @@ module.exports = {
             resp.status(200).json({ message: 'token verified successfully', data: data })
 
         } catch (error) {
-            return resp.status(400).json({message:"TokenExpiredError",success:false})
+            return resp.status(400).json({ message: "TokenExpiredError", success: false })
         }
     }
 };

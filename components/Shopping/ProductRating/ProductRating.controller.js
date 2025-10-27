@@ -226,11 +226,12 @@ module.exports = {
 
     getReviewByData: async (matchCondition) => {
         return await ProductRating.aggregate([
+             { $sort: { createdAt: -1 } },
             { $match: matchCondition },
 
             {
                 $lookup: {
-                    from: 'users',
+                    from: 'readyshoppingusers',
                     let: { userId: '$UserId' },
                     pipeline: [
                         { $match: { $expr: { $eq: ['$_id', '$$userId'] } } },
@@ -257,7 +258,7 @@ module.exports = {
             },
             {
                 $lookup: {
-                    from: 'users',
+                    from: 'readyshoppingusers',
                     let: { responseUserId: '$ResponseOnReview.UserId' },
                     pipeline: [
                         { $match: { $expr: { $eq: ['$_id', '$$responseUserId'] } } },
@@ -267,7 +268,7 @@ module.exports = {
                 }
             },
             { $unwind: { path: '$ResponseOnReview.UserData', preserveNullAndEmptyArrays: true } },
-
+           
             {
                 $group: {
                     _id: '$_id',
@@ -284,7 +285,8 @@ module.exports = {
                     createdAt: { $first: '$createdAt' },
                     updatedAt: { $first: '$updatedAt' }
                 }
-            }
+            },
+
         ]);
 
     },

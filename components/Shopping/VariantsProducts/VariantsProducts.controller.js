@@ -475,7 +475,7 @@ module.exports = {
             });
 
             await csvWriter.writeRecords([]);
-            console.log('✅ New CSV template generated');
+            console.log('✅New CSV template generated');
 
             res.download(csvFilePath, 'products_template.csv', (err) => {
                 if (err) console.error('❌ Error sending CSV:', err);
@@ -1435,7 +1435,7 @@ module.exports = {
 
             {
                 $lookup: {
-                    from: 'users',
+                    from: 'readyshoppingusers',
                     localField: 'Reviews.UserId',
                     foreignField: '_id',
                     as: 'ReviewUsers'
@@ -1444,7 +1444,7 @@ module.exports = {
 
             {
                 $lookup: {
-                    from: 'users',
+                    from: 'readyshoppingusers',
                     localField: 'Reviews.ResponseOnReview.UserId',
                     foreignField: '_id',
                     as: 'ResponseUsers'

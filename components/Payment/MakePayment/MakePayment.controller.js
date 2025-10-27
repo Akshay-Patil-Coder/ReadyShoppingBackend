@@ -2696,7 +2696,7 @@ exports.getSearchField = async (req, res) => {
             const Count = transaction_model.aggregate([
                 {
                     $lookup: {
-                        from: "users",
+                        from: "readyshoppingusers",
                         localField: "user",
                         foreignField: "_id",
                         as: "users",
@@ -2747,7 +2747,7 @@ exports.getSearchField = async (req, res) => {
                 .aggregate([
                     {
                         $lookup: {
-                            from: "users",
+                            from: "readyshoppingusers",
                             localField: "user",
                             foreignField: "_id",
                             as: "users",
@@ -2883,7 +2883,7 @@ exports.filterPayment = async (req, res) => {
             .aggregate([
                 {
                     $lookup: {
-                        from: "users",
+                        from: "readyshoppingusers",
                         localField: "user",
                         foreignField: "_id",
                         as: "users",

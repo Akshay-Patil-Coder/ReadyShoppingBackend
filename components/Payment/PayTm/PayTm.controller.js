@@ -1760,7 +1760,7 @@ export const getAllPaytmTransaction = async (req, res) => {
     let paytmTransactions = await paytmModel.aggregate([
       {
         $lookup: {
-          from: "users",
+          from: "readyshoppingusers",
           localField: "user",
           foreignField: "_id",
           as: "userDetails",
@@ -1776,7 +1776,7 @@ export const getAllPaytmTransaction = async (req, res) => {
     const paymentRecords = await paymentModel.aggregate([
       {
         $lookup: {
-          from: "users",
+          from: "readyshoppingusers",
           localField: "user",
           foreignField: "_id",
           as: "userDetails",
@@ -1946,7 +1946,7 @@ export const getPaytmTransactionDetails = async (req, res) => {
       },
       {
         $lookup: {
-          from: "users",
+          from: "readyshoppingusers",
           localField: "user",
           foreignField: "_id",
           as: "userDetails",

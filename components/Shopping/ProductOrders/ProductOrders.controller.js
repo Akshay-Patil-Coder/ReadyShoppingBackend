@@ -59,7 +59,7 @@ module.exports = {
                 },
                 {
                     $lookup: {
-                        from: 'users',
+                        from: 'readyshoppingusers',
                         localField: 'user',
                         foreignField: '_id',
                         as: 'users'
@@ -111,7 +111,7 @@ module.exports = {
                 { $match: query },
                 {
                     $lookup: {
-                        from: 'users',
+                        from: 'readyshoppingusers',
                         localField: 'user',
                         foreignField: '_id',
                         as: 'userData'
