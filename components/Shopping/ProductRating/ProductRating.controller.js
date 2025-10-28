@@ -226,7 +226,6 @@ module.exports = {
 
     getReviewByData: async (matchCondition) => {
         return await ProductRating.aggregate([
-             { $sort: { createdAt: -1 } },
             { $match: matchCondition },
 
             {
@@ -268,7 +267,7 @@ module.exports = {
                 }
             },
             { $unwind: { path: '$ResponseOnReview.UserData', preserveNullAndEmptyArrays: true } },
-           
+
             {
                 $group: {
                     _id: '$_id',
@@ -286,7 +285,7 @@ module.exports = {
                     updatedAt: { $first: '$updatedAt' }
                 }
             },
-
+            { $sort: { createdAt: -1 } },
         ]);
 
     },

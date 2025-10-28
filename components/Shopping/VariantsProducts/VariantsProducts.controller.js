@@ -1532,12 +1532,11 @@ module.exports = {
                 InventoryBase,
                 VariantProductId,
                 BrandId,
-                BatchIds,
                 BatchName
             } = req.query;
 
 
-            const { VariantFilters } = req.body;
+            let { VariantFilters,BatchIds } = req.body;
 
             if (!companyId) {
                 return res.status(400).json({ message: 'companyId is required', success: false });
