@@ -50,7 +50,7 @@ module.exports = {
                         });
                     }
 
-                    CompanyDomain = String(PredifinedDomain).toLowerCase();
+                    PredifinedDomain = String(PredifinedDomain).toLowerCase();
                 }
 
                 if (CompanyDomain) {
@@ -134,11 +134,12 @@ module.exports = {
                     CompanyData.Longitude = location.lng;
                 }
             };
-            if (CompanyDomain) {
-                CompanyData.CompanyDomain = CompanyDomain
-            }
-            else if (PredifinedDomain) {
+
+            if (PredifinedDomain) {
                 CompanyData.PredifinedDomain = PredifinedDomain
+            }
+            else if (CompanyDomain) {
+                CompanyData.CompanyDomain = CompanyDomain
             }
             if (req.file) {
                 CompanyData.CompanyLogo = req.file.filename
