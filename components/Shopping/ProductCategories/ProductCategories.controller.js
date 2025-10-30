@@ -235,7 +235,8 @@ module.exports = {
 
             const getLeafNodes = (categoryId) => {
                 const children = parentMap[categoryId] || [];
-                if (children.length === 0) return [];
+                if (children.length === 0) return []; 
+
                 let leaves = [];
                 for (const child of children) {
                     const subLeaves = getLeafNodes(child._id.toString());
@@ -248,19 +249,27 @@ module.exports = {
                 return leaves;
             };
 
-            let roots;
+            let headCategories = [];
+
             if (HeadCategoryId) {
-                roots = categories.filter(cat => cat._id.toString() === HeadCategoryId);
+                headCategories = categories.filter(cat => cat._id.toString() === HeadCategoryId);
             } else {
-                roots = categories.filter(cat => !cat.parentCategoryId);
+                const rootCategories = categories.filter(cat => !cat.parentCategoryId);
+                let secondLevel = [];
+                for (const root of rootCategories) {
+                    const children = parentMap[root._id.toString()] || [];
+                    secondLevel = secondLevel.concat(children);
+                }
+                headCategories = secondLevel;
             }
 
-            const result = roots.map(root => ({
-                _id: root._id,
-                categoryName: root.categoryName,
-                Description: root.Description,
-                imageName: root.imageName,
-                leafCategories: getLeafNodes(root._id.toString())
+            const result = headCategories.map(head => ({
+                _id: head._id,
+                categoryName: head.categoryName,
+                Description: head.Description,
+                imageName: head.imageName,
+                parentCategoryId:head.parentCategoryId,
+                leafCategories: getLeafNodes(head._id.toString())
             }));
 
             return res.status(200).send({
@@ -278,109 +287,110 @@ module.exports = {
             });
         }
     },
-getCategoryWithHeadAndLeafParentNodes: async (req, res) => {
-    try {
-        const { companyId, HeadCategoryId } = req.query;
 
-        if (!companyId) {
-            return res.status(400).send({
-                success: false,
-                message: "Please send companyId",
-            });
-        }
+    getCategoryWithHeadAndLeafParentNodes: async (req, res) => {
+        try {
+            const { companyId, HeadCategoryId } = req.query;
 
-        const categories = await dynamicCategoriesModel.find({ companyId, isActive: true });
-
-        const parentMap = {};
-        categories.forEach(cat => {
-            const parentId = cat.parentCategoryId ? cat.parentCategoryId.toString() : null;
-            if (!parentMap[parentId]) parentMap[parentId] = [];
-            parentMap[parentId].push(cat);
-        });
-
-        const getLeafNodesWithParents = (categoryId) => {
-            const children = parentMap[categoryId] || [];
-            if (children.length === 0) return [];
-
-            let leaves = [];
-            for (const child of children) {
-                const subLeaves = getLeafNodesWithParents(child._id.toString());
-                if (subLeaves.length === 0) {
-                    leaves.push(child);
-                } else {
-                    leaves = leaves.concat(subLeaves);
-                }
+            if (!companyId) {
+                return res.status(400).send({
+                    success: false,
+                    message: "Please send companyId",
+                });
             }
-            return leaves;
-        };
 
-        let roots;
-        if (HeadCategoryId) {
-            roots = categories.filter(cat => cat._id.toString() === HeadCategoryId);
-        } else {
-            roots = categories.filter(cat => !cat.parentCategoryId);
-        }
+            const categories = await dynamicCategoriesModel.find({ companyId, isActive: true });
 
-        const result = [];
+            const parentMap = {};
+            categories.forEach(cat => {
+                const parentId = cat.parentCategoryId ? cat.parentCategoryId.toString() : null;
+                if (!parentMap[parentId]) parentMap[parentId] = [];
+                parentMap[parentId].push(cat);
+            });
 
-        for (const root of roots) {
-            const leafData = getLeafNodesWithParents(root._id.toString());
-            const parentCategoryMap = {};
+            const getLeafNodesWithParents = (categoryId) => {
+                const children = parentMap[categoryId] || [];
+                if (children.length === 0) return [];
 
-            leafData.forEach(leaf => {
-                const parentCategoryId = leaf.parentCategoryId.toString();
-                if (!parentCategoryMap[parentCategoryId]) {
-                    const parentCategory = categories.find(c => c._id.toString() === parentCategoryId);
-                    parentCategoryMap[parentCategoryId] = {
-                        parentCategory: parentCategory,
-                        leafCategories: []
-                    };
+                let leaves = [];
+                for (const child of children) {
+                    const subLeaves = getLeafNodesWithParents(child._id.toString());
+                    if (subLeaves.length === 0) {
+                        leaves.push(child);
+                    } else {
+                        leaves = leaves.concat(subLeaves);
+                    }
                 }
-                parentCategoryMap[parentCategoryId].leafCategories.push(leaf);
+                return leaves;
+            };
+
+            let roots;
+            if (HeadCategoryId) {
+                roots = categories.filter(cat => cat._id.toString() === HeadCategoryId);
+            } else {
+                roots = categories.filter(cat => !cat.parentCategoryId);
+            }
+
+            const result = [];
+
+            for (const root of roots) {
+                const leafData = getLeafNodesWithParents(root._id.toString());
+                const parentCategoryMap = {};
+
+                leafData.forEach(leaf => {
+                    const parentCategoryId = leaf.parentCategoryId.toString();
+                    if (!parentCategoryMap[parentCategoryId]) {
+                        const parentCategory = categories.find(c => c._id.toString() === parentCategoryId);
+                        parentCategoryMap[parentCategoryId] = {
+                            parentCategory: parentCategory,
+                            leafCategories: []
+                        };
+                    }
+                    parentCategoryMap[parentCategoryId].leafCategories.push(leaf);
+                });
+
+                result.push({
+                    headCategory: {
+                        _id: root._id,
+                        categoryName: root.categoryName,
+                        Description: root.Description,
+                        imageName: root.imageName,
+                        parentCategoryId: root.parentCategoryId || null
+                    },
+                    leafHierarchy: Object.values(parentCategoryMap).map(({ parentCategory, leafCategories }) => ({
+                        parentCategory: {
+                            _id: parentCategory._id,
+                            categoryName: parentCategory.categoryName,
+                            Description: parentCategory.Description,
+                            imageName: parentCategory.imageName,
+                            parentCategoryId: parentCategory.parentCategoryId || null
+                        },
+                        leafCategories: leafCategories.map(leaf => ({
+                            _id: leaf._id,
+                            categoryName: leaf.categoryName,
+                            Description: leaf.Description,
+                            imageName: leaf.imageName,
+                            parentCategoryId: leaf.parentCategoryId || null
+                        }))
+                    }))
+                });
+            }
+
+            return res.status(200).send({
+                success: true,
+                message: "Categories fetched successfully",
+                data: result
             });
 
-            result.push({
-                headCategory: {
-                    _id: root._id,
-                    categoryName: root.categoryName,
-                    Description: root.Description,
-                    imageName: root.imageName,
-                    parentCategoryId: root.parentCategoryId || null
-                },
-                leafHierarchy: Object.values(parentCategoryMap).map(({ parentCategory, leafCategories }) => ({
-                    parentCategory: {
-                        _id: parentCategory._id,
-                        categoryName: parentCategory.categoryName,
-                        Description: parentCategory.Description,
-                        imageName: parentCategory.imageName,
-                        parentCategoryId: parentCategory.parentCategoryId || null
-                    },
-                    leafCategories: leafCategories.map(leaf => ({
-                        _id: leaf._id,
-                        categoryName: leaf.categoryName,
-                        Description: leaf.Description,
-                        imageName: leaf.imageName,
-                        parentCategoryId: leaf.parentCategoryId || null
-                    }))
-                }))
+        } catch (error) {
+            console.error("getCategoryWithLeafAndParentNodes Error:", error);
+            return res.status(500).send({
+                success: false,
+                message: "Something went wrong",
+                error: error.message
             });
         }
-
-        return res.status(200).send({
-            success: true,
-            message: "Categories fetched successfully",
-            data: result
-        });
-
-    } catch (error) {
-        console.error("getCategoryWithLeafAndParentNodes Error:", error);
-        return res.status(500).send({
-            success: false,
-            message: "Something went wrong",
-            error: error.message
-        });
-    }
-},
+    },
 
 
 
