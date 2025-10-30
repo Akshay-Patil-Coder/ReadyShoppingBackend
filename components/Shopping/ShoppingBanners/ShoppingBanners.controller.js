@@ -27,32 +27,32 @@ module.exports = {
                 }
             };
 
-           if (VariantsProductsIds) {
-    try {
-        if (typeof VariantsProductsIds === 'string') {
-            VariantsProductsIds = VariantsProductsIds.trim();
+            if (VariantsProductsIds) {
+                try {
+                    if (typeof VariantsProductsIds === 'string') {
+                        VariantsProductsIds = VariantsProductsIds.trim();
 
-            if (VariantsProductsIds.startsWith('[') && VariantsProductsIds.endsWith(']')) {
-                VariantsProductsIds = JSON.parse(VariantsProductsIds);
-            } else if (VariantsProductsIds.includes(',')) {
-                VariantsProductsIds = VariantsProductsIds.split(',').map(v => v.trim());
-            } else {
-                VariantsProductsIds = [VariantsProductsIds];
+                        if (VariantsProductsIds.startsWith('[') && VariantsProductsIds.endsWith(']')) {
+                            VariantsProductsIds = JSON.parse(VariantsProductsIds);
+                        } else if (VariantsProductsIds.includes(',')) {
+                            VariantsProductsIds = VariantsProductsIds.split(',').map(v => v.trim());
+                        } else {
+                            VariantsProductsIds = [VariantsProductsIds];
+                        }
+                    }
+
+                    else if (!Array.isArray(VariantsProductsIds)) {
+                        VariantsProductsIds = [VariantsProductsIds];
+                    }
+
+                } catch (err) {
+                    deleteBannerImage();
+                    return res.status(400).json({
+                        message: 'Invalid VariantsProductsIds format',
+                        success: false
+                    });
+                }
             }
-        }
-
-        else if (!Array.isArray(VariantsProductsIds)) {
-            VariantsProductsIds = [VariantsProductsIds];
-        }
-
-    } catch (err) {
-        deleteBannerImage();
-        return res.status(400).json({
-            message: 'Invalid VariantsProductsIds format',
-            success: false
-        });
-    }
-}
 
 
             if (!companyId || !BannerName || !HeadCategoryId || !SubCategoryId || !BannerType) {
@@ -143,7 +143,7 @@ module.exports = {
 
             {
                 $lookup: {
-                    from: "categories",
+                    from: "categgggories",
                     localField: "HeadCategoryId",
                     foreignField: "_id",
                     as: "HeadCategory"
@@ -152,13 +152,20 @@ module.exports = {
 
             {
                 $lookup: {
-                    from: "categories",
+                    from: "categgggories",
                     localField: "SubCategoryId",
                     foreignField: "_id",
                     as: "SubCategory"
                 }
             },
-
+            {
+                $lookup: {
+                    from: "brands",
+                    localField: "BrandId",
+                    foreignField: "_id",
+                    as: "Brands"
+                }
+            },
             {
                 $lookup: {
                     from: "variantproducts",
@@ -338,14 +345,21 @@ module.exports = {
                                                 cond: { $eq: ["$$vp.ProductId", "$$p._id"] }
                                             }
                                         },
-                                        Brands: "$BrandId" ? [{ _id: "$BrandId" }] : [],
-                                        HeadCategory: "$HeadCategory",
-                                        SubCategory: "$SubCategory"
+
+
                                     }
                                 ]
                             }
                         }
                     }
+                }
+            },
+            {
+                $project: {
+                    ProductServicesData: 0,
+                    VariantProducts: 0,
+                    VariantDetails: 0,
+                    BatchesInfo: 0
                 }
             }
         ]);
