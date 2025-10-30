@@ -39,6 +39,9 @@ router.get('/getCategoryTree', (req, res) => {
 router.get('/getCategoryWithLeafNodes', (req, res) => {
     dynamicCategoryController.getCategoryWithLeafNodes(req, res);
 });
+router.get('/getCategoryWithHeadAndLeafParentNodes', (req, res) => {
+    dynamicCategoryController.getCategoryWithHeadAndLeafParentNodes(req, res);
+});
 router.put('/updateCategory/:id',  upload.single('image'), (req, res) => {
         return dynamicCategoryController.updateCategory(req, res);
   });

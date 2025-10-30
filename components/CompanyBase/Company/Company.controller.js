@@ -1,15 +1,16 @@
 const mongoose = require('mongoose');
 const Company = require('./Company.model');
-const { ObjectId } = mongoose.Types;
 const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcryptjs')
-const nodemailer = require('nodemailer')
+const nodemailer = require('nodemailer');
+const axios = require("axios");
 
 module.exports = {
     addcompanies: async (req, res) => {
-        let { CompanyName, CompanyDomain, PredifinedDomain, Street, City, State, Country, PostalCode, Email, Phone, PanCardNo, GstNo, Contact_person_name, Password } = req.body;
+        let { CompanyName, CompanyDomain, PredifinedDomain, Latitude, Longitude, Street, City, State, Country, PostalCode, Email, Phone, PanCardNo, GstNo, Contact_person_name, Password } = req.body;
+
         try {
             if (!CompanyName || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !Contact_person_name || !Password) {
                 if (req.file?.filename) {
@@ -20,28 +21,74 @@ module.exports = {
                 }
                 return res.status(400).json({ message: "please filled all data", success: false })
             }
-            if (!PredifinedDomain && !CompanyDomain) {
+            try {
+                if (!PredifinedDomain) {
+                    const companyName = CompanyName || '';
+                    const subdomain = companyName
+                        .trim()
+                        .split(/\s+/)[0]
+                        ?.toLowerCase()
+                        .replace(/\./g, '');
+                    CompanyDomain = subdomain;
+                }
+
+                if (PredifinedDomain) {
+                    const existingCompany = await Company.findOne({
+                        PredifinedDomain: String(PredifinedDomain).toLowerCase()
+                    });
+
+                    if (existingCompany) {
+                        if (req.file?.filename) {
+                            const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
+                            if (fs.existsSync(newImagePath)) {
+                                fs.unlinkSync(newImagePath);
+                            }
+                        }
+                        return res.status(400).json({
+                            success: false,
+                            message: 'Your domain is already registered.'
+                        });
+                    }
+
+                    CompanyDomain = String(PredifinedDomain).toLowerCase();
+                }
+
+                if (CompanyDomain) {
+                    let baseDomain = String(CompanyDomain).trim().toLowerCase();
+                    let uniqueDomain = baseDomain;
+                    let count = 1;
+
+                    while (await Company.findOne({ CompanyDomain: uniqueDomain })) {
+                        uniqueDomain = `${baseDomain}${count}`;
+                        count++;
+                    }
+
+                    CompanyDomain = uniqueDomain;
+                }
+                if (!CompanyDomain && !PredifinedDomain) {
+                    if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
+                    }
+                    return res.status(400).json({ message: "domain not fetched by company name please provide company name or your domain", success: false })
+                }
+
+            } catch (error) {
+                console.error('Error generating or validating company domain:', error);
                 if (req.file?.filename) {
                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }
                 }
-                return res.status(400).json({ message: "we required domain for make your website", success: false })
+                return res.status(500).json({
+                    success: false,
+                    message: 'Server error while validating company domain.'
+                });
             }
-            if (PredifinedDomain) {
-                let findCompany = await Company.findOne({ PredifinedDomain: String(PredifinedDomain) })
-                if (findCompany) {
-                    return res.status(400).json({ message: 'your domain is already registered' })
-                }
-            }
-            else if (CompanyDomain) {
-                let findCompany = await Company.findOne({ PredifinedDomain: String(PredifinedDomain) })
-                if (findCompany) {
-                    return res.status(400).json({ message: 'dont allow duplicate domain it must be unique' })
-                }
 
-            }
             if (Phone) {
                 let findCompany = await Company.findOne({ Phone: String(Phone) })
                 if (findCompany) {
@@ -69,6 +116,24 @@ module.exports = {
                 Contact_person_name,
                 Password,
             };
+
+            const fetchLatLng = async () => {
+                if (!Latitude || !Longitude) {
+                    const address = [Street, City, State, Country, PostalCode].filter(Boolean).join(', ');
+                    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+                    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+                    const response = await axios.get(url);
+                    const results = response.data.results;
+
+                    if (!results || results.length === 0) {
+                        return
+                    }
+
+                    const location = results[0].geometry.location;
+                    CompanyData.Latitude = location.lat;
+                    CompanyData.Longitude = location.lng;
+                }
+            };
             if (CompanyDomain) {
                 CompanyData.CompanyDomain = CompanyDomain
             }
@@ -77,6 +142,13 @@ module.exports = {
             }
             if (req.file) {
                 CompanyData.CompanyLogo = req.file.filename
+            }
+            if (Latitude && Longitude) {
+                CompanyData.Latitude = Latitude
+                CompanyData.Longitude = Longitude
+            }
+            else {
+                await fetchLatLng();
             }
             console.log(CompanyData, 'data')
 
@@ -93,7 +165,7 @@ module.exports = {
 
                 return res.status(400).json({ message: 'Something went wrong while saving the brand', success: false });
             }
-            
+
             if (CompanyDomain) {
                 const redirectLink = `https://${CompanyDomain}.shop.readytechnologies.in`;
                 const adminPanelLink = `https://adminshop.readytechnologies.in`;

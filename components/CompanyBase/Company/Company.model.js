@@ -8,11 +8,11 @@ const companySchema = new mongoose.Schema({
     },
     CompanyDomain: {
         type: String,
-        unique:true
+        unique: true
     },
     PredifinedDomain: {
-        type:String,
-        unique:true
+        type: String,
+        unique: true
     },
     isActive: {
         type: Boolean,
@@ -38,6 +38,12 @@ const companySchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    Latitude: {
+        type: Number
+    },
+    Longitude: {
+        type: Number
+    },
     Email: {
         type: String,
         required: true,
@@ -45,7 +51,7 @@ const companySchema = new mongoose.Schema({
     },
     Phone: {
         type: String,
-        unique:true,
+        unique: true,
         required: true
 
     },

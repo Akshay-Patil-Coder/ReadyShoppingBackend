@@ -27,14 +27,33 @@ module.exports = {
                 }
             };
 
-            if (VariantsProductsIds) {
-                try {
-                    VariantsProductsIds = JSON.parse(VariantsProductsIds);
-                } catch {
-                    deleteBannerImage();
-                    return res.status(400).json({ message: 'Invalid VariantsProductsIds format', success: false });
-                }
+           if (VariantsProductsIds) {
+    try {
+        if (typeof VariantsProductsIds === 'string') {
+            VariantsProductsIds = VariantsProductsIds.trim();
+
+            if (VariantsProductsIds.startsWith('[') && VariantsProductsIds.endsWith(']')) {
+                VariantsProductsIds = JSON.parse(VariantsProductsIds);
+            } else if (VariantsProductsIds.includes(',')) {
+                VariantsProductsIds = VariantsProductsIds.split(',').map(v => v.trim());
+            } else {
+                VariantsProductsIds = [VariantsProductsIds];
             }
+        }
+
+        else if (!Array.isArray(VariantsProductsIds)) {
+            VariantsProductsIds = [VariantsProductsIds];
+        }
+
+    } catch (err) {
+        deleteBannerImage();
+        return res.status(400).json({
+            message: 'Invalid VariantsProductsIds format',
+            success: false
+        });
+    }
+}
+
 
             if (!companyId || !BannerName || !HeadCategoryId || !SubCategoryId || !BannerType) {
                 deleteBannerImage();

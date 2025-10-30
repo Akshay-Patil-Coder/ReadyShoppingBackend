@@ -40,7 +40,7 @@ module.exports = {
                 try {
                     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
                 } catch (err) {
-                    console.warn('⚠️ Failed to delete product image:', err.message);
+                    console.warn('⚠️ Failed to delete product Video:', err.message);
                 }
             });
         }
@@ -66,6 +66,7 @@ module.exports = {
                         req.body[key] = JSON.parse(req.body[key]);
                     } catch {
                         clearFiles(AllProductImages);
+                        clearVideo(AllProductVideos);
                         throw new Error(`Invalid JSON format in field: ${key}`);
                     }
                 }
@@ -76,6 +77,7 @@ module.exports = {
 
         try {
             if (!companyId || !HeadCategoryId || !SubCategoryId || !BrandId || !ProductName) {
+                clearVideo(AllProductVideos);
                 clearFiles(AllProductImages);
                 return res.status(400).json({ success: false, message: 'Missing required fields.' });
             }
@@ -110,7 +112,7 @@ module.exports = {
             const AddProduct = await new Product(ProductData).save();
             if (!AddProduct) {
                 clearFiles(AllProductImages);
-                clearFiles(AllProductVideos);
+                clearVideo(AllProductVideos);
                 return res.status(400).json({ success: false, message: 'Product not added. Validation failed.' });
             }
 
@@ -237,7 +239,8 @@ module.exports = {
                 });
             } else {
                 clearFiles(AllProductImages);
-                clearFiles(AllProductVideos);
+                clearVideo(AllProductVideos);
+
                 if (AddProduct?._id) await Product.findByIdAndDelete(AddProduct._id);
                 return res.status(400).json({
                     success: false,
@@ -246,7 +249,8 @@ module.exports = {
             }
         } catch (error) {
             clearFiles(AllProductImages);
-            clearFiles(AllProductImages);
+            clearVideo(AllProductVideos);
+
             console.error('❌ VariantProductAddError:', error);
             return res.status(500).json({
                 success: false,
@@ -919,7 +923,7 @@ module.exports = {
             });
         }
     },
-  UpdateCommonVideos: async (req, res) => {
+    UpdateCommonVideos: async (req, res) => {
         try {
             const { ProductId, companyId, Operation, VideoName } = req.body;
             const AllProductVideos = req.files?.length ? req.files.map(f => f.filename) : [];
@@ -973,8 +977,8 @@ module.exports = {
                         { new: true }
                     );
 
-                        const oldVideoPath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', VideoName);
-                        if (fs.existsSync(oldVideoPath)) fs.unlinkSync(oldVideoPath);
+                    const oldVideoPath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', VideoName);
+                    if (fs.existsSync(oldVideoPath)) fs.unlinkSync(oldVideoPath);
 
                     return res.status(200).json({
                         success: true,
@@ -1014,8 +1018,8 @@ module.exports = {
                 );
 
                 for (const vid of videoArray) {
-                        const filePath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', vid);
-                        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                    const filePath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', vid);
+                    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
                 }
 
                 return res.status(200).json({
@@ -1249,26 +1253,33 @@ module.exports = {
             {
                 $lookup: {
                     from: 'categgggories',
-                    localField: 'HeadCategoryId',
-                    foreignField: '_id',
+                    let: { headId: "$HeadCategoryId" },
+                    pipeline: [
+                        { $match: { $expr: { $eq: ["$_id", "$$headId"] } } },
+                        { $project: { _id: 1, categoryName: 1, imageName: 1 } }
+                    ],
                     as: 'HeadCategory'
                 }
             },
-
             {
                 $lookup: {
                     from: 'categgggories',
-                    localField: 'SubCategoryId',
-                    foreignField: '_id',
+                    let: { subId: "$SubCategoryId" },
+                    pipeline: [
+                        { $match: { $expr: { $eq: ["$_id", "$$subId"] } } },
+                        { $project: { _id: 1, categoryName: 1, imageName: 1 } }
+                    ],
                     as: 'SubCategories'
                 }
             },
-
             {
                 $lookup: {
                     from: 'brands',
-                    localField: 'BrandId',
-                    foreignField: '_id',
+                    let: { brandId: "$BrandId" },
+                    pipeline: [
+                        { $match: { $expr: { $eq: ["$_id", "$$brandId"] } } },
+                        { $project: { _id: 1, BrandName: 1, BrandImage: 1 } }
+                    ],
                     as: 'Brands'
                 }
             },
@@ -1532,11 +1543,21 @@ module.exports = {
                 InventoryBase,
                 VariantProductId,
                 BrandId,
-                BatchName
+                BatchName,
+                SortOrder,
+                StartDate,
+                EndDate,
+                MaxPrice,
+                MinPrice,
+                PriceSort,
+                CategoryName,
+                BrandName,
+                MixedName
+
             } = req.query;
 
 
-            let { VariantFilters,BatchIds } = req.body;
+            let { VariantFilters, BatchIds, VariantProductIds } = req.body;
 
             if (!companyId) {
                 return res.status(400).json({ message: 'companyId is required', success: false });
@@ -1617,12 +1638,142 @@ module.exports = {
                     return { ...product, VariantProducts: matchedVariants };
                 }).filter(p => p.VariantProducts.length > 0);
             }
+            if (BrandName) {
+                const regex = new RegExp(BrandName, 'i');
+                filteredData = filteredData.filter(product =>
+                    product.Brands &&
+                    product.Brands.some(brand => regex.test(brand.BrandName))
+                );
+            }
+            if (CategoryName) {
+                const regex = new RegExp(CategoryName, 'i');
+                filteredData = filteredData.filter(product =>
+                    (product.SubCategories &&
+                        product.SubCategories.some(sub => regex.test(sub.categoryName))) ||
+                    (product.HeadCategory &&
+                        product.HeadCategory.some(head => regex.test(head.categoryName)))
+                );
+            }
+            if (MixedName) {
+                const keywords = MixedName.split(/[\s,\.]+/).filter(Boolean);
+
+                const regexList = keywords.map(k => new RegExp(k, 'i'));
+
+                const matchesAny = str => str && regexList.some(r => r.test(str));
+
+                filteredData = filteredData.filter(product => {
+                    const productMatch =
+                        matchesAny(product.ProductName) ||
+                        (product.Brands && product.Brands.some(b => matchesAny(b.BrandName))) ||
+                        (product.SubCategories && product.SubCategories.some(sub => matchesAny(sub.categoryName))) ||
+                        (product.HeadCategory && product.HeadCategory.some(head => matchesAny(head.categoryName)));
+
+                    const variantMatch = product.VariantProducts.some(vp =>
+                        matchesAny(vp.VariantProductName) ||
+                        (vp.BatchesInfo && vp.BatchesInfo.some(b => matchesAny(b.BatchName)))
+                    );
+
+                    return productMatch || variantMatch;
+                });
+            }
+
+
             if (InventoryBase) {
                 filteredData = filteredData.filter(product =>
                     product.VariantProducts.some(vp =>
                         vp.InventoryBaseStock?.InventoryBase === InventoryBase
                     )
                 );
+            }
+            if (VariantProductIds) {
+                let variantIds = Array.isArray(VariantProductIds)
+                    ? VariantProductIds
+                    : [VariantProductIds];
+
+                const variantObjectIds = variantIds.map(id => validateObjectId(id, 'VariantProductId'));
+
+                filteredData = filteredData
+                    .map(product => {
+                        const matchedVariants = product.VariantProducts.filter(vp =>
+                            variantObjectIds.some(vid => vp._id.equals(vid))
+                        );
+
+                        return { ...product, VariantProducts: matchedVariants };
+                    })
+                    .filter(p => p.VariantProducts.length > 0);
+            }
+
+            if (SortOrder || StartDate || EndDate || PriceSort || MinPrice || MaxPrice) {
+                const sortDirection =
+                    SortOrder?.toLowerCase() === 'newer'
+                        ? -1
+                        : SortOrder?.toLowerCase() === 'older'
+                            ? 1
+                            : 0;
+
+                const priceSortDirection =
+                    PriceSort?.toLowerCase() === 'lowtohigh'
+                        ? 1
+                        : PriceSort?.toLowerCase() === 'hightolow'
+                            ? -1
+                            : 0;
+
+                const startDate = StartDate ? new Date(StartDate) : null;
+                const endDate = EndDate ? new Date(EndDate) : null;
+
+                const minPrice = MinPrice ? Number(MinPrice) : null;
+                const maxPrice = MaxPrice ? Number(MaxPrice) : null;
+
+                let flattened = [];
+
+                filteredData.forEach(product => {
+                    const { Reviews, ...productWithoutReviews } = product;
+
+                    product.VariantProducts.forEach(variant => {
+                        flattened.push({
+                            ...productWithoutReviews,
+                            VariantProducts: [variant],
+                        });
+                    });
+                });
+
+                if (startDate || endDate) {
+                    flattened = flattened.filter(item => {
+                        const createdAt = new Date(item.VariantProducts[0].createdAt);
+                        if (startDate && endDate) return createdAt >= startDate && createdAt <= endDate;
+                        if (startDate) return createdAt >= startDate;
+                        if (endDate) return createdAt <= endDate;
+                        return true;
+                    });
+                }
+
+                if (minPrice || maxPrice) {
+                    flattened = flattened.filter(item => {
+                        const price = Number(item.VariantProducts[0].Price);
+                        if (minPrice && maxPrice) return price >= minPrice && price <= maxPrice;
+                        if (minPrice) return price >= minPrice;
+                        if (maxPrice) return price <= maxPrice;
+                        return true;
+                    });
+                }
+
+                if (SortOrder) {
+                    flattened.sort((a, b) => {
+                        const createdAtA = new Date(a.VariantProducts[0].createdAt);
+                        const createdAtB = new Date(b.VariantProducts[0].createdAt);
+                        return sortDirection * (createdAtA - createdAtB);
+                    });
+                }
+
+                if (PriceSort) {
+                    flattened.sort((a, b) => {
+                        const priceA = Number(a.VariantProducts[0].Price);
+                        const priceB = Number(b.VariantProducts[0].Price);
+                        return priceSortDirection * (priceA - priceB);
+                    });
+                }
+
+                filteredData = flattened;
             }
 
             return res.status(200).json({
