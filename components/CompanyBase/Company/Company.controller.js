@@ -167,7 +167,7 @@ module.exports = {
                 return res.status(400).json({ message: 'Something went wrong while saving the brand', success: false });
             }
 
-            if (CompanyDomain) {
+             if (CompanyDomain) {
                 const redirectLink = `https://${CompanyDomain}.shop.readytechnologies.in`;
                 const adminPanelLink = `https://adminshop.readytechnologies.in`;
 
@@ -402,6 +402,119 @@ module.exports = {
             });
         }
     },
+addBankDetailOfCompany: async (req, res) => {
+    try {
+        const { companyId, IFSC, AccountNumber, BankName, BranchName, MICR, Address, BankState } = req.body;
+
+        if (!companyId || !IFSC || !AccountNumber) {
+            return res.status(400).json({
+                success: false,
+                message: "Please provide companyId, IFSC, and AccountNumber."
+            });
+        }
+
+        const company = await Company.findById(companyId);
+        if (!company) {
+            return res.status(404).json({
+                success: false,
+                message: "Company not found."
+            });
+        }
+
+        if (!/^\d{9,18}$/.test(AccountNumber)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid Account Number format."
+            });
+        }
+
+        const bankDetails = {
+            IFSC,
+            AccountNumber,
+            BankName: BankName?.trim() || "",
+            BranchName: BranchName?.trim() || "",
+            MICR: MICR?.trim() || "",
+            Address: Address?.trim() || "",
+            BankState: BankState?.trim() || ""
+        };
+
+        const updatedCompany = await Company.findByIdAndUpdate(
+            companyId,
+            { $set: { BankDetails: bankDetails } },
+            { new: true }
+        );
+
+        if (!updatedCompany) {
+            return res.status(400).json({
+                success: false,
+                message: "Failed to update bank details."
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Bank details updated successfully.",
+            data: updatedCompany
+        });
+
+    } catch (error) {
+        console.error("AddBankDetailOfCompanyError:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error",
+            error: error.message
+        });
+    }
+},
+deleteBankDetailOfCompany: async (req, res) => {
+    try {
+        const { companyId } = req.query;
+
+        if (!companyId) {
+            return res.status(400).json({
+                success: false,
+                message: "Please provide companyId."
+            });
+        }
+
+        const company = await Company.findById(companyId);
+        if (!company) {
+            return res.status(404).json({
+                success: false,
+                message: "Company not found."
+            });
+        }
+
+        if (!company.BankDetails || Object.keys(company.BankDetails).length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "No bank details found to delete."
+            });
+        }
+
+        const updatedCompany = await Company.findByIdAndUpdate(
+            companyId,
+            { $unset: { BankDetails: "" } },
+            { new: true }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Bank details deleted successfully.",
+            data: updatedCompany
+        });
+
+    } catch (error) {
+        console.error("DeleteBankDetailOfCompanyError:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error",
+            error: error.message
+        });
+    }
+},
+
+
     loginCompnay: async (req, resp) => {
         let { Email, Password } = req.body;
 

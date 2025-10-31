@@ -74,6 +74,29 @@ const companySchema = new mongoose.Schema({
     Password: {
         type: String,
         required: true
+    },
+    BankDetails: {
+        IFSC: {
+            type: String
+        },
+        AccountNumber: {
+            type: String
+        },
+        BankName: {
+            type: String
+        },
+        BranchName: {
+            type: String
+        },
+        MICR: {
+            type: String
+        },
+        Address: {
+            type: String
+        },
+        BankState: {
+            type: String
+        }
     }
 }, {
     timestamps: true

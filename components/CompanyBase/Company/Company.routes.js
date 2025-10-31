@@ -35,19 +35,25 @@ const upload = multer({
   fileFilter: fileFilter
 });
 router.post('/addcompanies', upload.single('CompanyLogo'), (req, res) => {
-    return companiesController.addcompanies(req, res);
+  return companiesController.addcompanies(req, res);
 });
 
 router.get('/getcompanies', (req, res) => {
- return companiesController.getcompanies(req, res);
+  return companiesController.getcompanies(req, res);
 });
 
 router.put('/updatecompanies', upload.single('CompanyLogo'), (req, res) => {
-    return companiesController.updatecompanies(req, res);
+  return companiesController.updatecompanies(req, res);
 });
 
 router.delete('/deletecompanies/:_id', (req, res) => {
-    return companiesController.deletecompanies(req, res);
+  return companiesController.deletecompanies(req, res);
+});
+router.put('/addBankDetailOfCompany', (req, res) => {
+  return companiesController.addBankDetailOfCompany(req, res);
+});
+router.delete('/deleteBankDetailOfCompany', (req, res) => {
+  return companiesController.deleteBankDetailOfCompany(req, res);
 });
 router.post('/logincompany', (req, res) => {
   companiesController.loginCompnay(req, res);
