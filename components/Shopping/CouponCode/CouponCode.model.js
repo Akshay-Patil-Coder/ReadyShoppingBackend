@@ -29,7 +29,7 @@ const couponSchema = mongoose.Schema(
             },
             Points: [{
                 type: String,
-                 default: [] 
+                default: []
             }],
             TextDescription: {
                 type: String
@@ -51,8 +51,13 @@ const couponSchema = mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             default: []
         }],
-        ExpiryDate: {
-            type: Date,
+        StartDate:{
+            type:Date,
+            default:Date.now()
+        },
+        EndDate:{
+            type:Date,
+            default:null
         },
         ProductIds: [
             {
@@ -62,7 +67,7 @@ const couponSchema = mongoose.Schema(
         ],
         PriceLimit: {
             type: Number,
-            default:0
+            default: 0
         },
         DiscountPrice: {
             type: Number,
@@ -73,8 +78,14 @@ const couponSchema = mongoose.Schema(
             default: 0
         },
         Conditions: [{
-            type: String,
-            default: []
+            ConditionName: {
+                type: String,
+                required: true
+            },
+            ActiveCondition: {
+                type: Boolean,
+                default: true
+            }
         }],
         UserSpecific: {
             UserSpecificIsOrNot: {
@@ -83,8 +94,16 @@ const couponSchema = mongoose.Schema(
             },
             SpecificUserIds: [{
                 type: mongoose.Schema.Types.ObjectId,
-                default: [] 
+                default: []
             }]
+        },
+        BuyXGetYData:{
+            BuyCount:{
+                type:Number
+            },
+            GetCount:{
+                type:Number
+            }
         },
         isActive: {
             type: Boolean,

@@ -1,10 +1,6 @@
-const { ObjectId } = require("mongodb");
 const dynamicCategoriesModel = require("./ProductCategories.model");
 const fs = require('fs');
-const fsPromises = fs.promises;
 const path = require('path');
-const master_services = require('../MasterServices/MasterServices.model');
-const ProductsModel = require('../Products/Products.model');
 const { Product, VariantProduct } = require('../VariantsProducts/VariantsProducts.model')
 const { ProductRating } = require('../ProductRating/ProductRating.model')
 const { brandmodel } = require('../ProductsBrand/ProductsBrand.model')

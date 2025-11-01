@@ -1676,6 +1676,28 @@ module.exports = {
                     return productMatch || variantMatch;
                 });
             }
+            if (VariantProductId) {
+                const variantObjectIds = Array.isArray(VariantProductId)
+                    ? VariantProductId.map(id => new mongoose.Types.ObjectId(String(id)))
+                    : [new mongoose.Types.ObjectId(String(VariantProductId))];
+                    
+                filteredData = filteredData
+                    .map(product => {
+                        const matchedVariants = product.VariantProducts.filter(vp =>
+                            variantObjectIds.some(vid => vp._id.equals(vid))
+                        );
+                        const unmatchedVariants = product.VariantProducts.filter(vp =>
+                            !variantObjectIds.some(vid => vp._id.equals(vid))
+                        );
+
+                        if (matchedVariants.length > 0) {
+                            return { ...product, VariantProducts: [...matchedVariants, ...unmatchedVariants] };
+                        }
+
+                        return product;
+                    })
+                    .filter(p => p.VariantProducts && p.VariantProducts.length > 0);
+            }
 
 
             if (InventoryBase) {
