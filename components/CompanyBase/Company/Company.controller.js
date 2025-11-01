@@ -167,7 +167,7 @@ module.exports = {
                 return res.status(400).json({ message: 'Something went wrong while saving the brand', success: false });
             }
 
-             if (CompanyDomain) {
+            if (CompanyDomain) {
                 const redirectLink = `https://${CompanyDomain}.shop.readytechnologies.in`;
                 const adminPanelLink = `https://adminshop.readytechnologies.in`;
 
@@ -287,30 +287,17 @@ module.exports = {
     },
 
     updatecompanies: async (req, res) => {
-        let { Password, CompanyName, PredifinedDomain, CompanyDomain, Street, City, State, Country, PostalCode, Email, Phone, PanCardNo, GstNo, Contact_person_name, _id } = req.body;
+        const removeUploadedFile = () => {
+            if (req.file?.filename) {
+                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
+                if (fs.existsSync(newImagePath)) fs.unlinkSync(newImagePath);
+            }
+        };
 
         try {
-
-            if (!_id || !CompanyName || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !Contact_person_name) {
-                if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
-                    }
-                }
-                return res.status(400).json({ message: "please filled all data", success: false })
-            }
-            if (!PredifinedDomain && !CompanyDomain) {
-                if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
-                    }
-                }
-                return res.status(400).json({ message: "we required domain for make your website", success: false })
-            }
-            const CompanyData = {
+            const {
                 CompanyName,
+                PredifinedDomain,
                 Street,
                 City,
                 State,
@@ -321,62 +308,137 @@ module.exports = {
                 PanCardNo,
                 GstNo,
                 Contact_person_name,
+                _id,
+                Latitude,
+                Longitude
+            } = req.body;
+
+            if (!_id) {
+                removeUploadedFile();
+                return res.status(400).json({ message: "Please provide company ID to update", success: false });
+            }
+
+            const FoundCompany = await Company.findById(_id);
+            if (!FoundCompany) {
+                removeUploadedFile();
+                return res.status(404).json({ message: "Company not found", success: false });
+            }
+
+            const fields = {
+                CompanyName,
+                Street,
+                City,
+                State,
+                Country,
+                PostalCode,
+                Email,
+                Phone,
+                PanCardNo,
+                GstNo,
+                Contact_person_name
             };
 
-            if (PredifinedDomain) {
-                let findCompany = await Company.findOne({ PredifinedDomain: String(PredifinedDomain) })
-                if (findCompany) {
-                    return res.status(400).json({ message: 'your domain is already registered' })
-                }
-                CompanyData.PredifinedDomain = PredifinedDomain
-            }
-            else if (CompanyDomain) {
-                let findCompany = await Company.findOne({ PredifinedDomain: String(PredifinedDomain) })
-                if (findCompany) {
-                    return res.status(400).json({ message: 'dont allow duplicate domain it must be unique' })
-                }
-                CompanyData.CompanyDomain = CompanyDomain
-            }
-
-            console.log(CompanyData, 'CompanyData')
-            if (req.file?.filename) {
-                const existingBrand = await Company.findOne({ _id: _id })
-                if (existingBrand && existingBrand.CompanyLogo) {
-                    const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', existingBrand.CompanyLogo);
-                    if (fs.existsSync(oldImagePath)) {
-                        fs.unlinkSync(oldImagePath);
-                    }
-                }
-                CompanyData.CompanyLogo = req.file.filename
-            }
-            const data = await Company.findByIdAndUpdate(
-                _id,
-                { $set: CompanyData },
-                { new: true }
+            const CompanyData = Object.fromEntries(
+                Object.entries(fields).filter(([_, v]) => v !== undefined && v !== null && v !== "")
             );
 
+            if (PredifinedDomain) {
+                const existingDomain = await Company.findOne({
+                    PredifinedDomain: String(PredifinedDomain),
+                    _id: { $ne: _id }
+                });
+                if (existingDomain) {
+                    removeUploadedFile();
+                    return res.status(400).json({
+                        message: "Your domain is already registered",
+                        success: false
+                    });
+                }
+                CompanyData.PredifinedDomain = PredifinedDomain;
+            }
 
-
-            res.status(200).send({
-                success: true,
-                message: "Company successfully updated",
-                data: data
-            });
-        } catch (error) {
-            console.log("error", error)
             if (req.file?.filename) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                if (FoundCompany.CompanyLogo) {
+                    const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', FoundCompany.CompanyLogo);
+                    if (fs.existsSync(oldImagePath)) fs.unlinkSync(oldImagePath);
+                }
+                CompanyData.CompanyLogo = req.file.filename;
+            }
+
+            if ((!Latitude || !Longitude) && (Street || City || State || Country || PostalCode)) {
+                const address = [
+                    Street || FoundCompany.Street,
+                    City || FoundCompany.City,
+                    State || FoundCompany.State,
+                    Country || FoundCompany.Country,
+                    PostalCode || FoundCompany.PostalCode
+                ].filter(Boolean).join(', ');
+
+                if (!address) {
+                    removeUploadedFile();
+                    return res.status(400).json({
+                        message: "Address fields are incomplete or invalid",
+                        success: false
+                    });
+                }
+
+                try {
+                    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+                    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+                    const response = await axios.get(url);
+
+                    if (response.data.results?.length > 0) {
+                        const location = response.data.results[0].geometry.location;
+                        CompanyData.Latitude = location.lat;
+                        CompanyData.Longitude = location.lng;
+                    } else {
+                        console.warn("No geocode results found for address:", address);
+                    }
+                } catch (geoErr) {
+                    console.warn("Geocoding failed:", geoErr.message);
+                }
+            } else {
+                if ((Latitude && !Longitude) || (!Latitude && Longitude)) {
+                    removeUploadedFile();
+                    return res.status(400).json({
+                        message: 'If you provide location, then provide both Latitude and Longitude',
+                        success: false
+                    });
+                }
+
+                if (Latitude && Longitude) {
+                    if (!Street || !City || !State || !Country || !PostalCode) {
+                        removeUploadedFile();
+                        return res.status(400).json({
+                            message: "If you fetch current location manually, provide full address details",
+                            success: false
+                        });
+                    }
+                    CompanyData.Latitude = Latitude;
+                    CompanyData.Longitude = Longitude;
                 }
             }
-            res.status(500).send({
+
+            const updatedCompany = await Company.findByIdAndUpdate(_id, { $set: CompanyData }, { new: true });
+
+            return res.status(200).json({
+                success: true,
+                message: "Company successfully updated",
+                data: updatedCompany
+            });
+
+        } catch (error) {
+            console.error("Error updating company:", error);
+            removeUploadedFile();
+            return res.status(500).json({
                 success: false,
-                message: "Failed to add company",
+                message: "Failed to update company",
                 error: error.message
             });
         }
     },
+
+
 
     deletecompanies: async (req, res) => {
         try {
@@ -402,117 +464,117 @@ module.exports = {
             });
         }
     },
-addBankDetailOfCompany: async (req, res) => {
-    try {
-        const { companyId, IFSC, AccountNumber, BankName, BranchName, MICR, Address, BankState } = req.body;
+    addBankDetailOfCompany: async (req, res) => {
+        try {
+            const { companyId, IFSC, AccountNumber, BankName, BranchName, MICR, Address, BankState } = req.body;
 
-        if (!companyId || !IFSC || !AccountNumber) {
-            return res.status(400).json({
+            if (!companyId || !IFSC || !AccountNumber) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Please provide companyId, IFSC, and AccountNumber."
+                });
+            }
+
+            const company = await Company.findById(companyId);
+            if (!company) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Company not found."
+                });
+            }
+
+            if (!/^\d{9,18}$/.test(AccountNumber)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid Account Number format."
+                });
+            }
+
+            const bankDetails = {
+                IFSC,
+                AccountNumber,
+                BankName: BankName?.trim() || "",
+                BranchName: BranchName?.trim() || "",
+                MICR: MICR?.trim() || "",
+                Address: Address?.trim() || "",
+                BankState: BankState?.trim() || ""
+            };
+
+            const updatedCompany = await Company.findByIdAndUpdate(
+                companyId,
+                { $set: { BankDetails: bankDetails } },
+                { new: true }
+            );
+
+            if (!updatedCompany) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Failed to update bank details."
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: "Bank details updated successfully.",
+                data: updatedCompany
+            });
+
+        } catch (error) {
+            console.error("AddBankDetailOfCompanyError:", error);
+            return res.status(500).json({
                 success: false,
-                message: "Please provide companyId, IFSC, and AccountNumber."
+                message: "Internal Server Error",
+                error: error.message
             });
         }
+    },
+    deleteBankDetailOfCompany: async (req, res) => {
+        try {
+            const { companyId } = req.query;
 
-        const company = await Company.findById(companyId);
-        if (!company) {
-            return res.status(404).json({
+            if (!companyId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Please provide companyId."
+                });
+            }
+
+            const company = await Company.findById(companyId);
+            if (!company) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Company not found."
+                });
+            }
+
+            if (!company.BankDetails || Object.keys(company.BankDetails).length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "No bank details found to delete."
+                });
+            }
+
+            const updatedCompany = await Company.findByIdAndUpdate(
+                companyId,
+                { $unset: { BankDetails: "" } },
+                { new: true }
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: "Bank details deleted successfully.",
+                data: updatedCompany
+            });
+
+        } catch (error) {
+            console.error("DeleteBankDetailOfCompanyError:", error);
+            return res.status(500).json({
                 success: false,
-                message: "Company not found."
+                message: "Internal Server Error",
+                error: error.message
             });
         }
-
-        if (!/^\d{9,18}$/.test(AccountNumber)) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid Account Number format."
-            });
-        }
-
-        const bankDetails = {
-            IFSC,
-            AccountNumber,
-            BankName: BankName?.trim() || "",
-            BranchName: BranchName?.trim() || "",
-            MICR: MICR?.trim() || "",
-            Address: Address?.trim() || "",
-            BankState: BankState?.trim() || ""
-        };
-
-        const updatedCompany = await Company.findByIdAndUpdate(
-            companyId,
-            { $set: { BankDetails: bankDetails } },
-            { new: true }
-        );
-
-        if (!updatedCompany) {
-            return res.status(400).json({
-                success: false,
-                message: "Failed to update bank details."
-            });
-        }
-
-        return res.status(200).json({
-            success: true,
-            message: "Bank details updated successfully.",
-            data: updatedCompany
-        });
-
-    } catch (error) {
-        console.error("AddBankDetailOfCompanyError:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Internal Server Error",
-            error: error.message
-        });
-    }
-},
-deleteBankDetailOfCompany: async (req, res) => {
-    try {
-        const { companyId } = req.query;
-
-        if (!companyId) {
-            return res.status(400).json({
-                success: false,
-                message: "Please provide companyId."
-            });
-        }
-
-        const company = await Company.findById(companyId);
-        if (!company) {
-            return res.status(404).json({
-                success: false,
-                message: "Company not found."
-            });
-        }
-
-        if (!company.BankDetails || Object.keys(company.BankDetails).length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: "No bank details found to delete."
-            });
-        }
-
-        const updatedCompany = await Company.findByIdAndUpdate(
-            companyId,
-            { $unset: { BankDetails: "" } },
-            { new: true }
-        );
-
-        return res.status(200).json({
-            success: true,
-            message: "Bank details deleted successfully.",
-            data: updatedCompany
-        });
-
-    } catch (error) {
-        console.error("DeleteBankDetailOfCompanyError:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Internal Server Error",
-            error: error.message
-        });
-    }
-},
+    },
 
 
     loginCompnay: async (req, resp) => {

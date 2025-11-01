@@ -1,30 +1,8 @@
 
 const mongoose = require("mongoose");
-const {ObjectId} = require("mongodb")
-
-const productSchema = new mongoose.Schema({
-    productId: {
-        type: mongoose.Schema.Types.ObjectId, 
-        required: true
-    },
-    quantity: {
-        type: Number,
-        required: true,
-        default: 1,
-        min: 1
-    },
-    price: {
-        type: Number,
-        required: true
-    },
-    totalPrice: {
-        type: Number,
-        default: 0
-    }
-});
 
 const cartSchema = new mongoose.Schema({
-    userId: {
+    UserId: {
         type: mongoose.Schema.Types.ObjectId,
         required: true
     },
@@ -32,10 +10,28 @@ const cartSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId, 
         required: true
     },
-    products: {
-        type: [productSchema],  
-        default: []
-    }
+    Products:[
+        {
+            ProductId:{
+                type:mongoose.Schema.Types.ObjectId
+            },
+            VariantProductId:{
+                type:mongoose.Schema.Types.ObjectId
+            },
+            ProductServicesIds:[
+                {
+                    type:mongoose.Schema.Types.ObjectId
+                }
+            ],
+            VariantProductName:{
+                type:String
+            },
+            Price:{
+                type:String
+            }
+
+        }
+    ]
 }, {
     timestamps: true
 });
