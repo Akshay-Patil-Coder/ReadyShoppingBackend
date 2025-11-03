@@ -7,33 +7,62 @@ const cartSchema = new mongoose.Schema({
         required: true
     },
     companyId: {
-        type: mongoose.Schema.Types.ObjectId, 
+        type: mongoose.Schema.Types.ObjectId,
         required: true
     },
-    Products:[
+    Products: [
         {
-            ProductId:{
-                type:mongoose.Schema.Types.ObjectId
+            ProductId: {
+                type: mongoose.Schema.Types.ObjectId
             },
-            VariantProductId:{
-                type:mongoose.Schema.Types.ObjectId
+            VariantProductId: {
+                type: mongoose.Schema.Types.ObjectId
             },
-            ProductServicesIds:[
+            ProductServices: [
                 {
-                    type:mongoose.Schema.Types.ObjectId
+                    ProductServiceId: {
+                        type: mongoose.Schema.Types.ObjectId
+                    },
+                    ServiceActive: {
+                        type: Boolean,
+                        default: true
+                    }
                 }
             ],
-            VariantProductName:{
-                type:String
+            Quantity: {
+                type: Number,
+                default: 1
             },
-            Price:{
-                type:String
+            IsActive: {
+                type: Boolean,
+                default: true
             }
 
         }
-    ]
+    ],
+    TotalPrice: {
+        type: Number,
+        default: 0
+    },
+    DiscountPrice: {
+        type: Number,
+        default: 0
+    },
+    ShippingCharges: {
+        type: Number,
+        default: 0
+    },
+    FinalPrice: {
+        type: Number,
+        default: 0
+    },
+    CartType: {
+        type: String,
+        default: 'Regular'
+    },
 }, {
     timestamps: true
 });
+const ProductCart = mongoose.model("ProductCart", cartSchema);
 
-module.exports = mongoose.model("Cart", cartSchema);
+module.exports = { ProductCart }

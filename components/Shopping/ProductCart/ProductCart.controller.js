@@ -1,64 +1,52 @@
-const Cart = require('./ProductCart.model');
+const { ProductCart } = require('./ProductCart.model');
+const { Product, VariantProduct } = require('../VariantsProducts/VariantsProducts.model')
 const mongoose = require('mongoose');
 
 module.exports = {
     addtocart: async (req, res) => {
-        console.log("prasad", req.body);
+        let { UserId, companyId, ProductId, VariantProductId, ProductServicesIds, Quantity } = req.body
         try {
-            const { productId, userId, quantity, companyId, price } = req.body;
-
-            const existingCart = await Cart.findOne({ 
-                userId: mongoose.Types.ObjectId.createFromHexString(userId), 
-                companyId: mongoose.Types.ObjectId.createFromHexString(companyId) 
-            });
-
-            if (existingCart) {
-                const productIndex = existingCart.products.findIndex(p => p.productId.toString() === productId);
-
-                if (productIndex > -1) {
-                    existingCart.products[productIndex].quantity += quantity;
-                    existingCart.products[productIndex].totalPrice = existingCart.products[productIndex].quantity * existingCart.products[productIndex].price;
-                } else {
-                    existingCart.products.push({
-                        productId: mongoose.Types.ObjectId.createFromHexString(productId),
-                        quantity,
-                        price,
-                        totalPrice: quantity * price
-                    });
+            if (!UserId || !companyId) {
+                return res.status(400).json({ message: "User Or Company Not Found", success: false })
+            }
+            let FoundVariantProduct;
+            let FoundProduct;
+            if (ProductId && VariantProductId) {
+                FoundProduct = await Product.findOne({ _id: ProductId, companyId: companyId, VariantProductIds: VariantProductId })
+                if (!FoundProduct) {
+                    return res.status(400).json({ message: "Product Not Found", success: false })
                 }
+                FoundVariantProduct = await VariantProduct.findOne({ _idP: VariantProductId, ProductId, companyId })
+                if (!FoundVariantProduct) {
+                    return res.status(400).json({ message: "Product Not Found", success: false })
+                }
+            }
+            else {
+                return res.status(400).json({ message: "Please Provide Valid Product", success: false })
+            }
+            if (FoundVariantProduct?.InventoryBaseStock) {
+                if (FoundVariantProduct.InventoryBaseStock.InventoryBase == true) {
+                    if (FoundVariantProduct.InventoryBaseStock.AvailableStock == 0) {
+                        return res.status(400).json({ message: "Stock Not Available", success: false })
+                    }
+                    else if (FoundVariantProduct.InventoryBaseStock.AvailableStock < Quantity) {
+                        Quantity = FoundVariantProduct.InventoryBaseStock.AvailableStock
+                    }
+                    else {
+                        Quantity = Quantity
+                    }
+                }
+                else {
+                    Quantity = Quantity
+                }
+            }
+            let FoundCart = await ProductCart.findOne({ UserId, companyId })
 
-                const updatedCart = await existingCart.save();
+            if (FoundCart) {
 
-                return res.status(200).send({
-                    success: true,
-                    message: "Cart updated successfully",
-                    data: updatedCart
-                });
-            } else {
-                const newCart = new Cart({
-                    userId: mongoose.Types.ObjectId.createFromHexString(userId),
-                    companyId: mongoose.Types.ObjectId.createFromHexString(companyId),
-                    products: [{
-                        productId: mongoose.Types.ObjectId.createFromHexString(productId),
-                        quantity,
-                        price,
-                        totalPrice: quantity * price
-                    }]
-                });
-
-                const data = await newCart.save();
-                res.status(200).send({
-                    success: true,
-                    message: "Successfully added to cart",
-                    data: data
-                });
             }
         } catch (error) {
-            res.status(400).send({
-                success: false,
-                message: "Failed to add to cart",
-                error: error.message
-            });
+
         }
     },
 
@@ -67,7 +55,7 @@ module.exports = {
             let query = {};
 
             if (req.query.companyId) {
-                query.companyId = mongoose.Types.ObjectId.createFromHexString(req.query.companyId); 
+                query.companyId = mongoose.Types.ObjectId.createFromHexString(req.query.companyId);
             }
             if (req.query.userId) {
                 query.userId = mongoose.Types.ObjectId.createFromHexString(req.query.userId);
@@ -156,7 +144,7 @@ module.exports = {
             const { productId } = req.body;
             const cartId = req.params.id;
             console.log("%%%%%%%%%%%% 444", cartId, productId);
-            
+
             const cart = await Cart.findById(cartId);
 
             if (!cart) {

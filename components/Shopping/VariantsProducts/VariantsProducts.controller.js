@@ -1631,13 +1631,25 @@ module.exports = {
             }
             if (BatchName) {
                 const regex = new RegExp(BatchName, 'i');
-                filteredData = filteredData.map(product => {
-                    const matchedVariants = product.VariantProducts.filter(vp =>
-                        vp.BatchesInfo.some(b => regex.test(b.BatchName))
-                    );
-                    return { ...product, VariantProducts: matchedVariants };
-                }).filter(p => p.VariantProducts.length > 0);
+
+                filteredData = filteredData
+                    .map(product => {
+                        const matchedVariants = product.VariantProducts
+                            .map(vp => {
+                                const matchedBatches = vp.BatchesInfo.filter(b => regex.test(b.BatchName));
+                                const otherBatches = vp.BatchesInfo.filter(b => !regex.test(b.BatchName));
+
+                                const reorderedBatches = [...matchedBatches, ...otherBatches];
+
+                                return { ...vp, BatchesInfo: reorderedBatches };
+                            })
+                            .filter(vp => vp.BatchesInfo.some(b => regex.test(b.BatchName)));
+
+                        return { ...product, VariantProducts: matchedVariants };
+                    })
+                    .filter(p => p.VariantProducts.length > 0);
             }
+
             if (BrandName) {
                 const regex = new RegExp(BrandName, 'i');
                 filteredData = filteredData.filter(product =>
@@ -1680,7 +1692,7 @@ module.exports = {
                 const variantObjectIds = Array.isArray(VariantProductId)
                     ? VariantProductId.map(id => new mongoose.Types.ObjectId(String(id)))
                     : [new mongoose.Types.ObjectId(String(VariantProductId))];
-                    
+
                 filteredData = filteredData
                     .map(product => {
                         const matchedVariants = product.VariantProducts.filter(vp =>
