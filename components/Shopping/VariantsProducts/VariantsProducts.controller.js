@@ -1629,6 +1629,36 @@ module.exports = {
                     return { ...product, VariantProducts: matchedVariants };
                 }).filter(p => p.VariantProducts.length > 0);
             }
+            if (BatchIds) {
+                const batchIdsArray = Array.isArray(BatchIds) ? BatchIds : [BatchIds];
+                const batchObjectIds = batchIdsArray.map(id => validateObjectId(id, 'BatchId'));
+
+                filteredData = filteredData
+                    .map(product => {
+                        const matchedVariants = product.VariantProducts
+                            .map(vp => {
+                                const matchedBatches = vp.BatchesInfo.filter(b =>
+                                    batchObjectIds.some(bid => b._id.equals(bid))
+                                );
+                                const otherBatches = vp.BatchesInfo.filter(b =>
+                                    !batchObjectIds.some(bid => b._id.equals(bid))
+                                );
+
+                                const reorderedBatches = [...matchedBatches, ...otherBatches];
+
+                                return { ...vp, BatchesInfo: reorderedBatches };
+                            })
+                            .filter(vp =>
+                                vp.BatchesInfo.some(b =>
+                                    batchObjectIds.some(bid => b._id.equals(bid))
+                                )
+                            );
+
+                        return { ...product, VariantProducts: matchedVariants };
+                    })
+                    .filter(p => p.VariantProducts.length > 0);
+            }
+
             if (BatchName) {
                 const regex = new RegExp(BatchName, 'i');
 
