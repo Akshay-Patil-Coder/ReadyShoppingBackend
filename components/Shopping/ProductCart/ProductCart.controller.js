@@ -858,7 +858,12 @@ module.exports = {
             if (!mongoose.isValidObjectId(companyId) || !mongoose.isValidObjectId(UserId)) {
                 return res.status(400).json({ message: 'Not Found Proper Data Of Company Or User', success: false })
             }
-            await module.exports.ValidateCart(UserId, companyId)
+            try {
+                await module.exports.ValidateCart(UserId, companyId);
+            } catch (e) {
+                console.warn("Cart validation failed:", e.message);
+            }
+
             matchCondition.companyId = new mongoose.Types.ObjectId(String(companyId));
             matchCondition.UserId = new mongoose.Types.ObjectId(String(UserId));
 
