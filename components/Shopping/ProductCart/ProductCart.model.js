@@ -29,9 +29,26 @@ const cartSchema = new mongoose.Schema({
                     }
                 }
             ],
+            ProductFreeServices: [
+                {
+                    type: mongoose.Schema.Types.ObjectId
+                }
+            ],
             Quantity: {
                 type: Number,
                 default: 1
+            },
+            TotalPrice: {
+                type: Number,
+                default: 0
+            },
+            DiscountPrice: {
+                type: Number,
+                default: 0
+            },
+            FinalPrice: {
+                type: Number,
+                default: 0
             },
             IsActive: {
                 type: Boolean,
@@ -40,11 +57,11 @@ const cartSchema = new mongoose.Schema({
 
         }
     ],
-    TotalPrice: {
+    TotalCartPrice: {
         type: Number,
         default: 0
     },
-    DiscountPrice: {
+    DiscountCartPrice: {
         type: Number,
         default: 0
     },
@@ -52,7 +69,7 @@ const cartSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    FinalPrice: {
+    FinalCartPrice: {
         type: Number,
         default: 0
     },
