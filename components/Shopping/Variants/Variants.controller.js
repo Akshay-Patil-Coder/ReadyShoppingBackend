@@ -136,32 +136,61 @@ module.exports = {
             return res.status(500).json({ message: 'Internal Server Error', error: error.message, success: false });
         }
     },
-
-    updateVariantDetails: async (req, resp) => {
+    updateVariantDetails: async (req, res) => {
         try {
-            const { VariantId, VariantName } = req.body;
+            const { VariantId, VariantName, VariantValues, Extension } = req.body;
             const companyId = req.query.companyId;
 
-            if (!VariantId || !VariantName) {
-                return resp.status(400).send({ message: 'Please insert valid data', success: false });
+            if (!VariantId || !companyId) {
+                return res.status(400).json({ message: 'Please insert valid data', success: false });
             }
 
-            const VariantData = { VariantName };
-
-            let updatedResult = await Variant.findOneAndUpdate(
-                { _id: VariantId, companyId },
-                { $set: VariantData },
-                { new: true }
-            );
-
-            if (!updatedResult) {
-                return resp.status(400).json({ message: 'Not updated', success: false, message: "Variant detail not updated" });
+            const FoundVariant = await Variant.findOne({ _id: VariantId, companyId });
+            if (!FoundVariant) {
+                return res.status(404).json({ message: 'Variant not found', success: false });
             }
 
-            return resp.status(200).json({ data: updatedResult, success: true, message: "Variant detail updated successfully" });
+            if (Array.isArray(VariantValues) && VariantValues.length > 0) {
+                const existing = FoundVariant.VariantValues || [];
+
+                const updatedVariantValues = VariantValues.map(newVar => {
+                    const oldVar = existing.find(v => v.Value === newVar.Value);
+                    return oldVar
+                        ? { ...oldVar, ...newVar }
+                        : { ...newVar, Count: newVar.Count ?? 0 };
+                });
+
+                const remainingOld = existing.filter(oldVar =>
+                    !VariantValues.some(newVar => newVar.Value === oldVar.Value)
+                );
+
+                FoundVariant.VariantValues = [...updatedVariantValues, ...remainingOld];
+            }
+
+            if (Extension && Extension !== 'undefined' && Extension !== null && Extension !== '') {
+                FoundVariant.Extension = Extension;
+            }
+
+            if (VariantName && VariantName !== 'undefined' && VariantName !== null && VariantName !== '') {
+                FoundVariant.VariantName = VariantName;
+            }
+
+            await FoundVariant.save();
+
+            return res.status(200).json({
+                success: true,
+                message: "Variant details updated successfully",
+                data: FoundVariant
+            });
+
         } catch (error) {
-
-            return resp.status(400).json({ message: "Internal Server Error", error: error.message, success: false });
+            console.error(error);
+            return res.status(500).json({
+                message: "Internal Server Error",
+                error: error.message,
+                success: false
+            });
         }
-    },
+    }
+
 };

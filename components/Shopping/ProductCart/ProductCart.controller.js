@@ -226,7 +226,7 @@ module.exports = {
 
                 if (typeof IsActive !== "undefined") existingProduct.IsActive = IsActive;
 
-                if (ProductServiceId && typeof ServiceActive !== "undefined") {
+                if (ProductServiceId && typeof ServiceActive == false) {
                     const sIndex = existingProduct.ProductServices.findIndex(
                         (s) => s.ProductServiceId.toString() === ProductServiceId.toString()
                     );
@@ -282,6 +282,7 @@ module.exports = {
                     return res.status(404).json({ message: "Product not found in cart", success: false });
 
                 FoundCart.Products.splice(existingIndex, 1);
+                
                 recalcCartTotals(FoundCart);
 
                 const saved = await FoundCart.save();
@@ -808,8 +809,9 @@ module.exports = {
                                     ProductServiceAmount: matchedConfig.ProductServiceAmount || 0
                                 });
                             }
+                            NewProductServices.push(EachService)
+
                         }
-                        NewProductServices.push(EachService)
                     }
 
                 }
@@ -877,7 +879,6 @@ module.exports = {
             matchCondition.UserId = new mongoose.Types.ObjectId(String(UserId));
 
             let data = await module.exports.getCartData(matchCondition)
-            console.log(data, 'data')
 
             if (data?.length) {
                 data = data.map(cart => {
