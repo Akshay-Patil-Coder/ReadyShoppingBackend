@@ -798,7 +798,16 @@ module.exports = {
 
                     ) {
                         if (EachService.ServiceActive === true) {
-                            activePaidServices.push(serviceData);
+                            const matchedConfig = PaidServices.find(
+                                (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
+                            );
+
+                            if (matchedConfig) {
+                                activePaidServices.push({
+                                    ...serviceData.toObject(),
+                                    ProductServiceAmount: matchedConfig.ProductServiceAmount || 0
+                                });
+                            }
                         }
                         NewProductServices.push(EachService)
                     }
