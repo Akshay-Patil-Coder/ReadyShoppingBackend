@@ -3,6 +3,7 @@ const { Product, VariantProduct } = require('../VariantsProducts/VariantsProduct
 const { User } = require('../../UserBase/User/User.model')
 const { ProductService } = require('../ProductServices/ProductServices.model')
 const mongoose = require('mongoose');
+const { truncate } = require('lodash');
 
 module.exports = {
 
@@ -156,14 +157,15 @@ module.exports = {
                             });
                         }
                     }
-
-                    existingProduct.ProductFreeServices = [
+                    let NewFreeServices = [
                         ...new Set([
                             ...(existingProduct.ProductFreeServices || []),
                             ...freeServices.map((s) => s.ProductServiceId),
                         ]),
                     ];
 
+
+                    existingProduct.ProductFreeServices = NewFreeServices;
                     const activePaid = existingProduct.ProductServices.filter((s) => s.ServiceActive);
                     const fullServiceData = paidServices.filter((s) =>
                         activePaid.some((ap) => ap.ProductServiceId.toString() === s.ProductServiceId.toString())
@@ -315,6 +317,62 @@ module.exports = {
                         as: "ProductInfo"
                     }
                 },
+                {
+                    $lookup: {
+                        from: "productservices",
+                        localField: "ProductInfo.ProductServices.ProductServiceId",
+                        foreignField: "_id",
+                        as: "ProductServiceInfo"
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "productservices",
+                        localField: "Products.ProductFreeServices",
+                        foreignField: "_id",
+                        as: "FreeServiceInfo"
+                    }
+                },
+                {
+                    $addFields: {
+                        ProductInfo: {
+                            $map: {
+                                input: "$ProductInfo",
+                                as: "pi",
+                                in: {
+                                    $mergeObjects: [
+                                        "$$pi",
+                                        {
+                                            ProductServices: {
+                                                $map: {
+                                                    input: "$$pi.ProductServices",
+                                                    as: "ps",
+                                                    in: {
+                                                        $mergeObjects: [
+                                                            "$$ps",
+                                                            {
+                                                                $arrayElemAt: [
+                                                                    {
+                                                                        $filter: {
+                                                                            input: "$ProductServiceInfo",
+                                                                            as: "psi",
+                                                                            cond: { $eq: ["$$psi._id", "$$ps.ProductServiceId"] }
+                                                                        }
+                                                                    },
+                                                                    0
+                                                                ]
+                                                            }
+                                                        ]
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
 
                 {
                     $lookup: {
@@ -427,14 +485,7 @@ module.exports = {
                     }
                 },
 
-                {
-                    $lookup: {
-                        from: "productservices",
-                        localField: "Products.ProductFreeServices",
-                        foreignField: "_id",
-                        as: "FreeServiceInfo"
-                    }
-                },
+
 
                 {
                     $lookup: {
@@ -643,14 +694,151 @@ module.exports = {
             ]);
 
 
-            return data[0] || null;
+            return data || null;
         } catch (error) {
             console.error("getCartDataError:", error);
             throw new Error("Failed to fetch cart data");
         }
     },
 
+    ValidateCart: async (UserId, companyId) => {
+        let { UserId, companyId } = req.query;
+        try {
+            if (!UserId || !companyId)
+                return res.status(400).json({ message: 'User Or Company Not Found', success: false });
 
+            const FoundUser = await User.findOne({ _id: UserId, companyId });
+            if (!FoundUser)
+                return res.status(400).json({ message: 'User Not Found', success: false });
+
+            let FoundCart = await ProductCart.findOne({ UserId, companyId });
+            if (!FoundCart)
+                return res.status(404).json({ message: 'Cart is empty', success: false });
+
+            const calculateProductTotals = (variant, qty, activeServices = []) => {
+                let total = variant.Price * qty;
+                let discount = 0;
+                if (variant.OfferPercentage > 0)
+                    discount = (total * variant.OfferPercentage) / 100;
+
+                let final = total - discount;
+                if (activeServices.length) {
+                    const serviceTotal = activeServices.reduce(
+                        (sum, s) => sum + (s.ProductServiceAmount || 0),
+                        0
+                    );
+                    total += serviceTotal;
+                    final += serviceTotal;
+                }
+
+                return { total, discount, final };
+            };
+
+            let updatedProducts = [];
+
+            for (let EachProduct of FoundCart.Products) {
+                let FoundProduct = await Product.findOne({
+                    _id: EachProduct.ProductId,
+                    companyId,
+                    isActive: true,
+                });
+
+                let FoundVariantProduct = await VariantProduct.findOne({
+                    ProductId: EachProduct.ProductId,
+                    _id: EachProduct.VariantProductId,
+                    companyId,
+                    isActive: true,
+                });
+
+                if (!FoundProduct || !FoundVariantProduct) continue;
+
+                let availableStock = FoundVariantProduct.InventoryBaseStock?.AvailableStock || 0;
+                if (availableStock <= 0) continue;
+                if (EachProduct.Quantity > availableStock) EachProduct.Quantity = availableStock;
+
+                const ProductServicesList = FoundProduct.ProductServices || [];
+                const PaidServices = ProductServicesList.filter(s => s.Paid === true);
+                const FreeServices = ProductServicesList.filter(s => s.Paid === false);
+
+                let activePaidServices = [];
+                let NewProductServices = [];
+                let NewFreeServices = [];
+                for (let EachService of EachProduct.ProductServices || []) {
+                    const serviceData = await ProductService.findOne({
+                        _id: EachService.ProductServiceId,
+                        companyId,
+                        isActive: true
+                    });
+
+                    if (
+                        serviceData &&
+                        PaidServices.some(
+                            (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
+                        )
+
+                    ) {
+                        if (EachService.ServiceActive === true) {
+                            activePaidServices.push(serviceData);
+                        }
+                        NewProductServices.push(EachService)
+                    }
+
+                }
+                for (let EachService of FreeServices || []) {
+                    const serviceData = await ProductService.findOne({
+                        _id: EachService.ProductServiceId,
+                        companyId,
+                        isActive: true
+                    });
+
+                    if (
+                        serviceData &&
+                        FreeServices.some(
+                            (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
+                        )
+
+                    ) {
+
+                        NewFreeServices.push(EachService)
+                    }
+
+
+                }
+                EachProduct.ProductServices = NewProductServices
+                NewFreeServices = NewFreeServices.map(s => s.ProductServiceId)
+                EachProduct.ProductFreeServices = NewFreeServices;
+
+                const { total, discount, final } = calculateProductTotals(
+                    FoundVariantProduct,
+                    EachProduct.Quantity,
+                    activePaidServices
+                );
+
+                EachProduct.TotalPrice = total;
+                EachProduct.DiscountPrice = discount;
+                EachProduct.FinalPrice = final;
+                EachProduct.IsActive = true;
+
+                updatedProducts.push(EachProduct);
+            }
+
+            FoundCart.Products = updatedProducts;
+
+            FoundCart.TotalCartPrice = updatedProducts.reduce((sum, p) => sum + (p.TotalPrice || 0), 0);
+            FoundCart.DiscountCartPrice = updatedProducts.reduce((sum, p) => sum + (p.DiscountPrice || 0), 0);
+            FoundCart.FinalCartPrice = updatedProducts.reduce((sum, p) => sum + (p.FinalPrice || 0), 0);
+
+            await FoundCart.save();
+        } catch (error) {
+            console.warn("GetCartError:", error.message);
+            return res.status(500).json({
+                message: "Internal Server Error",
+                error: error.message,
+                success: false
+            });
+        }
+
+    },
     getCart: async (req, res) => {
         let { UserId, companyId } = req.query;
         try {
@@ -711,7 +899,8 @@ module.exports = {
                 const FreeServices = ProductServicesList.filter(s => s.Paid === false);
 
                 let activePaidServices = [];
-                let NewProductServices = []
+                let NewProductServices = [];
+                let NewFreeServices = [];
                 for (let EachService of EachProduct.ProductServices || []) {
                     const serviceData = await ProductService.findOne({
                         _id: EachService.ProductServiceId,
@@ -733,8 +922,29 @@ module.exports = {
                     }
 
                 }
+                for (let EachService of FreeServices || []) {
+                    const serviceData = await ProductService.findOne({
+                        _id: EachService.ProductServiceId,
+                        companyId,
+                        isActive: true
+                    });
+
+                    if (
+                        serviceData &&
+                        FreeServices.some(
+                            (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
+                        )
+
+                    ) {
+
+                        NewFreeServices.push(EachService)
+                    }
+
+
+                }
                 EachProduct.ProductServices = NewProductServices
-                EachProduct.ProductFreeServices = FreeServices.map(s => s._id);
+                NewFreeServices = NewFreeServices.map(s => s.ProductServiceId)
+                EachProduct.ProductFreeServices = NewFreeServices;
 
                 const { total, discount, final } = calculateProductTotals(
                     FoundVariantProduct,
@@ -765,7 +975,29 @@ module.exports = {
             matchCondition.UserId = new mongoose.Types.ObjectId(String(UserId));
 
             let data = await module.exports.getCartData(matchCondition)
+            console.log(data, 'data')
 
+            if (data?.length) {
+                data = data.map(cart => {
+                    cart.Products = cart.Products.map(prod => {
+                        if (prod?.ProductInfo?.ProductServices && prod?.ServiceInfo) {
+                            const existingServiceIds = prod.ServiceInfo.map(s => s.ProductServiceId?.toString());
+                            const allServiceIds = prod.ProductInfo.ProductServices.map(s => s.ProductServiceId?.toString());
+
+                            let remainingServices = prod.ProductInfo.ProductServices.filter(
+                                s => !existingServiceIds.includes(s.ProductServiceId?.toString())
+                            ).filter(EachService => EachService.Paid == true)
+
+                            prod.RemainingServices = remainingServices;
+                        } else {
+                            prod.RemainingServices = [];
+                        }
+
+                        return prod;
+                    });
+                    return cart;
+                });
+            }
             return res.status(200).json({
                 message: "Cart fetched and recalculated successfully",
                 success: true,
