@@ -30,9 +30,20 @@ module.exports = {
                 SubCategoryId,
                 VariantName,
                 VariantType,
-                ...(VariantValues && { VariantValues }),
-                ...(Extension && { Extension })
+
             };
+            if (Array.isArray(VariantValues) && VariantValues.length > 0) {
+                VariantValues = VariantValues.filter(v =>
+                    v && v.Value !== '' && v.Value !== 'undefined' && v.Value !== null
+                );
+                if (VariantValues.length > 0) {
+                    VariantData.VariantValues = VariantValues;
+                }
+            }
+
+            if (Extension && Extension !== 'undefined') {
+                VariantData.Extension = Extension;
+            }
 
             const newVariant = new Variant(VariantData);
             const result = await newVariant.save();
@@ -110,8 +121,8 @@ module.exports = {
             if (VariantName) matchCondition.VariantName = { $regex: VariantName, $options: 'i' };
             if (VariantType) matchCondition.VariantType = VariantType;
             if (Extension) matchCondition.Extension = { $regex: Extension, $options: 'i' };
-            if (VariantValue)matchCondition['VariantValues.Value'] = VariantValue
-                
+            if (VariantValue) matchCondition['VariantValues.Value'] = VariantValue
+
             const data = await module.exports.getVariantData(matchCondition);
 
             if (!data || data.length === 0) {
