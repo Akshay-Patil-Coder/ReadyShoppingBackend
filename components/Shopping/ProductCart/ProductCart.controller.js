@@ -282,7 +282,7 @@ module.exports = {
                     return res.status(404).json({ message: "Product not found in cart", success: false });
 
                 FoundCart.Products.splice(existingIndex, 1);
-                
+
                 recalcCartTotals(FoundCart);
 
                 const saved = await FoundCart.save();
@@ -736,6 +736,7 @@ module.exports = {
             if (!FoundCart)
                 return res.status(404).json({ message: 'Cart is empty', success: false });
 
+
             const calculateProductTotals = (variant, qty, activeServices = []) => {
                 let total = variant.Price * qty;
                 let discount = 0;
@@ -879,7 +880,9 @@ module.exports = {
             matchCondition.UserId = new mongoose.Types.ObjectId(String(UserId));
 
             let data = await module.exports.getCartData(matchCondition)
-
+            if (data && data[0]?.Products?.length == 0) {
+                return res.status(400).json({ message: 'Cart is empty', success: false })
+            }
             if (data?.length) {
                 data = data.map(cart => {
                     cart.Products = cart.Products.map(prod => {
@@ -895,7 +898,7 @@ module.exports = {
                         } else {
                             prod.RemainingServices = [];
                         }
-
+                        if (prod.ProductInfo.ProductServices) delete prod.ProductInfo.ProductServices
                         return prod;
                     });
                     return cart;

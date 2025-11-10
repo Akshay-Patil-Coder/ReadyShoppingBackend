@@ -39,6 +39,30 @@ module.exports = {
                 if (VariantValues.length > 0) {
                     VariantData.VariantValues = VariantValues;
                 }
+                for (const v of VariantValues) {
+                    const val = v.Value;
+
+                    if (VariantType === "Number" && isNaN(Number(val))) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Invalid value '${val}' — must be a Number`
+                        });
+                    }
+
+                    if (VariantType === "Date" && isNaN(new Date(val).getTime())) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Invalid value '${val}' — must be a valid Date`
+                        });
+                    }
+
+                    if (VariantType === "String" && typeof val !== "string") {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Invalid value '${val}' — must be a String`
+                        });
+                    }
+                }
             }
 
             if (Extension && Extension !== 'undefined') {
@@ -152,7 +176,30 @@ module.exports = {
 
             if (Array.isArray(VariantValues) && VariantValues.length > 0) {
                 const existing = FoundVariant.VariantValues || [];
+                for (const v of VariantValues) {
+                    const val = v.Value;
 
+                    if (FoundVariant.VariantType === "Number" && isNaN(Number(val))) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Invalid value '${val}' — must be a Number`
+                        });
+                    }
+
+                    if (FoundVariant.VariantType === "Date" && isNaN(new Date(val).getTime())) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Invalid value '${val}' — must be a valid Date`
+                        });
+                    }
+
+                    if (FoundVariant.VariantType === "String" && typeof val !== "string") {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Invalid value '${val}' — must be a String`
+                        });
+                    }
+                }
                 const updatedVariantValues = VariantValues.map(newVar => {
                     const oldVar = existing.find(v => v.Value === newVar.Value);
                     return oldVar
