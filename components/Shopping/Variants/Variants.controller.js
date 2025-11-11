@@ -1,5 +1,7 @@
 const { ObjectId } = require('mongodb');
 const { Variant } = require('./Variants.model');
+const { brandmodel } = require('../ProductsBrand/ProductsBrand.model')
+const { VariantProduct, Product, Batch } = require('../VariantsProducts/VariantsProducts.model')
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
@@ -245,8 +247,7 @@ module.exports = {
     },
     getAvailableFilters: async (req, res) => {
         try {
-            const { SubCategoryId, companyId } = req.query;
-
+            let { SubCategoryId, companyId } = req.query;
             if (!companyId) {
                 return res.status(400).json({ message: 'company not found', success: false });
             }
@@ -256,7 +257,6 @@ module.exports = {
 
             let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
-
             if (SubCategoryId) {
                 if (!mongoose.Types.ObjectId.isValid(SubCategoryId)) {
                     return res.status(400).json({ message: 'Invalid SubCategoryId format', success: false });
@@ -264,17 +264,122 @@ module.exports = {
                 matchCondition.SubCategoryId = mongoose.Types.ObjectId.createFromHexString(SubCategoryId);
             }
 
-            const data = await module.exports.getVariantData(matchCondition);
-             
-            if (!data || data.length === 0) {
-                return res.status(404).json({ message: 'No Filters found for this criteria', success: false });
+            let data = await module.exports.getVariantData(matchCondition);
+            let Filter = {};
+
+            if (data?.length) {
+                data = data
+                    .map((eachData) => {
+                        eachData.VariantValues = (eachData.VariantValues || []).filter(
+                            (eachValue) => eachValue.Value && eachValue.Count > 0
+                        );
+                        return eachData;
+                    })
+                    .filter((eachData) => eachData.VariantValues.length > 0);
+
+                if (data.length) Filter.VariantFilter = data;
             }
 
-            return res.status(200).json({ data, success: true, message: 'Filters fetched successfully' });
+            try {
+                let BrandData = await brandmodel
+                    .find({
+                        companyId,
+                        SubCategoryId,
+                        isActive: true,
+                    })
+                    .select('_id BrandName BrandImage');
 
+                if (BrandData?.length) {
+                    const FilteredBrands = await Promise.all(
+                        BrandData.map(async (EachBrand) => {
+                            const EachVariantProduct = await VariantProduct.find({
+                                BrandId: EachBrand._id,
+                                companyId,
+                                SubCategoryId,
+                            });
+                            return EachVariantProduct.length !== 0 ? EachBrand : null;
+                        })
+                    );
+
+                    const ValidBrands = FilteredBrands.filter((b) => b !== null);
+
+                    if (ValidBrands.length) Filter.BrandFilter = ValidBrands;
+                }
+            } catch (error) {
+                console.error('Error fetching brand data:', error);
+            }
+
+            try {
+                let BadgesData = await Batch.find({ isActive: true }).select('_id BatchName BatchLogo');
+
+                if (BadgesData?.length) {
+                    const FilteredBadges = await Promise.all(
+                        BadgesData.map(async (EachBadge) => {
+                            const EachVariantProduct = await VariantProduct.find({
+                                BatchIds: EachBadge._id,
+                                companyId,
+                                SubCategoryId,
+                            });
+                            return EachVariantProduct.length !== 0 ? EachBadge : null;
+                        })
+                    );
+
+                    const ValidBadges = FilteredBadges.filter((b) => b !== null);
+
+                    if (ValidBadges.length) Filter.BadgeFilter = ValidBadges;
+                }
+            } catch (error) {
+                console.error('Error fetching Badges data:', error);
+            }
+
+            try {
+                const PriceRange = await VariantProduct.aggregate([
+                    {
+                        $match: {
+                            companyId: new mongoose.Types.ObjectId(String(companyId)),
+                            SubCategoryId: new mongoose.Types.ObjectId(String(SubCategoryId)),
+                        },
+                    },
+                    {
+                        $group: {
+                            _id: null,
+                            minPrice: { $min: '$Price' },
+                            maxPrice: { $max: '$Price' },
+                        },
+                    },
+                ]);
+
+                if (PriceRange?.length) {
+                    Filter.PriceFilter = {
+                        minPrice: PriceRange[0].minPrice || 0,
+                        maxPrice: PriceRange[0].maxPrice || 0,
+                    };
+                }
+            } catch (error) {
+                console.error('Error fetching price range:', error);
+            }
+
+            if (!Object.keys(Filter).length) {
+                return res.status(404).json({
+                    message: 'No filters found for this criteria',
+                    success: false,
+                });
+            }
+
+
+            return res.status(200).json({
+                data: Filter,
+                success: true,
+                message: 'Filters fetched successfully',
+            });
         } catch (error) {
-            console.error("getAvailableFilters error:", error);
-            return res.status(500).json({ message: 'Internal Server Error', error: error.message, success: false });
+            console.error('getAvailableFilters error:', error);
+            return res.status(500).json({
+                message: 'Internal Server Error',
+                error: error.message,
+                success: false,
+            });
         }
-    }
+    },
+
 };
