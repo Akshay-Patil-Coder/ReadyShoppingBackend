@@ -48,7 +48,7 @@ module.exports = {
                             message: `Invalid value '${val}' — must be a Number`
                         });
                     }
-                    if (FoundVariant.VariantType === "Number") {
+                    if (VariantType === "Number") {
                         val = Number(val)
                     }
                     if (VariantType === "Date" && isNaN(new Date(val).getTime())) {
@@ -242,6 +242,39 @@ module.exports = {
                 success: false
             });
         }
-    }
+    },
+    getAvailableFilters: async (req, res) => {
+        try {
+            const { SubCategoryId, companyId } = req.query;
 
+            if (!companyId) {
+                return res.status(400).json({ message: 'company not found', success: false });
+            }
+            if (!SubCategoryId) {
+                return res.status(400).json({ message: 'category not found', success: false });
+            }
+
+            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
+
+
+            if (SubCategoryId) {
+                if (!mongoose.Types.ObjectId.isValid(SubCategoryId)) {
+                    return res.status(400).json({ message: 'Invalid SubCategoryId format', success: false });
+                }
+                matchCondition.SubCategoryId = mongoose.Types.ObjectId.createFromHexString(SubCategoryId);
+            }
+
+            const data = await module.exports.getVariantData(matchCondition);
+             
+            if (!data || data.length === 0) {
+                return res.status(404).json({ message: 'No Filters found for this criteria', success: false });
+            }
+
+            return res.status(200).json({ data, success: true, message: 'Filters fetched successfully' });
+
+        } catch (error) {
+            console.error("getAvailableFilters error:", error);
+            return res.status(500).json({ message: 'Internal Server Error', error: error.message, success: false });
+        }
+    }
 };

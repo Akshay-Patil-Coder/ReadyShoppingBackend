@@ -14,7 +14,9 @@ router.post("/addVariant",(req,res)=>{
 router.get('/getVariantsById',(req,res)=>{
     VariantController.getVariantsById(req,res)
 })
-
+router.get('/getAvailableFilters',(req,res)=>{
+    VariantController.getAvailableFilters(req,res)
+})
 router.put('/updateVariantDetails',(req,res)=>{
     return   VariantController.updateVariantDetails(req,res)
 })
