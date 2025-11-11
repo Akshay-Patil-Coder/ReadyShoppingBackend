@@ -211,7 +211,7 @@ module.exports = {
     },
     getCategoryWithLeafNodes: async (req, res) => {
         try {
-            const { companyId, HeadCategoryId } = req.query;
+            const { companyId, HeadCategoryId, selectedCategoryIds } = req.query;
 
             if (!companyId) {
                 return res.status(400).send({
@@ -231,7 +231,7 @@ module.exports = {
 
             const getLeafNodes = (categoryId) => {
                 const children = parentMap[categoryId] || [];
-                if (children.length === 0) return []; 
+                if (children.length === 0) return [];
 
                 let leaves = [];
                 for (const child of children) {
@@ -264,14 +264,38 @@ module.exports = {
                 categoryName: head.categoryName,
                 Description: head.Description,
                 imageName: head.imageName,
-                parentCategoryId:head.parentCategoryId,
+                parentCategoryId: head.parentCategoryId,
                 leafCategories: getLeafNodes(head._id.toString())
             }));
 
+            let selectedIds = [];
+            if (selectedCategoryIds) {
+                if (typeof selectedCategoryIds === "string") {
+                    selectedIds = selectedCategoryIds.split(",").map(id => id.trim());
+                } else if (Array.isArray(selectedCategoryIds)) {
+                    selectedIds = selectedCategoryIds.map(id => id.toString());
+                }
+            }
+            let selectedCategories = [];
+
+            result.forEach(cat => {
+                const matched = cat.leafCategories.filter(leaf =>
+                    selectedIds.includes(leaf._id.toString())
+                );
+                selectedCategories = selectedCategories.concat(matched);
+            });
+
+            const filteredResult = result.map(head => ({
+                ...head,
+                leafCategories: head.leafCategories.filter(
+                    leaf => !selectedIds.includes(leaf._id.toString())
+                )
+            }));
             return res.status(200).send({
                 success: true,
                 message: "Categories fetched successfully",
-                data: result
+                data: filteredResult,
+                selectedCategories
             });
 
         } catch (error) {

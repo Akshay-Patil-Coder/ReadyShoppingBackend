@@ -354,11 +354,16 @@ module.exports = {
                         minPrice: PriceRange[0].minPrice || 0,
                         maxPrice: PriceRange[0].maxPrice || 0,
                     };
+                    Filter.PriceSort = {
+                        lowToHigh: 'lowToHigh',
+                        highToLow: 'highToLow'
+                    }
+                    
                 }
+
             } catch (error) {
                 console.error('Error fetching price range:', error);
             }
-
             if (!Object.keys(Filter).length) {
                 return res.status(404).json({
                     message: 'No filters found for this criteria',
