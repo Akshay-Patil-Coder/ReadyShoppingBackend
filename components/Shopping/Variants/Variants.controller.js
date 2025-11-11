@@ -40,7 +40,7 @@ module.exports = {
                     VariantData.VariantValues = VariantValues;
                 }
                 for (const v of VariantValues) {
-                    const val = v.Value;
+                    let val = v.Value;
 
                     if (VariantType === "Number" && isNaN(Number(val))) {
                         return res.status(400).json({
@@ -48,7 +48,9 @@ module.exports = {
                             message: `Invalid value '${val}' — must be a Number`
                         });
                     }
-
+                    if (FoundVariant.VariantType === "Number") {
+                        val = Number(val)
+                    }
                     if (VariantType === "Date" && isNaN(new Date(val).getTime())) {
                         return res.status(400).json({
                             success: false,
@@ -177,7 +179,7 @@ module.exports = {
             if (Array.isArray(VariantValues) && VariantValues.length > 0) {
                 const existing = FoundVariant.VariantValues || [];
                 for (const v of VariantValues) {
-                    const val = v.Value;
+                    let val = v.Value;
 
                     if (FoundVariant.VariantType === "Number" && isNaN(Number(val))) {
                         return res.status(400).json({
@@ -185,7 +187,9 @@ module.exports = {
                             message: `Invalid value '${val}' — must be a Number`
                         });
                     }
-
+                    if (FoundVariant.VariantType === "Number") {
+                        val = Number(val)
+                    }
                     if (FoundVariant.VariantType === "Date" && isNaN(new Date(val).getTime())) {
                         return res.status(400).json({
                             success: false,
