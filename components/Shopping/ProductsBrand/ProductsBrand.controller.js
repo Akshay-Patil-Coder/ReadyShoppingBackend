@@ -22,7 +22,7 @@ module.exports = {
           return resp.status(400).json({ message: 'Invalid SubCategoryId format', success: false });
         }
       }
-      if (!BrandName || !companyId || !HeadCategoryId || !SubCategoryId) {
+      if (!BrandName || !companyId || !HeadCategoryId || SubCategoryId.length == 0) {
         if (req.file?.filename) {
           const newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
           if (fs.existsSync(newImagePath)) fs.unlinkSync(newImagePath);
@@ -147,7 +147,7 @@ module.exports = {
 
   updateBrandDetails: async (req, resp) => {
     try {
-      const { BrandId, BrandName } = req.body;
+      const { BrandId, BrandName, SubCategoryId } = req.body;
       const companyId = req.query.companyId;
 
       if (!BrandId || !BrandName) {
@@ -159,6 +159,28 @@ module.exports = {
       }
 
       const brandData = { BrandName };
+      if (SubCategoryId) {
+        try {
+          if (typeof SubCategoryId === "string") {
+            SubCategoryId = JSON.parse(SubCategoryId);
+          }
+          if (!Array.isArray(SubCategoryId)) {
+            throw new Error("SubCategoryId must be an array");
+          }
+          if (SubCategoryId.length > 0) {
+            brandData.SubCategoryId = SubCategoryId;
+          }
+        } catch (err) {
+          if (req.file?.filename) {
+            const newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
+            if (fs.existsSync(newImagePath)) fs.unlinkSync(newImagePath);
+          }
+          return resp.status(400).json({
+            message: 'Invalid SubCategoryId format',
+            success: false,
+          });
+        }
+      }
       if (req.file?.filename) {
         const existingBrand = await brandmodel.brandmodel.findOne({ _id: BrandId, companyId });
         if (existingBrand?.BrandImage) {
