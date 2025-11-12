@@ -358,11 +358,23 @@ module.exports = {
                         lowToHigh: 'lowToHigh',
                         highToLow: 'highToLow'
                     }
-                    
+
                 }
+
 
             } catch (error) {
                 console.error('Error fetching price range:', error);
+            }
+            try {
+                const FoundProducts = await VariantProduct.find({ companyId, SubCategoryId })
+                if (FoundProducts && FoundProducts.length !== 0) {
+                    Filter.SortByArrivalsFilter = {
+                        Newer: 'Newer',
+                        Older: 'Older'
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching sort by arrivals:', error);
             }
             if (!Object.keys(Filter).length) {
                 return res.status(404).json({
@@ -370,6 +382,7 @@ module.exports = {
                     success: false,
                 });
             }
+
 
 
             return res.status(200).json({

@@ -1,4 +1,3 @@
-// Use ObjectId instead of ObjectID
 const { ObjectId } = require('mongodb');
 const brandmodel = require('./ProductsBrand.model');
 const mongoose = require('mongoose');
@@ -11,7 +10,12 @@ module.exports = {
       let { BrandName, companyId, HeadCategoryId, SubCategoryId } = req.body;
       if (SubCategoryId) {
         try {
-          SubCategoryId = JSON.parse(SubCategoryId);
+          if (typeof SubCategoryId === "string") {
+            SubCategoryId = JSON.parse(SubCategoryId);
+          }
+          if (!Array.isArray(SubCategoryId)) {
+            throw new Error("SubCategoryId must be an array");
+          }
         } catch {
           if (req.file?.filename) {
             const newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);

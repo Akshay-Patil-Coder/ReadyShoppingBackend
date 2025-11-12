@@ -49,6 +49,20 @@ module.exports = {
                         message: 'Parent category not found for this company'
                     });
                 }
+                let FoundProduct = await VariantProduct.findOne({ companyId, SubCategoryId: parentCategoryId })
+                if (FoundProduct) {
+                    if (req.file?.filename) {
+                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
+                        if (fs.existsSync(newImagePath)) {
+                            fs.unlinkSync(newImagePath);
+                        }
+                    }
+
+                    return res.status(404).json({
+                        success: false,
+                        message: 'Category Not Added Because Provided Parent Category Is Already A Child Category'
+                    });
+                }
 
                 categoryLevel = parentCategory.categoryLevel + 1;
             } else {
