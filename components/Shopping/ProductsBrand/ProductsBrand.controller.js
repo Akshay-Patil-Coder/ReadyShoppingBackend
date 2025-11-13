@@ -81,7 +81,7 @@ module.exports = {
   },
 
   getBrandsById: async (req, res) => {
-    const { HeadCategoryId, SubCategoryId, companyId, BrandId } = req.query;
+    const { HeadCategoryId, SubCategoryId, companyId, BrandId, BrandName } = req.query;
 
     try {
       let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
@@ -104,7 +104,9 @@ module.exports = {
         }
         matchCondition._id = mongoose.Types.ObjectId.createFromHexString(BrandId);
       }
-
+      if (BrandName && BrandName.trim() !== "") {
+        matchCondition.BrandName = { $regex: new RegExp(BrandName.trim(), "i") };
+      }
       const data = await module.exports.getBrandData(matchCondition);
 
       if (data.length === 0) {

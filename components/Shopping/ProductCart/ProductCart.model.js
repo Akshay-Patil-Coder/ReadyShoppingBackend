@@ -75,8 +75,25 @@ const cartSchema = new mongoose.Schema({
     },
     CartType: {
         type: String,
+        enum: ['Regular', 'PaymentPending', 'Expired'],
         default: 'Regular'
     },
+
+    ReservationStartedAt: {
+        type: Date
+    },
+    ReservationExpiresAt: {
+        type: Date
+    },
+
+    PaymentSession: {
+        orderId: { type: String },
+        txnId: { type: String },
+        status: { type: String, enum: ['INITIATED', 'SUCCESS', 'FAILED'], default: 'INITIATED' },
+        amount: { type: Number },
+        paymentGateway: { type: String, default: 'Paytm' }
+    }
+
 }, {
     timestamps: true
 });

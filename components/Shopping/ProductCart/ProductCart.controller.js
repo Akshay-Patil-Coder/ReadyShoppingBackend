@@ -4,7 +4,8 @@ const { User } = require('../../UserBase/User/User.model')
 const { ProductService } = require('../ProductServices/ProductServices.model')
 const mongoose = require('mongoose');
 const { truncate } = require('lodash');
-
+const PaytmChecksum = require("paytmchecksum");
+const https = require("https");
 module.exports = {
 
 
@@ -209,7 +210,7 @@ module.exports = {
                 recalcCartTotals(FoundCart);
                 const saved = await FoundCart.save();
                 try {
-                    await module.exports.ValidateCart(UserId, companyId);
+                    await module.exports.ValidateCart(req, res);
                 } catch (e) {
                     console.warn("Cart validation failed:", e.message);
                 }
@@ -268,7 +269,7 @@ module.exports = {
                 recalcCartTotals(FoundCart);
                 const saved = await FoundCart.save();
                 try {
-                    await module.exports.ValidateCart(UserId, companyId);
+                    await module.exports.ValidateCart(req, res);
                 } catch (e) {
                     console.warn("Cart validation failed:", e.message);
                 }
@@ -287,7 +288,7 @@ module.exports = {
 
                 const saved = await FoundCart.save();
                 try {
-                    await module.exports.ValidateCart(UserId, companyId);
+                    await module.exports.ValidateCart(req, res);
                 } catch (e) {
                     console.warn("Cart validation failed:", e.message);
                 }
@@ -306,8 +307,398 @@ module.exports = {
                 .json({ message: "Internal Server Error", error: err.message, success: false });
         }
     },
+    ValidateCart: async (req, res) => {
+        const { UserId, companyId } = req.body;
+        try {
+            if (!UserId || !companyId)
+                return res.status(400).json({ message: 'User Or Company Not Found', success: false });
+
+            const FoundUser = await User.findOne({ _id: UserId, companyId });
+            if (!FoundUser)
+                return res.status(400).json({ message: 'User Not Found', success: false });
+
+            let FoundCart = await ProductCart.findOne({ UserId, companyId });
+            if (!FoundCart)
+                return res.status(404).json({ message: 'Cart is empty', success: false });
 
 
+            const calculateProductTotals = (variant, qty, activeServices = []) => {
+                let total = variant.Price * qty;
+                let discount = 0;
+                if (variant.OfferPercentage > 0)
+                    discount = (total * variant.OfferPercentage) / 100;
+
+                let final = total - discount;
+                if (activeServices.length) {
+                    const serviceTotal = activeServices.reduce(
+                        (sum, s) => sum + (s.ProductServiceAmount || 0),
+                        0
+                    );
+                    total += serviceTotal;
+                    final += serviceTotal;
+                }
+
+                return { total, discount, final };
+            };
+
+            let updatedProducts = [];
+
+            for (let EachProduct of FoundCart.Products) {
+                let FoundProduct = await Product.findOne({
+                    _id: EachProduct.ProductId,
+                    companyId,
+                    isActive: true,
+                });
+
+                let FoundVariantProduct = await VariantProduct.findOne({
+                    ProductId: EachProduct.ProductId,
+                    _id: EachProduct.VariantProductId,
+                    companyId,
+                    isActive: true,
+                });
+
+                if (!FoundProduct || !FoundVariantProduct) continue;
+
+                if (FoundVariantProduct.InventoryBaseStock?.InventoryBase === true) {
+                    const availableStock = FoundVariantProduct.InventoryBaseStock.AvailableStock || 0;
+
+                    if (availableStock <= 0) continue;
+
+                    if (EachProduct.Quantity > availableStock) {
+                        EachProduct.Quantity = availableStock;
+                    }
+                }
+                const ProductServicesList = FoundProduct.ProductServices || [];
+                const PaidServices = ProductServicesList.filter(s => s.Paid === true);
+                const FreeServices = ProductServicesList.filter(s => s.Paid === false);
+
+                let activePaidServices = [];
+                let NewProductServices = [];
+                let NewFreeServices = [];
+                for (let EachService of EachProduct.ProductServices || []) {
+                    const serviceData = await ProductService.findOne({
+                        _id: EachService.ProductServiceId,
+                        companyId,
+                        isActive: true
+                    });
+
+                    if (
+                        serviceData &&
+                        PaidServices.some(
+                            (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
+                        )
+
+                    ) {
+                        if (EachService.ServiceActive === true) {
+                            const matchedConfig = PaidServices.find(
+                                (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
+                            );
+
+                            if (matchedConfig) {
+                                activePaidServices.push({
+                                    ...serviceData.toObject(),
+                                    ProductServiceAmount: matchedConfig.ProductServiceAmount || 0
+                                });
+                            }
+                            NewProductServices.push(EachService)
+
+                        }
+                    }
+
+                }
+                for (let EachService of FreeServices || []) {
+                    const serviceData = await ProductService.findOne({
+                        _id: EachService.ProductServiceId,
+                        companyId,
+                        isActive: true
+                    });
+
+                    if (serviceData) {
+                        NewFreeServices.push(EachService);
+                    }
+
+                }
+                EachProduct.ProductServices = NewProductServices
+                NewFreeServices = NewFreeServices.map(s => s.ProductServiceId)
+                EachProduct.ProductFreeServices = NewFreeServices;
+
+                const { total, discount, final } = calculateProductTotals(
+                    FoundVariantProduct,
+                    EachProduct.Quantity,
+                    activePaidServices
+                );
+
+                EachProduct.TotalPrice = total;
+                EachProduct.DiscountPrice = discount;
+                EachProduct.FinalPrice = final;
+                EachProduct.IsActive = true;
+
+                updatedProducts.push(EachProduct);
+            }
+
+            FoundCart.Products = updatedProducts;
+
+            FoundCart.TotalCartPrice = updatedProducts.reduce((sum, p) => sum + (p.TotalPrice || 0), 0);
+            FoundCart.DiscountCartPrice = updatedProducts.reduce((sum, p) => sum + (p.DiscountPrice || 0), 0);
+            FoundCart.FinalCartPrice = updatedProducts.reduce((sum, p) => sum + (p.FinalPrice || 0), 0);
+
+            await FoundCart.save();
+        } catch (error) {
+            console.warn("GetCartError:", error.message);
+            return res.status(500).json({
+                message: "Internal Server Error",
+                error: error.message,
+                success: false
+            });
+        }
+
+    },
+    proceedToPayment: async (req, res) => {
+        const { UserId, companyId } = req.body;
+
+        try {
+            try {
+                await module.exports.ValidateCart(req, res);
+            } catch (e) {
+                console.warn("Cart validation failed:", e.message);
+            }
+            const FoundCart = await ProductCart.findOne({ UserId, companyId });
+            if (!FoundCart || !FoundCart.Products?.length)
+                return res.status(400).json({ message: "Cart is empty", success: false });
+
+            for (let item of FoundCart.Products) {
+                const variant = await VariantProduct.findOne({
+                    _id: item.VariantProductId,
+                    ProductId: item.ProductId,
+                    companyId,
+                    isActive: true
+                });
+
+                if (!variant) {
+                    return res.status(400).json({ message: "Some products are unavailable", success: false });
+                }
+
+                const available = variant.InventoryBaseStock?.AvailableStock || 0;
+
+                if (item.Quantity > available) {
+                    return res.status(400).json({
+                        message: `Not enough stock for ${variant.VariantName || "product"}`,
+                        success: false
+                    });
+                }
+
+                await VariantProduct.updateOne(
+                    { _id: variant._id },
+                    {
+                        $inc: {
+                            "InventoryBaseStock.AvailableStock": -item.Quantity,
+                            "InventoryBaseStock.ReservedStock": item.Quantity
+                        }
+                    }
+                );
+            }
+
+            FoundCart.CartType = "PaymentPending";
+            FoundCart.ReservationStartedAt = new Date();
+            await FoundCart.save();
+
+            const orderId = "ORDER_" + Date.now();
+            const totalAmount = FoundCart.FinalCartPrice || FoundCart.TotalCartPrice;
+
+            const paytmParams = {
+                body: {
+                    requestType: "Payment",
+                    mid: process.env.PAYTM_MID,
+                    websiteName: process.env.PAYTM_WEBSITE,
+                    orderId: orderId,
+                    callbackUrl: `${process.env.BASE_URL}/api/payment/callback`,
+                    txnAmount: {
+                        value: totalAmount.toString(),
+                        currency: "INR",
+                    },
+                    userInfo: {
+                        custId: UserId.toString(),
+                    },
+                },
+            };
+
+            const checksum = await PaytmChecksum.generateSignature(
+                JSON.stringify(paytmParams.body),
+                process.env.PAYTM_KEY
+            );
+
+            paytmParams.head = {
+                signature: checksum,
+            };
+
+            const post_data = JSON.stringify(paytmParams);
+
+            const options = {
+                hostname: "securegw.paytm.in",
+                port: 443,
+                path: `/theia/api/v1/initiateTransaction?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Content-Length": post_data.length,
+                },
+            };
+
+            const paytmReq = https.request(options, (paytmRes) => {
+                let response = "";
+                paytmRes.on("data", (chunk) => {
+                    response += chunk;
+                });
+                paytmRes.on("end", () => {
+                    const parsedResponse = JSON.parse(response);
+                    return res.status(200).json({
+                        message: "Stock reserved and payment initiated.",
+                        success: true,
+                        orderId: orderId,
+                        txnToken: parsedResponse.body.txnToken,
+                        amount: totalAmount,
+                    });
+                });
+            });
+
+            paytmReq.write(post_data);
+            paytmReq.end();
+
+        } catch (err) {
+            console.error("ProceedToPayment Error:", err);
+            return res.status(500).json({ message: "Internal Server Error", success: false });
+        }
+    },
+    handlePaymentStatus: async (req, res) => {
+        const { UserId, companyId, paymentInfo, status } = req.body;
+
+        try {
+            if (status === "success") {
+                const paytmParams = {
+                    body: {
+                        mid: process.env.PAYTM_MID,
+                        orderId: paymentInfo.orderId
+                    }
+                };
+
+                const checksum = await PaytmChecksum.generateSignature(
+                    JSON.stringify(paytmParams.body),
+                    process.env.PAYTM_MERCHANT_KEY
+                );
+                paytmParams.head = { signature: checksum };
+
+                const post_data = JSON.stringify(paytmParams);
+
+                const options = {
+                    hostname: "securegw.paytm.in",
+                    port: 443,
+                    path: `/v3/order/status`,
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Content-Length": post_data.length
+                    }
+                };
+
+                const verifyPaytmStatus = await new Promise((resolve, reject) => {
+                    let response = "";
+                    const paytmReq = https.request(options, (paytmRes) => {
+                        paytmRes.on("data", (chunk) => (response += chunk));
+                        paytmRes.on("end", () => {
+                            try {
+                                resolve(JSON.parse(response));
+                            } catch (err) {
+                                reject(err);
+                            }
+                        });
+                    });
+                    paytmReq.on("error", reject);
+                    paytmReq.write(post_data);
+                    paytmReq.end();
+                });
+
+                const resultStatus = verifyPaytmStatus.body?.resultInfo?.resultStatus;
+                if (resultStatus !== "TXN_SUCCESS") {
+                    return res.status(400).json({
+                        message: "Payment verification failed with Paytm.",
+                        success: false
+                    });
+                }
+            }
+
+            const FoundCart = await ProductCart.findOne({
+                UserId,
+                companyId,
+                CartType: "PaymentPending"
+            });
+
+            if (!FoundCart) {
+                return res.status(400).json({
+                    message: "No pending payment cart found",
+                    success: false
+                });
+            }
+
+            for (let item of FoundCart.Products) {
+                if (status === "success") {
+                    await VariantProduct.updateOne(
+                        { _id: item.VariantProductId },
+                        {
+                            $inc: {
+                                "InventoryBaseStock.ReservedStock": -item.Quantity
+                            }
+                        }
+                    );
+                } else if (status === "failed") {
+                    await VariantProduct.updateOne(
+                        { _id: item.VariantProductId },
+                        {
+                            $inc: {
+                                "InventoryBaseStock.AvailableStock": item.Quantity,
+                                "InventoryBaseStock.ReservedStock": -item.Quantity
+                            }
+                        }
+                    );
+                }
+            }
+
+            if (status === "success") {
+                await Order.create({
+                    UserId,
+                    companyId,
+                    Products: FoundCart.Products,
+                    PaymentDetails: paymentInfo,
+                    Status: "Paid"
+                });
+
+                await ProductCart.deleteOne({ _id: FoundCart._id });
+
+                return res.status(200).json({
+                    message: "✅ Payment verified and order placed successfully.",
+                    success: true
+                });
+            } else if (status === "failed") {
+                FoundCart.CartType = "Active";
+                await FoundCart.save();
+
+                return res.status(200).json({
+                    message: "❌ Payment failed. Stock restored and cart reactivated.",
+                    success: false
+                });
+            } else {
+                return res.status(400).json({
+                    message: "Invalid payment status received.",
+                    success: false
+                });
+            }
+        } catch (err) {
+            console.error("handlePaymentStatus Error:", err);
+            return res.status(500).json({
+                message: "Internal Server Error",
+                success: false
+            });
+        }
+    },
     getCartData: async (matchCondition) => {
         try {
             const data = await ProductCart.aggregate([
@@ -722,147 +1113,6 @@ module.exports = {
             throw new Error("Failed to fetch cart data");
         }
     },
-
-    ValidateCart: async (UserId, companyId) => {
-        try {
-            if (!UserId || !companyId)
-                return res.status(400).json({ message: 'User Or Company Not Found', success: false });
-
-            const FoundUser = await User.findOne({ _id: UserId, companyId });
-            if (!FoundUser)
-                return res.status(400).json({ message: 'User Not Found', success: false });
-
-            let FoundCart = await ProductCart.findOne({ UserId, companyId });
-            if (!FoundCart)
-                return res.status(404).json({ message: 'Cart is empty', success: false });
-
-
-            const calculateProductTotals = (variant, qty, activeServices = []) => {
-                let total = variant.Price * qty;
-                let discount = 0;
-                if (variant.OfferPercentage > 0)
-                    discount = (total * variant.OfferPercentage) / 100;
-
-                let final = total - discount;
-                if (activeServices.length) {
-                    const serviceTotal = activeServices.reduce(
-                        (sum, s) => sum + (s.ProductServiceAmount || 0),
-                        0
-                    );
-                    total += serviceTotal;
-                    final += serviceTotal;
-                }
-
-                return { total, discount, final };
-            };
-
-            let updatedProducts = [];
-
-            for (let EachProduct of FoundCart.Products) {
-                let FoundProduct = await Product.findOne({
-                    _id: EachProduct.ProductId,
-                    companyId,
-                    isActive: true,
-                });
-
-                let FoundVariantProduct = await VariantProduct.findOne({
-                    ProductId: EachProduct.ProductId,
-                    _id: EachProduct.VariantProductId,
-                    companyId,
-                    isActive: true,
-                });
-
-                if (!FoundProduct || !FoundVariantProduct) continue;
-
-                let availableStock = FoundVariantProduct.InventoryBaseStock?.AvailableStock || 0;
-                if (availableStock <= 0) continue;
-                if (EachProduct.Quantity > availableStock) EachProduct.Quantity = availableStock;
-
-                const ProductServicesList = FoundProduct.ProductServices || [];
-                const PaidServices = ProductServicesList.filter(s => s.Paid === true);
-                const FreeServices = ProductServicesList.filter(s => s.Paid === false);
-
-                let activePaidServices = [];
-                let NewProductServices = [];
-                let NewFreeServices = [];
-                for (let EachService of EachProduct.ProductServices || []) {
-                    const serviceData = await ProductService.findOne({
-                        _id: EachService.ProductServiceId,
-                        companyId,
-                        isActive: true
-                    });
-
-                    if (
-                        serviceData &&
-                        PaidServices.some(
-                            (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
-                        )
-
-                    ) {
-                        if (EachService.ServiceActive === true) {
-                            const matchedConfig = PaidServices.find(
-                                (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
-                            );
-
-                            if (matchedConfig) {
-                                activePaidServices.push({
-                                    ...serviceData.toObject(),
-                                    ProductServiceAmount: matchedConfig.ProductServiceAmount || 0
-                                });
-                            }
-                            NewProductServices.push(EachService)
-
-                        }
-                    }
-
-                }
-                for (let EachService of FreeServices || []) {
-                    const serviceData = await ProductService.findOne({
-                        _id: EachService.ProductServiceId,
-                        companyId,
-                        isActive: true
-                    });
-
-                    if (serviceData) {
-                        NewFreeServices.push(EachService);
-                    }
-
-                }
-                EachProduct.ProductServices = NewProductServices
-                NewFreeServices = NewFreeServices.map(s => s.ProductServiceId)
-                EachProduct.ProductFreeServices = NewFreeServices;
-
-                const { total, discount, final } = calculateProductTotals(
-                    FoundVariantProduct,
-                    EachProduct.Quantity,
-                    activePaidServices
-                );
-
-                EachProduct.TotalPrice = total;
-                EachProduct.DiscountPrice = discount;
-                EachProduct.FinalPrice = final;
-                EachProduct.IsActive = true;
-
-                updatedProducts.push(EachProduct);
-            }
-
-            FoundCart.Products = updatedProducts;
-
-            FoundCart.TotalCartPrice = updatedProducts.reduce((sum, p) => sum + (p.TotalPrice || 0), 0);
-            FoundCart.DiscountCartPrice = updatedProducts.reduce((sum, p) => sum + (p.DiscountPrice || 0), 0);
-            FoundCart.FinalCartPrice = updatedProducts.reduce((sum, p) => sum + (p.FinalPrice || 0), 0);
-
-            await FoundCart.save();
-        } catch (error) {
-            console.warn("GetCartError:", error.message);
-            return res.status(500).json({
-                message: "Internal Server Error",
-                error: error.message,
-                success: false
-            });
-        }
-
-    },
     getCart: async (req, res) => {
         let { UserId, companyId } = req.query;
         try {
@@ -870,8 +1120,11 @@ module.exports = {
             if (!mongoose.isValidObjectId(companyId) || !mongoose.isValidObjectId(UserId)) {
                 return res.status(400).json({ message: 'Not Found Proper Data Of Company Or User', success: false })
             }
+
             try {
-                await module.exports.ValidateCart(UserId, companyId);
+                req.body.UserId = UserId
+                req.body.companyId = companyId
+                await module.exports.ValidateCart(req, res);
             } catch (e) {
                 console.warn("Cart validation failed:", e.message);
             }
@@ -920,5 +1173,239 @@ module.exports = {
         }
     },
 
-
 };
+
+
+
+//     ProductOverview: async (req, res) => {
+//         let { UserId, companyId } = req.query;
+//         try {
+//             let matchCondition = {};
+//             if (!mongoose.isValidObjectId(companyId) || !mongoose.isValidObjectId(UserId)) {
+//                 return res.status(400).json({ message: 'Not Found Proper Data Of Company Or User', success: false })
+//             }
+
+//             try {
+//                 req.body.UserId = UserId
+//                 req.body.companyId = companyId
+//                 await module.exports.ValidateCartForOverview(req, res);
+//             } catch (e) {
+//                 console.warn("Cart validation failed:", e.message);
+//             }
+
+//             matchCondition.companyId = new mongoose.Types.ObjectId(String(companyId));
+//             matchCondition.UserId = new mongoose.Types.ObjectId(String(UserId));
+
+//             let data = await module.exports.getCartData(matchCondition)
+//             if (data && data[0]?.Products?.length == 0) {
+//                 return res.status(400).json({ message: 'Cart is empty', success: false })
+//             }
+//             if (data?.length) {
+//                 data = data.map(cart => {
+//                     cart.Products = cart.Products.map(prod => {
+//                         if (prod?.ProductInfo?.ProductServices && prod?.ServiceInfo) {
+//                             const existingServiceIds = prod.ServiceInfo.map(s => s.ProductServiceId?.toString());
+//                             const allServiceIds = prod.ProductInfo.ProductServices.map(s => s.ProductServiceId?.toString());
+
+//                             let remainingServices = prod.ProductInfo.ProductServices.filter(
+//                                 s => !existingServiceIds.includes(s.ProductServiceId?.toString())
+//                             ).filter(EachService => EachService.Paid == true)
+
+//                             prod.RemainingServices = remainingServices;
+//                         } else {
+//                             prod.RemainingServices = [];
+//                         }
+//                         if (prod.ProductInfo.ProductServices) delete prod.ProductInfo.ProductServices
+//                         return prod;
+//                     });
+//                     return cart;
+//                 });
+//             }
+//             return res.status(200).json({
+//                 message: "Cart fetched and recalculated successfully",
+//                 success: true,
+//                 data: data
+//             });
+
+//         } catch (error) {
+//             console.warn("GetCartError:", error.message);
+//             return res.status(500).json({
+//                 message: "Internal Server Error",
+//                 error: error.message,
+//                 success: false
+//             });
+//         }
+//     },
+//    ValidateCartForOverview: async (req, res) => {
+//     const { UserId, companyId } = req.body;
+//     try {
+//         if (!UserId || !companyId)
+//             return res.status(400).json({ message: 'User Or Company Not Found', success: false });
+
+//         const FoundUser = await User.findOne({ _id: UserId, companyId });
+//         if (!FoundUser)
+//             return res.status(400).json({ message: 'User Not Found', success: false });
+
+//         let FoundCart = await ProductCart.findOne({ UserId, companyId });
+//         if (!FoundCart)
+//             return res.status(404).json({ message: 'Cart is empty', success: false });
+
+//         const calculateProductTotals = (variant, qty, activeServices = []) => {
+//             let total = variant.Price * qty;
+//             let discount = 0;
+//             if (variant.OfferPercentage > 0)
+//                 discount = (total * variant.OfferPercentage) / 100;
+
+//             let final = total - discount;
+//             if (activeServices.length) {
+//                 const serviceTotal = activeServices.reduce(
+//                     (sum, s) => sum + (s.ProductServiceAmount || 0),
+//                     0
+//                 );
+//                 total += serviceTotal;
+//                 final += serviceTotal;
+//             }
+
+//             return { total, discount, final };
+//         };
+
+//         let updatedProducts = [];
+
+//         for (let EachProduct of FoundCart.Products) {
+//             let FoundProduct = await Product.findOne({
+//                 _id: EachProduct.ProductId,
+//                 companyId,
+//                 isActive: true,
+//             });
+
+//             let FoundVariantProduct = await VariantProduct.findOne({
+//                 ProductId: EachProduct.ProductId,
+//                 _id: EachProduct.VariantProductId,
+//                 companyId,
+//                 isActive: true,
+//             });
+
+//             if (!FoundProduct || !FoundVariantProduct) continue;
+
+//             if (FoundVariantProduct.InventoryBaseStock?.InventoryBase === true) {
+//                 const availableStock = FoundVariantProduct.InventoryBaseStock.AvailableStock || 0;
+
+//                 if (availableStock <= 0) continue;
+
+//                 if (EachProduct.Quantity > availableStock) {
+//                     EachProduct.Quantity = availableStock;
+//                 }
+//             }
+
+//             const ProductServicesList = FoundProduct.ProductServices || [];
+//             const PaidServices = ProductServicesList.filter(s => s.Paid === true);
+//             const FreeServices = ProductServicesList.filter(s => s.Paid === false);
+
+//             let activePaidServices = [];
+//             let NewProductServices = [];
+//             let NewFreeServices = [];
+
+//             for (let EachService of EachProduct.ProductServices || []) {
+//                 const serviceData = await ProductService.findOne({
+//                     _id: EachService.ProductServiceId,
+//                     companyId,
+//                     isActive: true
+//                 });
+
+//                 if (
+//                     serviceData &&
+//                     PaidServices.some(
+//                         (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
+//                     )
+//                 ) {
+//                     if (EachService.ServiceActive === true) {
+//                         const matchedConfig = PaidServices.find(
+//                             (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
+//                         );
+
+//                         if (matchedConfig) {
+//                             activePaidServices.push({
+//                                 ...serviceData.toObject(),
+//                                 ProductServiceAmount: matchedConfig.ProductServiceAmount || 0
+//                             });
+//                         }
+//                         NewProductServices.push(EachService);
+//                     }
+//                 }
+//             }
+
+//             for (let EachService of FreeServices || []) {
+//                 const serviceData = await ProductService.findOne({
+//                     _id: EachService.ProductServiceId,
+//                     companyId,
+//                     isActive: true
+//                 });
+
+//                 if (serviceData) {
+//                     NewFreeServices.push(EachService);
+//                 }
+//             }
+
+//             EachProduct.ProductServices = NewProductServices;
+//             NewFreeServices = NewFreeServices.map(s => s.ProductServiceId);
+//             EachProduct.ProductFreeServices = NewFreeServices;
+
+//             const { total, discount, final } = calculateProductTotals(
+//                 FoundVariantProduct,
+//                 EachProduct.Quantity,
+//                 activePaidServices
+//             );
+
+//             EachProduct.TotalPrice = total;
+//             EachProduct.DiscountPrice = discount;
+//             EachProduct.FinalPrice = final;
+//             EachProduct.IsActive = true;
+
+//             updatedProducts.push(EachProduct);
+//         }
+
+//         FoundCart.Products = updatedProducts;
+//         FoundCart.CartType = 'Overview';
+
+//         FoundCart.TotalCartPrice = updatedProducts.reduce((sum, p) => sum + (p.TotalPrice || 0), 0);
+//         FoundCart.DiscountCartPrice = updatedProducts.reduce((sum, p) => sum + (p.DiscountPrice || 0), 0);
+//         FoundCart.FinalCartPrice = updatedProducts.reduce((sum, p) => sum + (p.FinalPrice || 0), 0);
+
+//         await FoundCart.save();
+
+//         for (let EachProduct of updatedProducts) {
+//             let FoundVariantProduct = await VariantProduct.findOne({
+//                 _id: EachProduct.VariantProductId,
+//                 companyId
+//             });
+
+//             if (
+//                 FoundVariantProduct &&
+//                 FoundVariantProduct.InventoryBaseStock?.InventoryBase === true
+//             ) {
+//                 const currentStock = FoundVariantProduct.InventoryBaseStock.AvailableStock || 0;
+//                 let updatedStock = currentStock - EachProduct.Quantity;
+//                 if (updatedStock < 0) updatedStock = 0;
+
+//                 await VariantProduct.updateOne(
+//                     { _id: EachProduct.VariantProductId },
+//                     { $set: { "InventoryBaseStock.AvailableStock": updatedStock } }
+//                 );
+//             }
+//         }
+
+//         return res.status(200).json({
+//             success: true,
+//             message: "Cart validated successfully and stock updated",
+//             data: FoundCart
+//         });
+
+//     } catch (error) {
+//         console.warn("GetCartError:", error.message);
+//         return res.status(500).json({
+//             message: "Internal Server Error",
+//             error: error.message,
+//             success: false
+//         });
+//     }
+// },

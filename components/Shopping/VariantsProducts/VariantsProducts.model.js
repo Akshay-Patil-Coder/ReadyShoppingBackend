@@ -53,6 +53,10 @@ const VariantProductSchema = new mongoose.Schema({
         AvailableStock: {
             type: Number,
             default: 0
+        },
+        ReservedStock:{
+            type:Number,
+            default:0
         }
     },
     BatchIds: [{
