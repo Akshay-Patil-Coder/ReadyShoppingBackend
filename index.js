@@ -5,6 +5,9 @@ const path = require('path');
 const OtherRoutes = require('./Routes/Other.routes')
 const ShoppingRoutes = require('./Routes/Shopping.routes')
 // const CoachingRoutes = require('./Routes/Coaching.routes')
+const cron = require('node-cron')
+const {ProductCart} = require('./components/Shopping/ProductCart/ProductCart.model')
+const {VariantProduct,Product}= require('./components/Shopping/VariantsProducts/VariantsProducts.model')
 const cors = require('cors')
 const app = express();
 app.use(express.json());
@@ -29,6 +32,56 @@ OtherRoutes.default(app);
 ShoppingRoutes.default(app);
 // CoachingRoutes.default(app);
 
+cron.schedule("*/10 * * * *", async () => {
+    console.log("🕒 Checking for abandoned payment carts...");
+
+    const cutoffTime = new Date(Date.now() - 15 * 60 * 1000); 
+
+    try {
+        const pendingCarts = await ProductCart.find({
+            CartType: "PaymentPending",
+            ReservationStartedAt: { $lt: cutoffTime }
+        });
+
+        for (let cart of pendingCarts) {
+            console.log(`🧾 Releasing cart: ${cart._id}`);
+
+            for (let item of cart.Products) {
+                await VariantProduct.updateOne(
+                    { _id: item.VariantProductId },
+                    {
+                        $inc: {
+                            "InventoryBaseStock.AvailableStock": item.Quantity,
+                            "InventoryBaseStock.ReservedStock": -item.Quantity
+                        }
+                    }
+                );
+            }
+
+            cart.CartType = "Regular";
+            cart.ReservationStartedAt = null;
+            cart.ReservationExpiresAt = null;
+            cart.PaymentSession = {
+                orderId: null,
+                txnId: null,
+                status: "FAILED",
+                amount: 0,
+                paymentGateway: "Paytm"
+            };
+
+            await cart.save();
+        }
+
+        if (pendingCarts.length > 0) {
+            console.log(`✅ Released ${pendingCarts.length} abandoned carts.`);
+        } else {
+            console.log("✅ No abandoned carts found.");
+        }
+
+    } catch (err) {
+        console.error("❌ Error in releaseAbandonedPayments cron:", err);
+    }
+});
 const staticPaths = {
   '/api/v1/UserImage': './components/public/UserImage',
   '/api/v1/BrandImage': './components/public/BrandImage',
