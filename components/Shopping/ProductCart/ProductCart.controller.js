@@ -1,13 +1,13 @@
-const { ProductCart } = require('./ProductCart.model');
+const { ProductCart, ProductOrder } = require('./ProductCart.model');
 const { Product, VariantProduct } = require('../VariantsProducts/VariantsProducts.model')
 const { User } = require('../../UserBase/User/User.model')
 const { ProductService } = require('../ProductServices/ProductServices.model')
 const mongoose = require('mongoose');
-const { truncate } = require('lodash');
 const PaytmChecksum = require("paytmchecksum");
 const https = require("https");
 const crypto = require('crypto');
-
+const cron = require('node-cron');
+const { brandmodel } = require('../ProductsBrand/ProductsBrand.model')
 module.exports = {
 
 
@@ -25,7 +25,7 @@ module.exports = {
             IsActive,
         } = req.body;
 
-      
+
         try {
             if (!UserId || !companyId)
                 return res
@@ -46,7 +46,7 @@ module.exports = {
             let FoundCart = await ProductCart.findOne({ UserId, companyId });
 
 
-          
+
             if (!FoundCart) {
                 FoundCart = new ProductCart({ UserId, companyId, Products: [] });
             }
@@ -459,351 +459,8 @@ module.exports = {
         }
 
     },
-    handlePaymentStatus: async (req, res) => {
-        const { UserId, companyId, paymentInfo, status } = req.body;
-
-        try {
-            if (status === "success") {
-                const paytmParams = {
-                    body: {
-                        mid: process.env.PAYTM_MID,
-                        orderId: paymentInfo.orderId
-                    }
-                };
-
-                const checksum = await PaytmChecksum.generateSignature(
-                    JSON.stringify(paytmParams.body),
-                    process.env.PAYTM_MERCHANT_KEY
-                );
-                paytmParams.head = { signature: checksum };
-
-                const post_data = JSON.stringify(paytmParams);
-
-                const options = {
-                    hostname: "securegw.paytm.in",
-                    port: 443,
-                    path: `/v3/order/status`,
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Content-Length": post_data.length
-                    }
-                };
-
-                const verifyPaytmStatus = await new Promise((resolve, reject) => {
-                    let response = "";
-                    const paytmReq = https.request(options, (paytmRes) => {
-                        paytmRes.on("data", (chunk) => (response += chunk));
-                        paytmRes.on("end", () => {
-                            try {
-                                resolve(JSON.parse(response));
-                            } catch (err) {
-                                reject(err);
-                            }
-                        });
-                    });
-                    paytmReq.on("error", reject);
-                    paytmReq.write(post_data);
-                    paytmReq.end();
-                });
-
-                const resultStatus = verifyPaytmStatus.body?.resultInfo?.resultStatus;
-                if (resultStatus !== "TXN_SUCCESS") {
-                    return res.status(400).json({
-                        message: "Payment verification failed with Paytm.",
-                        success: false
-                    });
-                }
-            }
-
-            const FoundCart = await ProductCart.findOne({
-                UserId,
-                companyId,
-                CartType: "PaymentPending"
-            });
-
-            if (!FoundCart) {
-                return res.status(400).json({
-                    message: "No pending payment cart found",
-                    success: false
-                });
-            }
-
-            for (let item of FoundCart.Products) {
-                if (status === "success") {
-                    await VariantProduct.updateOne(
-                        { _id: item.VariantProductId },
-                        {
-                            $inc: {
-                                "InventoryBaseStock.ReservedStock": -item.Quantity
-                            }
-                        }
-                    );
-                } else if (status === "failed") {
-                    await VariantProduct.updateOne(
-                        { _id: item.VariantProductId },
-                        {
-                            $inc: {
-                                "InventoryBaseStock.AvailableStock": item.Quantity,
-                                "InventoryBaseStock.ReservedStock": -item.Quantity
-                            }
-                        }
-                    );
-                }
-            }
-
-            if (status === "success") {
-                await Order.create({
-                    UserId,
-                    companyId,
-                    Products: FoundCart.Products,
-                    PaymentDetails: paymentInfo,
-                    Status: "Paid"
-                });
-
-                await ProductCart.deleteOne({ _id: FoundCart._id });
-
-                return res.status(200).json({
-                    message: "✅ Payment verified and order placed successfully.",
-                    success: true
-                });
-            } else if (status === "failed") {
-                FoundCart.CartType = "Active";
-                await FoundCart.save();
-
-                return res.status(200).json({
-                    message: "❌ Payment failed. Stock restored and cart reactivated.",
-                    success: false
-                });
-            } else {
-                return res.status(400).json({
-                    message: "Invalid payment status received.",
-                    success: false
-                });
-            }
-        } catch (err) {
-            console.error("handlePaymentStatus Error:", err);
-            return res.status(500).json({
-                message: "Internal Server Error",
-                success: false
-            });
-        }
-    },
-
-    proceedToPayment: async (req, res) => {
-        const { UserId, companyId } = req.body;
-
-        try {
-            const FoundCart = await ProductCart.findOne({ UserId, companyId });
-            if (!FoundCart || !FoundCart.Products?.length)
-                return res.status(400).json({ message: "Cart is empty", success: false });
-
-            for (let item of FoundCart.Products) {
-                const variant = await VariantProduct.findOne({
-                    _id: item.VariantProductId,
-                    ProductId: item.ProductId,
-                    companyId,
-                    isActive: true
-                });
-
-                if (!variant) {
-                    return res.status(400).json({ message: "Some products are unavailable", success: false });
-                }
-
-                if (variant.InventoryBaseStock?.InventoryBase) {
-                    const available = variant.InventoryBaseStock?.AvailableStock || 0;
-                    if (item.Quantity > available) {
-                        return res.status(400).json({ message: `Not enough stock for ${variant.VariantName || "product"}`, success: false });
-                    }
-
-                    await VariantProduct.updateOne(
-                        { _id: variant._id },
-                        {
-                            $inc: {
-                                "InventoryBaseStock.AvailableStock": -item.Quantity,
-                                "InventoryBaseStock.ReservedStock": item.Quantity
-                            }
-                        }
-                    );
-                }
-            }
-
-            FoundCart.CartType = "PaymentPending";
-            FoundCart.ReservationStartedAt = new Date();
-
-            const orderId = `ORDER_${FoundCart._id.toString().slice(-6)}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
-            const totalAmount = FoundCart.FinalCartPrice || FoundCart.TotalCartPrice;
-
-            const paytmParams = {
-                body: {
-                    requestType: "Payment",
-                    mid: process.env.PAYTM_MID,
-                    websiteName: process.env.PAYTM_WEBSITE,
-                    orderId,
-                    callbackUrl: `${process.env.BASE_URL}/api/payment/callback`,
-                    txnAmount: { value: totalAmount.toString(), currency: "INR" },
-                    userInfo: { custId: UserId.toString() }
-                }
-            };
-
-            const checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), process.env.PAYTM_KEY);
-            paytmParams.head = { signature: checksum };
-
-            const post_data = JSON.stringify(paytmParams);
-
-            const options = {
-                hostname: "securegw.paytm.in",
-                port: 443,
-                path: `/theia/api/v1/initiateTransaction?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Content-Length": post_data.length
-                }
-            };
-
-            const paytmReq = https.request(options, (paytmRes) => {
-                let response = "";
-                paytmRes.on("data", (chunk) => { response += chunk; });
-                paytmRes.on("end", async () => {
-                    const parsedResponse = JSON.parse(response);
-
-                    FoundCart.PaymentSession = {
-                        orderId,
-                        txnId: null,
-                        status: "INITIATED",
-                        amount: totalAmount,
-                        paymentGateway: "Paytm"
-                    };
-                    await FoundCart.save();
-
-                    return res.status(200).json({
-                        message: "Stock reserved and payment initiated.",
-                        success: true,
-                        orderId,
-                        txnToken: parsedResponse.body.txnToken,
-                        amount: totalAmount
-                    });
-                });
-            });
-
-            paytmReq.write(post_data);
-            paytmReq.end();
-
-        } catch (err) {
-            console.error("ProceedToPayment Error:", err);
-            return res.status(500).json({ message: "Internal Server Error", success: false });
-        }
-    },
 
 
-    handlePaymentStatus: async (req, res) => {
-        const { UserId, companyId, paymentInfo } = req.body;
-
-        try {
-            const paytmParams = { body: { mid: process.env.PAYTM_MID, orderId: paymentInfo.orderId } };
-            const checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), process.env.PAYTM_KEY);
-            paytmParams.head = { signature: checksum };
-            const post_data = JSON.stringify(paytmParams);
-
-            const options = {
-                hostname: "securegw.paytm.in",
-                port: 443,
-                path: `/v3/order/status`,
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Content-Length": post_data.length }
-            };
-
-            const verifyPaytmStatus = await new Promise((resolve, reject) => {
-                let response = "";
-                const paytmReq = https.request(options, (paytmRes) => {
-                    paytmRes.on("data", chunk => response += chunk);
-                    paytmRes.on("end", () => { try { resolve(JSON.parse(response)) } catch (err) { reject(err) } });
-                });
-                paytmReq.on("error", reject);
-                paytmReq.write(post_data);
-                paytmReq.end();
-            });
-
-            const resultStatus = verifyPaytmStatus.body?.resultInfo?.resultStatus;
-            const FoundCart = await ProductCart.findOne({ UserId, companyId, CartType: "PaymentPending" });
-            if (!FoundCart) return res.status(400).json({ message: "No pending payment cart found", success: false });
-
-            if (resultStatus === "TXN_SUCCESS") {
-                for (let item of FoundCart.Products) {
-                    await VariantProduct.updateOne(
-                        { _id: item.VariantProductId },
-                        { $inc: { "InventoryBaseStock.ReservedStock": -item.Quantity } }
-                    );
-                }
-
-                await Order.create({
-                    UserId,
-                    companyId,
-                    Products: FoundCart.Products,
-                    PaymentDetails: paymentInfo,
-                    Status: "Paid"
-                });
-
-                await ProductCart.deleteOne({ _id: FoundCart._id });
-
-                return res.status(200).json({ message: "✅ Payment verified and order placed successfully.", success: true });
-
-            } else {
-                for (let item of FoundCart.Products) {
-                    await VariantProduct.updateOne(
-                        { _id: item.VariantProductId },
-                        { $inc: { "InventoryBaseStock.AvailableStock": item.Quantity, "InventoryBaseStock.ReservedStock": -item.Quantity } }
-                    );
-                }
-
-                FoundCart.CartType = "Regular";
-                FoundCart.ReservationStartedAt = null;
-                FoundCart.ReservationExpiresAt = null;
-                FoundCart.PaymentSession = {
-                    orderId: null, txnId: null, status: "FAILED", amount: 0, paymentGateway: "Paytm"
-                };
-                await FoundCart.save();
-
-                return res.status(200).json({ message: "❌ Payment failed. Stock restored and cart reactivated.", success: false });
-            }
-
-        } catch (err) {
-            console.error("handlePaymentStatus Error:", err);
-            return res.status(500).json({ message: "Internal Server Error", success: false });
-        }
-    },
-
-
-    releaseAbandonedCartsCron: () => {
-        cron.schedule('*/10 * * * *', async () => {
-            console.log('🕒 Running abandoned cart cleanup...');
-
-            const cutoffTime = new Date(Date.now() - 15 * 60 * 1000);
-            const pendingCarts = await ProductCart.find({ CartType: "PaymentPending", ReservationStartedAt: { $lt: cutoffTime } });
-
-            for (let cart of pendingCarts) {
-                console.log(`🧾 Releasing abandoned cart ${cart._id}`);
-
-                for (let item of cart.Products) {
-                    await VariantProduct.updateOne(
-                        { _id: item.VariantProductId },
-                        { $inc: { "InventoryBaseStock.AvailableStock": item.Quantity, "InventoryBaseStock.ReservedStock": -item.Quantity } }
-                    );
-                }
-
-                cart.CartType = "Regular";
-                cart.ReservationStartedAt = null;
-                cart.ReservationExpiresAt = null;
-                cart.PaymentSession = {
-                    orderId: null, txnId: null, status: "FAILED", amount: 0, paymentGateway: "Paytm"
-                };
-                await cart.save();
-            }
-
-            if (pendingCarts.length) console.log(`✅ Released ${pendingCarts.length} abandoned carts.`);
-        });
-    },
     getCartData: async (matchCondition) => {
         try {
             const data = await ProductCart.aggregate([
@@ -1276,6 +933,306 @@ module.exports = {
                 success: false
             });
         }
+    },
+
+    proceedToPayment: async (req, res) => {
+        const { UserId, companyId } = req.body;
+
+        try {
+            const FoundCart = await ProductCart.findOne({ UserId, companyId });
+            if (!FoundCart || !FoundCart.Products?.length)
+                return res.status(400).json({ message: "Cart is empty", success: false });
+
+            for (let item of FoundCart.Products) {
+                const variant = await VariantProduct.findOne({
+                    _id: item.VariantProductId,
+                    ProductId: item.ProductId,
+                    companyId,
+                    isActive: true
+                });
+
+                if (!variant) {
+                    return res.status(400).json({ message: "Some products are unavailable", success: false });
+                }
+
+                if (variant.InventoryBaseStock?.InventoryBase) {
+                    const available = variant.InventoryBaseStock?.AvailableStock || 0;
+                    if (item.Quantity > available) {
+                        return res.status(400).json({ message: `Not enough stock for ${variant.VariantName || "product"}`, success: false });
+                    }
+
+                    await VariantProduct.updateOne(
+                        { _id: variant._id },
+                        {
+                            $inc: {
+                                "InventoryBaseStock.AvailableStock": -item.Quantity,
+                                "InventoryBaseStock.ReservedStock": item.Quantity
+                            }
+                        }
+                    );
+                }
+            }
+            req.query.UserId = UserId;
+            req.query.companyId = companyId;
+            let data = await module.exports.getCart(req, res);
+            let OrderData = {
+                UserId,
+                companyId,
+                Cart
+            }
+            if (data && data[0]) {
+                for (let EachProduct of data[0].Products) {
+                    let Products = {
+                        CartProductId: EachProduct._id,
+                        OrderStatus: [{ Status: 'INITIATED', StatusAt: Date.now() }],
+
+                    }
+                    let ProductInfo = {
+                        ProductId: EachProduct.ProductId,
+                        ProductName: EachProduct.ProductInfo.ProductName,
+                        CommonImages: EachProduct.ProductInfo.CommonImages,
+                        CommonVideos: EachProduct.ProductInfo.CommonVideos,
+                        CommonDescription: EachProduct.ProductInfo.CommonDescription,
+                    }
+                    Products.ProductData.ProductInfo = ProductInfo
+                    let FoundBrand = await brandmodel.findOne({ companyId, _id: EachProduct.ProductInfo.BrandId })
+                    if (FoundBrand) {
+                        ProductInfo.BrandId = FoundBrand._id;
+                        ProductInfo.BrandName = FoundBrand.BrandName
+                    }
+                    let VariantProductInfo = {
+                        VariantProductId: VariantInfo._id,
+                        VariantProductName: VariantInfo.VariantProductName,
+                        VariantFields: VariantInfo.VariantFields,
+                        OfferPercentage: VariantInfo.OfferPercentage,
+                        Price: VariantInfo.Price,
+                        Specification: VariantInfo.Specification,
+                        AboutProduct: VariantInfo.AboutProduct,
+
+                    }
+                    Products.ProductData.VariantProductInfo = VariantProductInfo
+
+                    let ProductServices=EachProduct.ServiceInfo.map((EachService=>{
+                        return {
+                            ProductServiceId:EachService.ProductServiceId,
+                            ServiceName:EachService.ServiceName,
+                            Description:EachService.Description,
+                            ServiceImages:EachService.ServiceImages,
+                            ProductServiceAmount:EachService.ProductServiceAmount,
+                            ExpiryDate:EachService.ExpiryDate
+                        }
+                    }))
+                    Products.ProductServices = ProductServices;
+                     let ProductFreeServices=EachProduct.FreeServiceInfo.map((EachService=>{
+                        return {
+                            ProductServiceId:EachService._id,
+                            ServiceName:EachService.ServiceName,
+                            Description:EachService.Description,
+                            ServiceImages:EachService.ServiceImages,
+                            ProductServiceAmount:EachService.ProductServiceAmount,
+                            ExpiryDate:EachService.ExpiryDate
+                        }
+                    }))
+                    Products.ProductFreeServices = ProductFreeServices;
+                    
+                }
+            }
+            FoundCart.CartType = "PaymentPending";
+            FoundCart.ReservationStartedAt = new Date();
+
+            const orderId = `ORDER_${FoundCart._id.toString().slice(-6)}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+            const totalAmount = FoundCart.FinalCartPrice || FoundCart.TotalCartPrice;
+
+            const paytmParams = {
+                body: {
+                    requestType: "Payment",
+                    mid: process.env.PAYTM_MID,
+                    websiteName: process.env.PAYTM_WEBSITE,
+                    orderId,
+                    callbackUrl: `${process.env.BASE_URL}/api/payment/callback`,
+                    txnAmount: { value: totalAmount.toString(), currency: "INR" },
+                    userInfo: { custId: UserId.toString() }
+                }
+            };
+
+            const checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), process.env.PAYTM_KEY);
+            paytmParams.head = { signature: checksum };
+
+            const post_data = JSON.stringify(paytmParams);
+
+            const options = {
+                hostname: "securegw.paytm.in",
+                port: 443,
+                path: `/theia/api/v1/initiateTransaction?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Content-Length": post_data.length
+                }
+            };
+
+            const paytmReq = https.request(options, (paytmRes) => {
+                let response = "";
+                paytmRes.on("data", (chunk) => { response += chunk; });
+                paytmRes.on("end", async () => {
+                    const parsedResponse = JSON.parse(response);
+
+                    FoundCart.PaymentSession = {
+                        orderId,
+                        txnId: null,
+                        status: "INITIATED",
+                        amount: totalAmount,
+                        paymentGateway: "Paytm"
+                    };
+                    await FoundCart.save();
+
+                    return res.status(200).json({
+                        message: "Stock reserved and payment initiated.",
+                        success: true,
+                        orderId,
+                        txnToken: parsedResponse.body.txnToken,
+                        amount: totalAmount
+                    });
+                });
+            });
+
+            paytmReq.write(post_data);
+            paytmReq.end();
+
+        } catch (err) {
+            console.error("ProceedToPayment Error:", err);
+            return res.status(500).json({ message: "Internal Server Error", success: false });
+        }
+    },
+
+
+    handlePaymentStatus: async (req, res) => {
+        const { UserId, companyId, paymentInfo } = req.body;
+
+        try {
+            const paytmParams = { body: { mid: process.env.PAYTM_MID, orderId: paymentInfo.orderId } };
+            const checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), process.env.PAYTM_KEY);
+            paytmParams.head = { signature: checksum };
+            const post_data = JSON.stringify(paytmParams);
+
+            const options = {
+                hostname: "securegw.paytm.in",
+                port: 443,
+                path: `/v3/order/status`,
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Content-Length": post_data.length }
+            };
+
+            const verifyPaytmStatus = await new Promise((resolve, reject) => {
+                let response = "";
+                const paytmReq = https.request(options, (paytmRes) => {
+                    paytmRes.on("data", chunk => response += chunk);
+                    paytmRes.on("end", () => { try { resolve(JSON.parse(response)) } catch (err) { reject(err) } });
+                });
+                paytmReq.on("error", reject);
+                paytmReq.write(post_data);
+                paytmReq.end();
+            });
+
+            const resultStatus = verifyPaytmStatus.body?.resultInfo?.resultStatus;
+            const FoundCart = await ProductCart.findOne({ UserId, companyId, CartType: "PaymentPending" });
+            if (!FoundCart) return res.status(400).json({ message: "No pending payment cart found", success: false });
+
+            if (resultStatus === "TXN_SUCCESS") {
+                for (let item of FoundCart.Products) {
+                    await VariantProduct.updateOne(
+                        { _id: item.VariantProductId },
+                        { $inc: { "InventoryBaseStock.ReservedStock": -item.Quantity } }
+                    );
+                }
+
+                await Order.create({
+                    UserId,
+                    companyId,
+                    Products: FoundCart.Products,
+                    PaymentDetails: paymentInfo,
+                    Status: "Paid"
+                });
+
+                await ProductCart.deleteOne({ _id: FoundCart._id });
+
+                return res.status(200).json({ message: "✅ Payment verified and order placed successfully.", success: true });
+
+            } else {
+                for (let item of FoundCart.Products) {
+                    await VariantProduct.updateOne(
+                        { _id: item.VariantProductId },
+                        { $inc: { "InventoryBaseStock.AvailableStock": item.Quantity, "InventoryBaseStock.ReservedStock": -item.Quantity } }
+                    );
+                }
+
+                FoundCart.CartType = "Regular";
+                FoundCart.ReservationStartedAt = null;
+                FoundCart.ReservationExpiresAt = null;
+                FoundCart.PaymentSession = {
+                    orderId: null, txnId: null, status: "FAILED", amount: 0, paymentGateway: "Paytm"
+                };
+                await FoundCart.save();
+
+                return res.status(200).json({ message: "❌ Payment failed. Stock restored and cart reactivated.", success: false });
+            }
+
+        } catch (err) {
+            console.error("handlePaymentStatus Error:", err);
+            const FoundCart = await ProductCart.findOne({ UserId, companyId, CartType: "PaymentPending" });
+            if (FoundCart) {
+                for (let item of FoundCart.Products) {
+                    await VariantProduct.updateOne(
+                        { _id: item.VariantProductId },
+                        {
+                            $inc: {
+                                "InventoryBaseStock.AvailableStock": item.Quantity,
+                                "InventoryBaseStock.ReservedStock": -item.Quantity
+                            }
+                        }
+                    );
+                }
+                FoundCart.CartType = "Regular";
+                await FoundCart.save();
+            }
+
+            return res.status(500).json({
+                message: "Internal Server Error",
+                success: false
+            });
+
+        }
+    },
+
+
+    releaseAbandonedCartsCron: () => {
+        cron.schedule('*/10 * * * *', async () => {
+            console.log('🕒 Running abandoned cart cleanup...');
+
+            const cutoffTime = new Date(Date.now() - 15 * 60 * 1000);
+            const pendingCarts = await ProductCart.find({ CartType: "PaymentPending", ReservationStartedAt: { $lt: cutoffTime } });
+
+            for (let cart of pendingCarts) {
+                console.log(`🧾 Releasing abandoned cart ${cart._id}`);
+
+                for (let item of cart.Products) {
+                    await VariantProduct.updateOne(
+                        { _id: item.VariantProductId },
+                        { $inc: { "InventoryBaseStock.AvailableStock": item.Quantity, "InventoryBaseStock.ReservedStock": -item.Quantity } }
+                    );
+                }
+
+                cart.CartType = "Regular";
+                cart.ReservationStartedAt = null;
+                cart.ReservationExpiresAt = null;
+                cart.PaymentSession = {
+                    orderId: null, txnId: null, status: "FAILED", amount: 0, paymentGateway: "Paytm"
+                };
+                await cart.save();
+            }
+
+            if (pendingCarts.length) console.log(`✅ Released ${pendingCarts.length} abandoned carts.`);
+        });
     },
 
 };

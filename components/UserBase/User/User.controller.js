@@ -134,8 +134,8 @@ module.exports = {
           email: user.Email || "",
         };
 
-        const token = jwt.sign({ userObject }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "1d" });
-        const refToken = jwt.sign({ userObject }, process.env.REFER_TOKEN_SECRET, { expiresIn: "1d" });
+        const token = jwt.sign({ userObject }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "7d" });
+        const refToken = jwt.sign({ userObject }, process.env.REFER_TOKEN_SECRET, { expiresIn: "7d" });
 
         return res.status(200).json({
           token,

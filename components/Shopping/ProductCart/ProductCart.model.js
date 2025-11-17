@@ -1,5 +1,6 @@
 
 const mongoose = require("mongoose");
+const { type } = require("os");
 
 const cartSchema = new mongoose.Schema({
     UserId: {
@@ -93,6 +94,9 @@ const OrderSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         required: true
     },
+    CartId: {
+        type: mongoose.Schema.Types.ObjectId,
+    },
     Products: [
         {
             CartProductId: {
@@ -123,9 +127,6 @@ const OrderSchema = new mongoose.Schema({
             ProductData: {
                 ProductInfo: {
                     ProductId: {
-                        type: mongoose.Schema.Types.ObjectId
-                    },
-                    CartProductId: {
                         type: mongoose.Schema.Types.ObjectId
                     },
                     ProductName: {
@@ -163,7 +164,7 @@ const OrderSchema = new mongoose.Schema({
                 },
                 VariantProductInfo: {
 
-                    CartVariantProductId: {
+                    VariantProductId: {
                         type: mongoose.Schema.Types.ObjectId
                     },
                     VariantProductName: {
