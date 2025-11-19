@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const csvParser = require('csv-parser');
+const { filter } = require('lodash');
 module.exports = {
     addVariantProduct: async (req, res) => {
         const {
@@ -1534,7 +1535,7 @@ module.exports = {
     },
     getProductsById: async (req, res) => {
         try {
-            const {
+            let {
                 HeadCategoryId,
                 SubCategoryId,
                 companyId,
@@ -1552,7 +1553,10 @@ module.exports = {
                 PriceSort,
                 CategoryName,
                 BrandName,
-                MixedName
+                MixedName,
+                ListType,
+                isActive,
+                VariantProductIsActive
 
             } = req.query;
 
@@ -1571,7 +1575,27 @@ module.exports = {
             };
 
             let matchCondition = { companyId: validateObjectId(companyId, 'companyId') };
-
+            if (isActive === undefined) {
+                isActive = true;
+                matchCondition = { isActive: true }
+            } else if (isActive === "true") {
+                isActive = true;
+                matchCondition = { isActive: true }
+            } else if (isActive === "false") {
+                isActive = false;
+            } else {
+                isActive = true;
+                matchCondition = { isActive: true }
+            }
+            if (VariantProductIsActive === undefined) {
+                VariantProductIsActive = true;
+            }
+            else if (VariantProductIsActive === "false") {
+                VariantProductIsActive = false;
+            }
+            else {
+                VariantProductIsActive = true;
+            }
             if (HeadCategoryId) matchCondition.HeadCategoryId = validateObjectId(HeadCategoryId, 'HeadCategoryId');
             if (SubCategoryId) matchCondition.SubCategoryId = validateObjectId(SubCategoryId, 'SubCategoryId');
             if (ProductId) matchCondition._id = validateObjectId(ProductId, 'ProductId');
@@ -1839,6 +1863,54 @@ module.exports = {
 
                 filteredData = flattened;
             }
+            if (ListType === 'ProductList') {
+
+                let variantList = [];
+
+                filteredData.forEach((product) => {
+                    product?.VariantProducts.forEach((variant) => {
+                        variantList.push({
+                            AboutProduct: variant.AboutProduct,
+                            BatchesInfo: variant.BatchesInfo,
+                            OfferPercentage: variant.OfferPercentage,
+                            Price: variant.Price,
+                            VariantFields: variant.VariantFields,
+                            VariantProductName: variant.VariantProductName,
+                            RatingStar: product.RatingStar,
+                            InventoryBaseStock: variant.InventoryBaseStock,
+                            VariantProductImage: variant.VariantProductImage,
+                            ProductId: variant.ProductId,
+                            _id: variant._id,
+                            isActive: variant.isActive
+                        });
+                    });
+                });
+
+                if (VariantProductIsActive === true) {
+                    variantList = variantList.filter(v => v.isActive === true);
+                }
+
+                filteredData = variantList;
+            }
+            else {
+                if (VariantProductIsActive === true) {
+
+                    filteredData = filteredData
+                        .map((product) => {
+                            let activeVariants = product?.VariantProducts.filter(v => v.isActive === true);
+
+                            if (activeVariants.length > 0) {
+                                return { ...product, VarianProducts: activeVariants };
+                            }
+
+                            return null;
+                        })
+                        .filter(Boolean);
+                }
+
+
+            }
+
 
             return res.status(200).json({
                 success: true,

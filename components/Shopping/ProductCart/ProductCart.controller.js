@@ -893,8 +893,13 @@ module.exports = {
                         if (prod.ProductInfo.ProductServices) delete prod.ProductInfo.ProductServices
                         return prod;
                     });
+                    cart.Products = cart.Products.sort(
+                        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+                    );
+
                     return cart;
                 });
+
             }
             return res.status(200).json({
                 message: "Cart fetched and recalculated successfully",

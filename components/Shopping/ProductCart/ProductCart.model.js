@@ -58,6 +58,10 @@ const cartSchema = new mongoose.Schema({
             IsActive: {
                 type: Boolean,
                 default: true
+            },
+            createdAt:{
+                type:Date,
+                default:Date.now()
             }
 
         }
