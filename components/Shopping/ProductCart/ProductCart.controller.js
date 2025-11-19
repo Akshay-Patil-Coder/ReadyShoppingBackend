@@ -51,11 +51,13 @@ module.exports = {
                 FoundCart = new ProductCart({ UserId, companyId, Products: [] });
             }
 
-            const existingIndex = FoundCart.Products.findIndex(
+            let existingIndex = FoundCart.Products.findIndex(
                 (p) =>
                     p.ProductId.toString() === ProductId.toString() &&
-                    p.VariantProductId.toString() === VariantProductId.toString()
+                    p.VariantProductId.toString() === VariantProductId.toString() &&
+                    p.Reserved !== true
             );
+
 
             const FoundProduct = await Product.findOne({
                 _id: ProductId,
@@ -107,8 +109,9 @@ module.exports = {
                 cart.DiscountCartPrice = discount;
                 cart.FinalCartPrice = final;
             };
-
             if (Operation === "add") {
+                if (!Quantity || Quantity <= 0) Quantity = 1;
+
                 if (FoundVariantProduct.InventoryBaseStock?.InventoryBase) {
                     const stock = FoundVariantProduct.InventoryBaseStock.AvailableStock || 0;
                     if (stock <= 0)
@@ -116,105 +119,41 @@ module.exports = {
                     if (stock < Quantity) Quantity = stock;
                 }
 
-                if (!Quantity || Quantity <= 0) Quantity = 1;
-
                 const paidServices = FoundProduct.ProductServices.filter((s) => s.Paid);
                 const freeServices = FoundProduct.ProductServices.filter((s) => !s.Paid);
 
-                let selectedPaidServices = paidServices.filter((s) =>
+                const selectedPaidServices = paidServices.filter((s) =>
                     ProductServicesIds.includes(s.ProductServiceId.toString())
                 );
 
-                if (existingIndex !== -1) {
-                    let existingProduct = FoundCart.Products[existingIndex];
-
-                    if (!existingProduct.IsActive) {
-                        existingProduct.IsActive = true;
-                    }
-
-                    if (Quantity >= existingProduct.Quantity) {
-                        existingProduct.Quantity = Quantity;
-                    }
-                    else {
-                        if (FoundVariantProduct.InventoryBaseStock?.InventoryBase) {
-                            const stock = FoundVariantProduct.InventoryBaseStock.AvailableStock || 0;
-                            if (stock <= 0)
-                                return res.status(400).json({ message: "Out of stock", success: false });
-                            if (stock < existingProduct.Quantity) existingProduct.Quantity = stock;
-                        }
-                    }
-
-                    const existingIds = existingProduct.ProductServices.map((s) =>
-                        s.ProductServiceId.toString()
-                    );
-
-                    for (const newService of selectedPaidServices) {
-                        const existingService = existingProduct.ProductServices.find(
-                            (ps) => ps.ProductServiceId.toString() === newService.ProductServiceId.toString()
-                        );
-
-                        if (existingService) {
-                            if (!existingService.ServiceActive) {
-                                existingService.ServiceActive = true;
-                            }
-                        } else {
-                            existingProduct.ProductServices.push({
-                                ProductServiceId: newService.ProductServiceId,
-                                ServiceActive: true,
-                            });
-                        }
-                    }
-                    let NewFreeServices = [
-                        ...new Set([
-                            ...(existingProduct.ProductFreeServices || []),
-                            ...freeServices.filter(Boolean).map((s) => s.ProductServiceId),
-                        ]),
-                    ];
-
-
-
-                    existingProduct.ProductFreeServices = NewFreeServices;
-                    const activePaid = existingProduct.ProductServices.filter((s) => s.ServiceActive);
-                    const fullServiceData = paidServices.filter((s) =>
-                        activePaid.some((ap) => ap.ProductServiceId.toString() === s.ProductServiceId.toString())
-                    );
-
-                    const { total, discount, final } = calculateProductTotals(
-                        FoundVariantProduct,
-                        existingProduct.Quantity,
-                        fullServiceData
-                    );
-
-                    existingProduct.TotalPrice = total;
-                    existingProduct.DiscountPrice = discount;
-                    existingProduct.FinalPrice = final;
-
-                    FoundCart.Products[existingIndex] = existingProduct;
-                } else {
-                    const { total, discount, final } = calculateProductTotals(
-                        FoundVariantProduct,
-                        Quantity,
-                        selectedPaidServices
-                    );
-
-                    FoundCart.Products.push({
-                        ProductId,
-                        VariantProductId,
-                        Quantity,
-                        TotalPrice: total,
-                        DiscountPrice: discount,
-                        FinalPrice: final,
-                        IsActive: true,
-                        ProductServices: selectedPaidServices.map((s) => ({
-                            ProductServiceId: s.ProductServiceId,
-                            ServiceActive: true,
-                        })),
-                        ProductFreeServices: freeServices.map((s) => s.ProductServiceId),
-                    });
+                if (existingIndex !== -1 && FoundCart.Products[existingIndex].Reserved !== true) {
+                    FoundCart.Products.splice(existingIndex, 1);
                 }
+
+                const { total, discount, final } = calculateProductTotals(
+                    FoundVariantProduct,
+                    Quantity,
+                    selectedPaidServices
+                );
+
+                FoundCart.Products.push({
+                    ProductId,
+                    VariantProductId,
+                    Quantity,
+                    TotalPrice: total,
+                    DiscountPrice: discount,
+                    FinalPrice: final,
+                    IsActive: true,
+                    ProductServices: selectedPaidServices.map((s) => ({
+                        ProductServiceId: s.ProductServiceId,
+                        ServiceActive: true,
+                    })),
+                    ProductFreeServices: freeServices.map((s) => s.ProductServiceId),
+                });
 
                 recalcCartTotals(FoundCart);
                 const saved = await FoundCart.save();
+
                 try {
                     await module.exports.ValidateCart(req, res);
                 } catch (e) {
@@ -225,12 +164,19 @@ module.exports = {
             }
 
 
+
             else if (Operation === "update") {
                 if (existingIndex === -1)
                     return res.status(404).json({ message: "Product not found in cart", success: false });
 
                 let existingProduct = FoundCart.Products[existingIndex];
-
+                if (existingProduct.Reserved === true) {
+                    return res.status(200).json({
+                        message: "This product is reserved and cannot be updated",
+                        success: true,
+                        data: FoundCart
+                    });
+                }
                 if (typeof IsActive !== "undefined") existingProduct.IsActive = IsActive;
 
                 if (ProductServiceId && typeof ServiceActive == false) {
@@ -288,6 +234,15 @@ module.exports = {
                 if (existingIndex === -1)
                     return res.status(404).json({ message: "Product not found in cart", success: false });
 
+                let existingProduct = FoundCart.Products[existingIndex];
+
+                if (existingProduct.Reserved === true) {
+                    return res.status(200).json({
+                        message: "This product is reserved and cannot be removed",
+                        success: true,
+                        data: FoundCart
+                    });
+                }
                 FoundCart.Products.splice(existingIndex, 1);
 
                 recalcCartTotals(FoundCart);
@@ -313,6 +268,7 @@ module.exports = {
                 .json({ message: "Internal Server Error", error: err.message, success: false });
         }
     },
+
     ValidateCart: async (req, res) => {
         const { UserId, companyId } = req.body;
         try {
@@ -335,6 +291,7 @@ module.exports = {
                     discount = (total * variant.OfferPercentage) / 100;
 
                 let final = total - discount;
+
                 if (activeServices.length) {
                     const serviceTotal = activeServices.reduce(
                         (sum, s) => sum + (s.ProductServiceAmount || 0),
@@ -347,9 +304,13 @@ module.exports = {
                 return { total, discount, final };
             };
 
+
             let updatedProducts = [];
 
             for (let EachProduct of FoundCart.Products) {
+
+                EachProduct.Reserved = EachProduct.Reserved || false;
+
                 let FoundProduct = await Product.findOne({
                     _id: EachProduct.ProductId,
                     companyId,
@@ -365,7 +326,9 @@ module.exports = {
 
                 if (!FoundProduct || !FoundVariantProduct) continue;
 
-                if (FoundVariantProduct.InventoryBaseStock?.InventoryBase === true) {
+
+
+                if (!EachProduct.Reserved && FoundVariantProduct.InventoryBaseStock?.InventoryBase === true) {
                     const availableStock = FoundVariantProduct.InventoryBaseStock.AvailableStock || 0;
 
                     if (availableStock <= 0) continue;
@@ -374,6 +337,8 @@ module.exports = {
                         EachProduct.Quantity = availableStock;
                     }
                 }
+
+
                 const ProductServicesList = FoundProduct.ProductServices || [];
                 const PaidServices = ProductServicesList.filter(s => s.Paid === true);
                 const FreeServices = ProductServicesList.filter(s => s.Paid === false);
@@ -381,6 +346,7 @@ module.exports = {
                 let activePaidServices = [];
                 let NewProductServices = [];
                 let NewFreeServices = [];
+
                 for (let EachService of EachProduct.ProductServices || []) {
                     const serviceData = await ProductService.findOne({
                         _id: EachService.ProductServiceId,
@@ -393,7 +359,6 @@ module.exports = {
                         PaidServices.some(
                             (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
                         )
-
                     ) {
                         if (EachService.ServiceActive === true) {
                             const matchedConfig = PaidServices.find(
@@ -406,12 +371,12 @@ module.exports = {
                                     ProductServiceAmount: matchedConfig.ProductServiceAmount || 0
                                 });
                             }
-                            NewProductServices.push(EachService)
 
+                            NewProductServices.push(EachService)
                         }
                     }
-
                 }
+
                 for (let EachService of FreeServices || []) {
                     const serviceData = await ProductService.findOne({
                         _id: EachService.ProductServiceId,
@@ -422,33 +387,43 @@ module.exports = {
                     if (serviceData) {
                         NewFreeServices.push(EachService);
                     }
-
                 }
-                EachProduct.ProductServices = NewProductServices
-                NewFreeServices = NewFreeServices.map(s => s.ProductServiceId)
-                EachProduct.ProductFreeServices = NewFreeServices;
 
-                const { total, discount, final } = calculateProductTotals(
-                    FoundVariantProduct,
-                    EachProduct.Quantity,
-                    activePaidServices
-                );
+                EachProduct.ProductServices = NewProductServices;
+                EachProduct.ProductFreeServices = NewFreeServices.map(s => s.ProductServiceId);
 
-                EachProduct.TotalPrice = total;
-                EachProduct.DiscountPrice = discount;
-                EachProduct.FinalPrice = final;
+
+                if (!EachProduct.Reserved) {
+                    const { total, discount, final } = calculateProductTotals(
+                        FoundVariantProduct,
+                        EachProduct.Quantity,
+                        activePaidServices
+                    );
+
+                    EachProduct.TotalPrice = total;
+                    EachProduct.DiscountPrice = discount;
+                    EachProduct.FinalPrice = final;
+                }
+
                 EachProduct.IsActive = true;
 
                 updatedProducts.push(EachProduct);
             }
 
+
             FoundCart.Products = updatedProducts;
 
-            FoundCart.TotalCartPrice = updatedProducts.reduce((sum, p) => sum + (p.TotalPrice || 0), 0);
-            FoundCart.DiscountCartPrice = updatedProducts.reduce((sum, p) => sum + (p.DiscountPrice || 0), 0);
-            FoundCart.FinalCartPrice = updatedProducts.reduce((sum, p) => sum + (p.FinalPrice || 0), 0);
+
+
+            const activeProducts = updatedProducts.filter(p => p.Reserved !== true);
+
+            FoundCart.TotalCartPrice = parseFloat(activeProducts.reduce((sum, p) => sum + (p.TotalPrice || 0), 0).toFixed(2));
+            FoundCart.DiscountCartPrice = parseFloat(activeProducts.reduce((sum, p) => sum + (p.DiscountPrice || 0), 0).toFixed(2));
+            FoundCart.FinalCartPrice = parseFloat(activeProducts.reduce((sum, p) => sum + (p.FinalPrice || 0), 0).toFixed(2));
+
 
             await FoundCart.save();
+
         } catch (error) {
             console.warn("GetCartError:", error.message);
             return res.status(500).json({
@@ -459,6 +434,8 @@ module.exports = {
         }
 
     },
+
+
 
 
     getCartData: async (matchCondition) => {
@@ -935,169 +912,278 @@ module.exports = {
         }
     },
 
-    proceedToPayment: async (req, res) => {
+
+    proceedToPaymentForCart: async (req, res) => {
         const { UserId, companyId } = req.body;
 
         try {
+            try {
+                await module.exports.ValidateCart(req, res);
+            } catch (_) { }
+
             const FoundCart = await ProductCart.findOne({ UserId, companyId });
             if (!FoundCart || !FoundCart.Products?.length)
                 return res.status(400).json({ message: "Cart is empty", success: false });
 
-            for (let item of FoundCart.Products) {
-                const variant = await VariantProduct.findOne({
-                    _id: item.VariantProductId,
-                    ProductId: item.ProductId,
-                    companyId,
-                    isActive: true
-                });
+            try {
+                let productsToUpdate = []
+                for (let item of FoundCart.Products) {
+                    if (item.Reserved === true || item.IsActive === false) continue;
 
-                if (!variant) {
-                    return res.status(400).json({ message: "Some products are unavailable", success: false });
-                }
+                    const variant = await VariantProduct.findOne({
+                        _id: item.VariantProductId,
+                        ProductId: item.ProductId,
+                        companyId,
+                        isActive: true
+                    });
 
-                if (variant.InventoryBaseStock?.InventoryBase) {
-                    const available = variant.InventoryBaseStock?.AvailableStock || 0;
-                    if (item.Quantity > available) {
-                        return res.status(400).json({ message: `Not enough stock for ${variant.VariantName || "product"}`, success: false });
+                    if (!variant)
+                        return res.status(400).json({ message: "Some products are unavailable", success: false });
+
+                    if (variant.InventoryBaseStock.InventoryBase === true) {
+                        const available = variant.InventoryBaseStock?.AvailableStock || 0;
+                        if (item.Quantity > available)
+                            return res.status(400).json({
+                                message: `Not enough stock for ${variant.VariantProductName || "product"}`,
+                                success: false
+                            });
+
+                        productsToUpdate.push({
+                            variantId: variant._id,
+                            quantity: item.Quantity
+                        });
                     }
-
+                }
+                await Promise.all(productsToUpdate.map(async ({ variantId, quantity }) => {
                     await VariantProduct.updateOne(
-                        { _id: variant._id },
+                        { _id: variantId },
                         {
                             $inc: {
-                                "InventoryBaseStock.AvailableStock": -item.Quantity,
-                                "InventoryBaseStock.ReservedStock": item.Quantity
+                                "InventoryBaseStock.AvailableStock": -quantity,
+                                "InventoryBaseStock.ReservedStock": quantity
                             }
                         }
                     );
-                }
+                }));
+            } catch (err) {
+                console.error("Stock Check Error:", err);
+                return res.status(500).json({ message: "Stock validation failed", success: false });
             }
-            req.query.UserId = UserId;
-            req.query.companyId = companyId;
-            let data = await module.exports.getCart(req, res);
-            let OrderData = {
-                UserId,
-                companyId,
-                Cart
-            }
-            if (data && data[0]) {
-                for (let EachProduct of data[0].Products) {
-                    let Products = {
-                        CartProductId: EachProduct._id,
-                        OrderStatus: [{ Status: 'INITIATED', StatusAt: Date.now() }],
 
-                    }
-                    let ProductInfo = {
-                        ProductId: EachProduct.ProductId,
-                        ProductName: EachProduct.ProductInfo.ProductName,
-                        CommonImages: EachProduct.ProductInfo.CommonImages,
-                        CommonVideos: EachProduct.ProductInfo.CommonVideos,
-                        CommonDescription: EachProduct.ProductInfo.CommonDescription,
-                    }
-                    Products.ProductData.ProductInfo = ProductInfo
-                    let FoundBrand = await brandmodel.findOne({ companyId, _id: EachProduct.ProductInfo.BrandId })
-                    if (FoundBrand) {
-                        ProductInfo.BrandId = FoundBrand._id;
-                        ProductInfo.BrandName = FoundBrand.BrandName
-                    }
-                    let VariantProductInfo = {
-                        VariantProductId: VariantInfo._id,
-                        VariantProductName: VariantInfo.VariantProductName,
-                        VariantFields: VariantInfo.VariantFields,
-                        OfferPercentage: VariantInfo.OfferPercentage,
-                        Price: VariantInfo.Price,
-                        Specification: VariantInfo.Specification,
-                        AboutProduct: VariantInfo.AboutProduct,
+            let OrderData = {};
+            let FoundOrder;
+            let data;
 
-                    }
-                    Products.ProductData.VariantProductInfo = VariantProductInfo
+            try {
+                data = await module.exports.getCartData({
+                    companyId: mongoose.Types.ObjectId(String(companyId)),
+                    UserId: mongoose.Types.ObjectId(String(UserId))
+                });
 
-                    let ProductServices=EachProduct.ServiceInfo.map((EachService=>{
-                        return {
-                            ProductServiceId:EachService.ProductServiceId,
-                            ServiceName:EachService.ServiceName,
-                            Description:EachService.Description,
-                            ServiceImages:EachService.ServiceImages,
-                            ProductServiceAmount:EachService.ProductServiceAmount,
-                            ExpiryDate:EachService.ExpiryDate
+                OrderData = {
+                    UserId,
+                    companyId,
+                    CartId: FoundCart._id,
+                    Products: [],
+                    ReservationStartedAt: new Date()
+                };
+
+                if (data && data[0]) {
+                    if (data.length) {
+                        data = data.map(cart => {
+                            cart.Products = cart.Products.map(prod => {
+                                if (prod?.ProductInfo?.ProductServices && prod?.ServiceInfo) {
+                                    const existingServiceIds = prod.ServiceInfo.map(s => s.ProductServiceId?.toString());
+                                    let remaining = prod.ProductInfo.ProductServices
+                                        .filter(s => !existingServiceIds.includes(s.ProductServiceId?.toString()))
+                                        .filter(s => s.Paid == true);
+                                    prod.RemainingServices = remaining;
+                                } else prod.RemainingServices = [];
+                                delete prod.ProductInfo.ProductServices;
+                                return prod;
+                            });
+                            return cart;
+                        });
+                    }
+
+                    for (let p of data[0].Products) {
+                        if (p.IsActive == false) continue;
+                        const variantInfo = await VariantProduct.findById(p.VariantProductId);
+
+                        let ProductEntry = {
+                            CartProductId: p._id,
+                            OrderStatus: [{ Status: 'INITIATED', StatusAt: Date.now() }],
+                            Quantity: p.Quantity,
+                            TotalPrice: p.TotalPrice,
+                            DiscountPrice: p.DiscountPrice,
+                            FinalPrice: p.FinalPrice,
+                            ProductData: { ProductInfo: {}, VariantProductInfo: {} },
+                            ProductServices: [],
+                            ProductFreeServices: []
+                        };
+
+                        let ProductInfo = {
+                            ProductId: p.ProductId,
+                            ProductName: p.ProductInfo.ProductName,
+                            CommonImages: p.ProductInfo.CommonImages,
+                            CommonVideos: p.ProductInfo.CommonVideos,
+                            CommonDescription: p.ProductInfo.CommonDescription
+                        };
+
+                        let FoundBrand = await brandmodel.findOne({
+                            companyId,
+                            _id: p.ProductInfo.BrandId
+                        });
+
+                        if (FoundBrand) {
+                            ProductInfo.BrandId = FoundBrand._id;
+                            ProductInfo.BrandName = FoundBrand.BrandName;
                         }
-                    }))
-                    Products.ProductServices = ProductServices;
-                     let ProductFreeServices=EachProduct.FreeServiceInfo.map((EachService=>{
-                        return {
-                            ProductServiceId:EachService._id,
-                            ServiceName:EachService.ServiceName,
-                            Description:EachService.Description,
-                            ServiceImages:EachService.ServiceImages,
-                            ProductServiceAmount:EachService.ProductServiceAmount,
-                            ExpiryDate:EachService.ExpiryDate
+
+                        ProductEntry.ProductData.ProductInfo = ProductInfo;
+
+                        if (variantInfo) {
+                            ProductEntry.ProductData.VariantProductInfo = {
+                                VariantProductId: variantInfo._id,
+                                VariantProductName: variantInfo.VariantProductName,
+                                VariantFields: variantInfo.VariantFields,
+                                OfferPercentage: variantInfo.OfferPercentage,
+                                Price: variantInfo.Price,
+                                Specification: variantInfo.Specification,
+                                AboutProduct: variantInfo.AboutProduct
+                            };
                         }
-                    }))
-                    Products.ProductFreeServices = ProductFreeServices;
-                    
+
+                        ProductEntry.ProductServices = p.ServiceInfo.map(s => ({
+                            ProductServiceId: s.ProductServiceId,
+                            ServiceName: s.ServiceName,
+                            Description: s.Description,
+                            ServiceImages: s.ServiceImages,
+                            ProductServiceAmount: s.ProductServiceAmount,
+                            ExpiryDate: s.ExpiryDate
+                        }));
+
+                        ProductEntry.ProductFreeServices = p.FreeServiceInfo.map(s => ({
+                            ProductServiceId: s._id,
+                            ServiceName: s.ServiceName,
+                            Description: s.Description,
+                            ServiceImages: s.ServiceImages,
+                            ProductServiceAmount: s.ProductServiceAmount,
+                            ExpiryDate: s.ExpiryDate
+                        }));
+
+                        OrderData.Products.push(ProductEntry);
+                    }
                 }
+                OrderData.TotalCartPrice = parseFloat(OrderData.Products.reduce((a, b) => a + (b.TotalPrice || 0), 0).toFixed(2));
+                OrderData.DiscountCartPrice = parseFloat(OrderData.Products.reduce((a, b) => a + (b.DiscountPrice || 0), 0).toFixed(2));
+                OrderData.FinalCartPrice = parseFloat(OrderData.Products.reduce((a, b) => a + (b.FinalPrice || 0), 0).toFixed(2));
+
+                const SaveOrder = await new ProductOrder(OrderData).save();
+                FoundOrder = await ProductOrder.findOne({ _id: SaveOrder._id });
+
+            } catch (err) {
+                console.error("Order Build Error:", err);
+                return res.status(500).json({ message: "Unable to create order", success: false });
             }
-            FoundCart.CartType = "PaymentPending";
-            FoundCart.ReservationStartedAt = new Date();
 
-            const orderId = `ORDER_${FoundCart._id.toString().slice(-6)}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
-            const totalAmount = FoundCart.FinalCartPrice || FoundCart.TotalCartPrice;
+            if (!FoundOrder)
+                return res.status(500).json({ message: "Order initialization failed", success: false });
 
-            const paytmParams = {
-                body: {
-                    requestType: "Payment",
-                    mid: process.env.PAYTM_MID,
-                    websiteName: process.env.PAYTM_WEBSITE,
-                    orderId,
-                    callbackUrl: `${process.env.BASE_URL}/api/payment/callback`,
-                    txnAmount: { value: totalAmount.toString(), currency: "INR" },
-                    userInfo: { custId: UserId.toString() }
-                }
-            };
+            try {
+                const orderId =
+                    `ORDER_${FoundOrder._id.toString().slice(-6)}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
 
-            const checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), process.env.PAYTM_KEY);
-            paytmParams.head = { signature: checksum };
+                const totalAmount = FoundOrder.FinalCartPrice || FoundOrder.TotalCartPrice;
 
-            const post_data = JSON.stringify(paytmParams);
-
-            const options = {
-                hostname: "securegw.paytm.in",
-                port: 443,
-                path: `/theia/api/v1/initiateTransaction?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Content-Length": post_data.length
-                }
-            };
-
-            const paytmReq = https.request(options, (paytmRes) => {
-                let response = "";
-                paytmRes.on("data", (chunk) => { response += chunk; });
-                paytmRes.on("end", async () => {
-                    const parsedResponse = JSON.parse(response);
-
-                    FoundCart.PaymentSession = {
+                const paytmParams = {
+                    body: {
+                        requestType: "Payment",
+                        mid: process.env.PAYTM_MID,
+                        websiteName: process.env.PAYTM_WEBSITE,
                         orderId,
-                        txnId: null,
-                        status: "INITIATED",
-                        amount: totalAmount,
-                        paymentGateway: "Paytm"
-                    };
-                    await FoundCart.save();
+                        callbackUrl: `${process.env.BASE_URL}/api/payment/callback`,
+                        txnAmount: { value: totalAmount.toString(), currency: "INR" },
+                        userInfo: { custId: UserId.toString() }
+                    }
+                };
 
-                    return res.status(200).json({
-                        message: "Stock reserved and payment initiated.",
-                        success: true,
-                        orderId,
-                        txnToken: parsedResponse.body.txnToken,
-                        amount: totalAmount
+                const checksum = await PaytmChecksum.generateSignature(
+                    JSON.stringify(paytmParams.body),
+                    process.env.PAYTM_KEY
+                );
+
+                paytmParams.head = { signature: checksum };
+                const post_data = JSON.stringify(paytmParams);
+
+                const options = {
+                    hostname: "securegw.paytm.in",
+                    port: 443,
+                    path: `/theia/api/v1/initiateTransaction?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Content-Length": post_data.length
+                    }
+                };
+
+                const paytmReq = https.request(options, (paytmRes) => {
+                    let response = "";
+
+                    paytmRes.on("data", chunk => response += chunk);
+
+                    paytmRes.on("end", async () => {
+                        try {
+                            const parsedResponse = JSON.parse(response);
+
+                            FoundOrder.PaymentSession = {
+                                orderId,
+                                txnId: null,
+                                status: "INITIATED",
+                                amount: totalAmount,
+                                paymentGateway: "Paytm"
+                            };
+
+                            FoundOrder.ReservationStartedAt = new Date();
+
+                            FoundCart.Products.forEach(p => {
+                                if (p.Reserved === true) return;
+                                const inOrder = FoundOrder.Products.some(op =>
+                                    op.CartProductId.toString() === p._id.toString()
+                                );
+                                if (inOrder) p.Reserved = true;
+                            });
+
+                            await FoundCart.save();
+                            await FoundOrder.save();
+
+                            return res.status(200).json({
+                                message: "Stock reserved and payment initiated.",
+                                success: true,
+                                orderId,
+                                txnToken: parsedResponse.body.txnToken,
+                                amount: totalAmount
+                            });
+
+                        } catch (err) {
+                            console.error("Paytm Response Error:", err);
+                            return res.status(500).json({ message: "Payment gateway error", success: false });
+                        }
                     });
                 });
-            });
 
-            paytmReq.write(post_data);
-            paytmReq.end();
+                paytmReq.on("error", (err) => {
+                    console.error("Paytm HTTPS Error:", err);
+                    return res.status(500).json({ message: "Payment request failed", success: false });
+                });
+
+                paytmReq.write(post_data);
+                paytmReq.end();
+
+            } catch (err) {
+                console.error("Payment Initiation Error:", err);
+                return res.status(500).json({ message: "Failed to initiate payment", success: false });
+            }
 
         } catch (err) {
             console.error("ProceedToPayment Error:", err);
@@ -1105,6 +1191,331 @@ module.exports = {
         }
     },
 
+    proceedToPaymentForCart: async (req, res) => {
+        const { UserId, companyId } = req.body;
+
+        const session = await mongoose.startSession();
+        session.startTransaction();
+
+        try {
+            await module.exports.ValidateCart(req, res);
+
+            const FoundCart = await ProductCart.findOne({ UserId, companyId }).session(session);
+            if (!FoundCart || !FoundCart.Products?.length)
+                return res.status(400).json({ message: "Cart is empty", success: false });
+
+            let OrderData = {};
+            let FoundOrder;
+            let data;
+
+            try {
+                data = await module.exports.getCartData({
+                    companyId: mongoose.Types.ObjectId(String(companyId)),
+                    UserId: mongoose.Types.ObjectId(String(UserId))
+                });
+
+                OrderData = {
+                    UserId,
+                    companyId,
+                    CartId: FoundCart._id,
+                    Products: [],
+                    ReservationStartedAt: new Date()
+                };
+
+                if (data && data[0]) {
+                    if (data.length) {
+                        data = data.map(cart => {
+                            cart.Products = cart.Products.map(prod => {
+                                if (prod?.ProductInfo?.ProductServices && prod?.ServiceInfo) {
+                                    const existingServiceIds = prod.ServiceInfo.map(s => s.ProductServiceId?.toString());
+                                    let remaining = prod.ProductInfo.ProductServices
+                                        .filter(s => !existingServiceIds.includes(s.ProductServiceId?.toString()))
+                                        .filter(s => s.Paid == true);
+                                    prod.RemainingServices = remaining;
+                                } else prod.RemainingServices = [];
+                                delete prod.ProductInfo.ProductServices;
+                                return prod;
+                            });
+                            return cart;
+                        });
+                    }
+
+                    for (let p of data[0].Products) {
+                        if (p.IsActive == false || p.Reserved == true) continue;
+
+                        const variantInfo = await VariantProduct.findById(p.VariantProductId).session(session);
+
+                        let ProductEntry = {
+                            CartProductId: p._id,
+                            OrderStatus: [{ Status: 'INITIATED', StatusAt: Date.now() }],
+                            Quantity: p.Quantity,
+                            TotalPrice: p.TotalPrice,
+                            DiscountPrice: p.DiscountPrice,
+                            FinalPrice: p.FinalPrice,
+                            ProductData: { ProductInfo: {}, VariantProductInfo: {} },
+                            ProductServices: [],
+                            ProductFreeServices: []
+                        };
+
+                        let ProductInfo = {
+                            ProductId: p.ProductId,
+                            ProductName: p.ProductInfo.ProductName,
+                            CommonImages: p.ProductInfo.CommonImages,
+                            CommonVideos: p.ProductInfo.CommonVideos,
+                            CommonDescription: p.ProductInfo.CommonDescription
+                        };
+
+                        let FoundBrand = await brandmodel.findOne({
+                            companyId,
+                            _id: p.ProductInfo.BrandId
+                        }).session(session);
+
+                        if (FoundBrand) {
+                            ProductInfo.BrandId = FoundBrand._id;
+                            ProductInfo.BrandName = FoundBrand.BrandName;
+                        }
+
+                        ProductEntry.ProductData.ProductInfo = ProductInfo;
+
+                        if (variantInfo) {
+                            ProductEntry.ProductData.VariantProductInfo = {
+                                VariantProductId: variantInfo._id,
+                                VariantProductName: variantInfo.VariantProductName,
+                                VariantFields: variantInfo.VariantFields,
+                                OfferPercentage: variantInfo.OfferPercentage,
+                                Price: variantInfo.Price,
+                                Specification: variantInfo.Specification,
+                                AboutProduct: variantInfo.AboutProduct
+                            };
+                        }
+
+                        ProductEntry.ProductServices = p.ServiceInfo.map(s => ({
+                            ProductServiceId: s.ProductServiceId,
+                            ServiceName: s.ServiceName,
+                            Description: s.Description,
+                            ServiceImages: s.ServiceImages,
+                            ProductServiceAmount: s.ProductServiceAmount,
+                            ExpiryDate: s.ExpiryDate
+                        }));
+
+                        ProductEntry.ProductFreeServices = p.FreeServiceInfo.map(s => ({
+                            ProductServiceId: s._id,
+                            ServiceName: s.ServiceName,
+                            Description: s.Description,
+                            ServiceImages: s.ServiceImages,
+                            ProductServiceAmount: s.ProductServiceAmount,
+                            ExpiryDate: s.ExpiryDate
+                        }));
+
+                        OrderData.Products.push(ProductEntry);
+                    }
+                }
+
+                OrderData.TotalCartPrice = parseFloat(OrderData.Products.reduce((a, b) => a + (b.TotalPrice || 0), 0).toFixed(2));
+                OrderData.DiscountCartPrice = parseFloat(OrderData.Products.reduce((a, b) => a + (b.DiscountPrice || 0), 0).toFixed(2));
+                OrderData.FinalCartPrice = parseFloat(OrderData.Products.reduce((a, b) => a + (b.FinalPrice || 0), 0).toFixed(2));
+
+                const SaveOrder = await new ProductOrder(OrderData).save({ session });
+                FoundOrder = await ProductOrder.findOne({ _id: SaveOrder._id }).session(session);
+
+            } catch (err) {
+                console.error("Order Build Error:", err);
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(500).json({ message: "Unable to create order", success: false });
+            }
+
+            if (!FoundOrder) {
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(500).json({ message: "Order initialization failed", success: false });
+            }
+
+            try {
+                let productsToUpdate = [];
+
+                for (let item of FoundOrder.Products) {
+                    if (item.Reserved === true || item.IsActive === false) continue;
+
+                    const variant = await VariantProduct.findOne({
+                        _id: item.ProductData.VariantProductInfo.VariantProductId,
+                        ProductId: item.ProductData.ProductInfo.ProductId,
+                        companyId,
+                        isActive: true
+                    }).session(session);
+
+                    if (!variant) {
+                        await ProductOrder.deleteOne({ _id: FoundOrder._id }).session(session);
+                        await session.abortTransaction();
+                        session.endSession();
+                        return res.status(400).json({ message: "Some products are unavailable", success: false });
+                    }
+
+                    if (variant.InventoryBaseStock.InventoryBase === true) {
+                        const available = variant.InventoryBaseStock?.AvailableStock || 0;
+                        if (item.Quantity > available) {
+                            await ProductOrder.deleteOne({ _id: FoundOrder._id }).session(session);
+                            await session.abortTransaction();
+                            session.endSession();
+                            return res.status(400).json({
+                                message: `Not enough stock for ${variant.VariantProductName || "product"}`,
+                                success: false
+                            });
+                        }
+
+                        productsToUpdate.push({
+                            variantId: variant._id,
+                            quantity: item.Quantity
+                        });
+                    }
+                }
+
+                await Promise.all(productsToUpdate.map(async ({ variantId, quantity }) => {
+                    await VariantProduct.updateOne(
+                        { _id: variantId },
+                        {
+                            $inc: {
+                                "InventoryBaseStock.AvailableStock": -quantity,
+                                "InventoryBaseStock.ReservedStock": quantity
+                            }
+                        }).session(session);
+                }));
+
+            } catch (err) {
+                console.error("Stock Check Error:", err);
+                await ProductOrder.deleteOne({ _id: FoundOrder._id }).session(session);
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(500).json({ message: "Stock validation failed, order deleted", success: false });
+            }
+
+            try {
+                const orderId = `ORDER_${FoundOrder._id.toString().slice(-6)}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+                const totalAmount = FoundOrder.FinalCartPrice || FoundOrder.TotalCartPrice;
+
+                const paytmParams = {
+                    body: {
+                        requestType: "Payment",
+                        mid: process.env.PAYTM_MID,
+                        websiteName: process.env.PAYTM_WEBSITE,
+                        orderId,
+                        callbackUrl: `${process.env.BASE_URL}/api/payment/callback`,
+                        txnAmount: { value: totalAmount.toString(), currency: "INR" },
+                        userInfo: { custId: UserId.toString() }
+                    }
+                };
+
+                const checksum = await PaytmChecksum.generateSignature(
+                    JSON.stringify(paytmParams.body),
+                    process.env.PAYTM_KEY
+                );
+
+                paytmParams.head = { signature: checksum };
+                const post_data = JSON.stringify(paytmParams);
+
+                const options = {
+                    hostname: "securegw.paytm.in",
+                    port: 443,
+                    path: `/theia/api/v1/initiateTransaction?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Content-Length": post_data.length
+                    }
+                };
+
+                const paytmReq = https.request(options, (paytmRes) => {
+                    let response = "";
+
+                    paytmRes.on("data", chunk => response += chunk);
+
+                    paytmRes.on("end", async () => {
+                        try {
+                            const parsedResponse = JSON.parse(response);
+
+                            FoundOrder.PaymentSession = {
+                                orderId,
+                                txnId: null,
+                                status: "INITIATED",
+                                amount: totalAmount,
+                                paymentGateway: "Paytm"
+                            };
+
+                            FoundOrder.ReservationStartedAt = new Date();
+
+                            FoundCart.Products.forEach(p => {
+                                if (p.Reserved === true) return;
+                                const inOrder = FoundOrder.Products.some(op =>
+                                    op.CartProductId.toString() === p._id.toString()
+                                );
+                                if (inOrder) p.Reserved = true;
+                            });
+
+                            for (let Product of FoundOrder.Products) {
+                                let FoundedProduct = FoundCart.Products.find((EachProduct) => Product.CartProductId == EachProduct._id)
+                                if (FoundedProduct) {
+                                    FoundedProduct.Reserved = true
+                                }
+                            }
+
+                            await Promise.all(productsToUpdate.map(async ({ variantId, quantity }) => {
+                                await VariantProduct.updateOne(
+                                    { _id: variantId },
+                                    {
+                                        $inc: {
+                                            "InventoryBaseStock.AvailableStock": -quantity,
+                                            "InventoryBaseStock.ReservedStock": quantity
+                                        }
+                                    }).session(session);
+                            }));
+
+                            await FoundCart.save();
+                            await FoundOrder.save();
+
+                            return res.status(200).json({
+                                message: "Stock reserved and payment initiated.",
+                                success: true,
+                                orderId,
+                                txnToken: parsedResponse.body.txnToken,
+                                amount: totalAmount
+                            });
+
+                        } catch (err) {
+                            await ProductOrder.deleteOne({ _id: FoundOrder._id }).session(session);
+                            console.error("Paytm Response Error:", err);
+                            await session.abortTransaction();
+                            session.endSession();
+                            return res.status(500).json({ message: "Payment gateway error", success: false });
+                        }
+                    });
+                });
+
+                paytmReq.on("error", async (err) => {
+                    await ProductOrder.deleteOne({ _id: FoundOrder._id }).session(session);
+                    console.error("Paytm HTTPS Error:", err);
+                    await session.abortTransaction();
+                    session.endSession();
+                    return res.status(500).json({ message: "Payment request failed", success: false });
+                });
+
+                paytmReq.write(post_data);
+                paytmReq.end();
+
+            } catch (err) {
+                await ProductOrder.deleteOne({ _id: FoundOrder._id }).session(session);
+                console.error("Payment Initiation Error:", err);
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(500).json({ message: "Failed to initiate payment", success: false });
+            }
+
+        } catch (err) {
+            console.error("ProceedToPayment Error:", err);
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(500).json({ message: "Internal Server Error", success: false });
+        }
+    },
 
     handlePaymentStatus: async (req, res) => {
         const { UserId, companyId, paymentInfo } = req.body;
@@ -1134,10 +1545,14 @@ module.exports = {
                 paytmReq.end();
             });
 
-            const resultStatus = verifyPaytmStatus.body?.resultInfo?.resultStatus;
-            const FoundCart = await ProductCart.findOne({ UserId, companyId, CartType: "PaymentPending" });
-            if (!FoundCart) return res.status(400).json({ message: "No pending payment cart found", success: false });
+            let resultStatus = verifyPaytmStatus.body?.resultInfo?.resultStatus;
 
+            let FoundOrder = await ProductOrder.findOne({ UserId, companyId, "PaymentSession.orderId": paymentInfo.orderId });
+
+            if (!FoundOrder) {
+                return res.status(400).json({ message: "Order not found or invalid", success: false });
+            }
+            let FoundCart = await ProductCart.findOne({ UserId, companyId, _id: FoundOrder.CartId })
             if (resultStatus === "TXN_SUCCESS") {
                 for (let item of FoundCart.Products) {
                     await VariantProduct.updateOne(
@@ -1146,39 +1561,94 @@ module.exports = {
                     );
                 }
 
-                await Order.create({
-                    UserId,
-                    companyId,
-                    Products: FoundCart.Products,
-                    PaymentDetails: paymentInfo,
-                    Status: "Paid"
-                });
+                FoundOrder.PaymentSession.status = "SUCCESS";
+                FoundOrder.PaymentSession.txnId = paymentInfo.txnId;
+                FoundOrder.PaymentSession.amount = paymentInfo.amount;
 
                 await ProductCart.deleteOne({ _id: FoundCart._id });
+
+                await Promise.all(FoundCart.Products.map(async (product) => {
+                    const productInOrder = await ProductOrder.findOne({ CartId: FoundCart._id, "Products.ProductId": product.ProductId });
+                    if (productInOrder) {
+                        const productEntries = productInOrder.Products.filter(p => p.CartProductId.toString() === product._id.toString());
+                        if (productEntries.length != 0) {
+                            await ProductCart.updateOne(
+                                { "Products._id": product._id, UserId, companyId },
+                                { $pull: { "Products.$.Reserved": true } }
+                            );
+                        }
+                    }
+                }));
 
                 return res.status(200).json({ message: "✅ Payment verified and order placed successfully.", success: true });
 
             } else {
-                for (let item of FoundCart.Products) {
+
+                for (let product of FoundCart.Products) {
+                    let similarProducts = FoundCart.Products.filter(p =>
+                        p.ProductId.toString() === product.ProductId.toString() &&
+                        p.VariantProductId.toString() === product.VariantProductId.toString()
+                    );
+                    similarProducts = similarProducts.filter(EachProductOld =>
+                        FoundOrder.Products.some(EachProduct => EachProduct.ProductData.ProductInfo.ProductId == EachProductOld.ProductId && EachProduct.ProductData.VariantProductInfo.VariantProductId == EachProductOld.VariantProductId)
+                    )
+
+                    if (similarProducts.length > 1) {
+                        const reservedProduct = similarProducts.filter(p => p.Reserved === true);
+                        const unreservedProduct = similarProducts.filter(p => p.Reserved === false);
+
+                        if (reservedProduct.length !== 0 && unreservedProduct.length !== 0) {
+                            for (let EachReservedProduct of reservedProduct) {
+                                await ProductCart.updateOne(
+                                    { _id: FoundCart._id, "Products._id": EachReservedProduct._id },
+                                    { $pull: { Products: { _id: EachReservedProduct._id } } }
+                                );
+                            }
+
+                        }
+
+                        else if (reservedProduct.length !== 0) {
+                            const highestQuantityProduct = reservedProduct.reduce((max, p) => p.Quantity > max.Quantity ? p : max, reservedProducts[0]);
+
+                            await Promise.all(reservedProduct.map(async (p) => {
+                                if (p._id.toString() !== highestQuantityProduct._id.toString()) {
+                                    await ProductCart.updateOne(
+                                        { _id: FoundCart._id, "Products._id": p._id },
+                                        { $pull: { Products: { _id: p._id } } }
+                                    );
+                                }
+                            }));
+
+                            await ProductCart.updateOne(
+                                { _id: FoundCart._id, "Products._id": highestQuantityProduct._id },
+                                { $set: { "Products.$.Reserved": false } }
+                            );
+                        }
+                    }
+
+                    else if (similarProducts.length === 1 && similarProducts[0].Reserved) {
+                        await ProductCart.updateOne(
+                            { _id: FoundCart._id, "Products._id": similarProducts[0]._id },
+                            { $set: { "Products.$.Reserved": false } }
+                        );
+                    }
+                }
+
+                for (let item of FoundOrder.Products) {
                     await VariantProduct.updateOne(
-                        { _id: item.VariantProductId },
+                        { _id: item.ProductData.VariantProductInfo.VariantProductId },
                         { $inc: { "InventoryBaseStock.AvailableStock": item.Quantity, "InventoryBaseStock.ReservedStock": -item.Quantity } }
                     );
                 }
-
-                FoundCart.CartType = "Regular";
-                FoundCart.ReservationStartedAt = null;
-                FoundCart.ReservationExpiresAt = null;
-                FoundCart.PaymentSession = {
-                    orderId: null, txnId: null, status: "FAILED", amount: 0, paymentGateway: "Paytm"
-                };
                 await FoundCart.save();
+                let FoundOrder = await ProductOrder.findOneAndDelete({ UserId, companyId, "PaymentSession.orderId": paymentInfo.orderId });
 
                 return res.status(200).json({ message: "❌ Payment failed. Stock restored and cart reactivated.", success: false });
             }
 
         } catch (err) {
             console.error("handlePaymentStatus Error:", err);
+
             const FoundCart = await ProductCart.findOne({ UserId, companyId, CartType: "PaymentPending" });
             if (FoundCart) {
                 for (let item of FoundCart.Products) {
@@ -1189,20 +1659,16 @@ module.exports = {
                                 "InventoryBaseStock.AvailableStock": item.Quantity,
                                 "InventoryBaseStock.ReservedStock": -item.Quantity
                             }
-                        }
-                    );
+                        });
                 }
                 FoundCart.CartType = "Regular";
                 await FoundCart.save();
             }
 
-            return res.status(500).json({
-                message: "Internal Server Error",
-                success: false
-            });
-
+            return res.status(500).json({ message: "Internal Server Error", success: false });
         }
     },
+
 
 
     releaseAbandonedCartsCron: () => {
