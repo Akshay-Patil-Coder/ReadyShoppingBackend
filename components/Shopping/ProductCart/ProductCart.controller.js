@@ -178,13 +178,27 @@ module.exports = {
                     });
                 }
                 if (typeof IsActive !== "undefined") existingProduct.IsActive = IsActive;
-
-                if (ProductServiceId && typeof ServiceActive == false) {
+                if (ProductServiceId && typeof ServiceActive !== "undefined") {
                     const sIndex = existingProduct.ProductServices.findIndex(
                         (s) => s.ProductServiceId.toString() === ProductServiceId.toString()
                     );
-                    if (sIndex !== -1)
-                        existingProduct.ProductServices[sIndex].ServiceActive = ServiceActive;
+
+                    if (ServiceActive === true) {
+                        if (sIndex === -1) {
+                            existingProduct.ProductServices.push({
+                                ProductServiceId,
+                                ServiceActive: true
+                            });
+                        } else {
+                            existingProduct.ProductServices[sIndex].ServiceActive = true;
+                        }
+                    }
+
+                    if (ServiceActive === false) {
+                        if (sIndex !== -1) {
+                            existingProduct.ProductServices.splice(sIndex, 1);
+                        }
+                    }
                 }
 
                 if (typeof Quantity !== "undefined") {
@@ -229,6 +243,8 @@ module.exports = {
 
                 return res.status(200).json({ message: "Cart updated successfully", success: true, data: saved });
             }
+        
+
 
             else if (Operation === "remove") {
                 if (existingIndex === -1)
@@ -445,7 +461,7 @@ module.exports = {
 
                 {
                     $lookup: {
-                        from: "users",
+                        from: "readyshoppingusers",
                         localField: "UserId",
                         foreignField: "_id",
                         as: "UserData"
@@ -918,286 +934,10 @@ module.exports = {
     },
 
 
-    proceedToPaymentForCart: async (req, res) => {
-        const { UserId, companyId } = req.body;
 
-        try {
-            try {
-                await module.exports.ValidateCart(req, res);
-            } catch (_) { }
-
-            const FoundCart = await ProductCart.findOne({ UserId, companyId });
-            if (!FoundCart || !FoundCart.Products?.length)
-                return res.status(400).json({ message: "Cart is empty", success: false });
-
-            try {
-                let productsToUpdate = []
-                for (let item of FoundCart.Products) {
-                    if (item.Reserved === true || item.IsActive === false) continue;
-
-                    const variant = await VariantProduct.findOne({
-                        _id: item.VariantProductId,
-                        ProductId: item.ProductId,
-                        companyId,
-                        isActive: true
-                    });
-
-                    if (!variant)
-                        return res.status(400).json({ message: "Some products are unavailable", success: false });
-
-                    if (variant.InventoryBaseStock.InventoryBase === true) {
-                        const available = variant.InventoryBaseStock?.AvailableStock || 0;
-                        if (item.Quantity > available)
-                            return res.status(400).json({
-                                message: `Not enough stock for ${variant.VariantProductName || "product"}`,
-                                success: false
-                            });
-
-                        productsToUpdate.push({
-                            variantId: variant._id,
-                            quantity: item.Quantity
-                        });
-                    }
-                }
-                await Promise.all(productsToUpdate.map(async ({ variantId, quantity }) => {
-                    await VariantProduct.updateOne(
-                        { _id: variantId },
-                        {
-                            $inc: {
-                                "InventoryBaseStock.AvailableStock": -quantity,
-                                "InventoryBaseStock.ReservedStock": quantity
-                            }
-                        }
-                    );
-                }));
-            } catch (err) {
-                console.error("Stock Check Error:", err);
-                return res.status(500).json({ message: "Stock validation failed", success: false });
-            }
-
-            let OrderData = {};
-            let FoundOrder;
-            let data;
-
-            try {
-                data = await module.exports.getCartData({
-                    companyId: mongoose.Types.ObjectId(String(companyId)),
-                    UserId: mongoose.Types.ObjectId(String(UserId))
-                });
-
-                OrderData = {
-                    UserId,
-                    companyId,
-                    CartId: FoundCart._id,
-                    Products: [],
-                    ReservationStartedAt: new Date()
-                };
-
-                if (data && data[0]) {
-                    if (data.length) {
-                        data = data.map(cart => {
-                            cart.Products = cart.Products.map(prod => {
-                                if (prod?.ProductInfo?.ProductServices && prod?.ServiceInfo) {
-                                    const existingServiceIds = prod.ServiceInfo.map(s => s.ProductServiceId?.toString());
-                                    let remaining = prod.ProductInfo.ProductServices
-                                        .filter(s => !existingServiceIds.includes(s.ProductServiceId?.toString()))
-                                        .filter(s => s.Paid == true);
-                                    prod.RemainingServices = remaining;
-                                } else prod.RemainingServices = [];
-                                delete prod.ProductInfo.ProductServices;
-                                return prod;
-                            });
-                            return cart;
-                        });
-                    }
-
-                    for (let p of data[0].Products) {
-                        if (p.IsActive == false) continue;
-                        const variantInfo = await VariantProduct.findById(p.VariantProductId);
-
-                        let ProductEntry = {
-                            CartProductId: p._id,
-                            OrderStatus: [{ Status: 'INITIATED', StatusAt: Date.now() }],
-                            Quantity: p.Quantity,
-                            TotalPrice: p.TotalPrice,
-                            DiscountPrice: p.DiscountPrice,
-                            FinalPrice: p.FinalPrice,
-                            ProductData: { ProductInfo: {}, VariantProductInfo: {} },
-                            ProductServices: [],
-                            ProductFreeServices: []
-                        };
-
-                        let ProductInfo = {
-                            ProductId: p.ProductId,
-                            ProductName: p.ProductInfo.ProductName,
-                            CommonImages: p.ProductInfo.CommonImages,
-                            CommonVideos: p.ProductInfo.CommonVideos,
-                            CommonDescription: p.ProductInfo.CommonDescription
-                        };
-
-                        let FoundBrand = await brandmodel.findOne({
-                            companyId,
-                            _id: p.ProductInfo.BrandId
-                        });
-
-                        if (FoundBrand) {
-                            ProductInfo.BrandId = FoundBrand._id;
-                            ProductInfo.BrandName = FoundBrand.BrandName;
-                        }
-
-                        ProductEntry.ProductData.ProductInfo = ProductInfo;
-
-                        if (variantInfo) {
-                            ProductEntry.ProductData.VariantProductInfo = {
-                                VariantProductId: variantInfo._id,
-                                VariantProductName: variantInfo.VariantProductName,
-                                VariantFields: variantInfo.VariantFields,
-                                OfferPercentage: variantInfo.OfferPercentage,
-                                Price: variantInfo.Price,
-                                Specification: variantInfo.Specification,
-                                AboutProduct: variantInfo.AboutProduct
-                            };
-                        }
-
-                        ProductEntry.ProductServices = p.ServiceInfo.map(s => ({
-                            ProductServiceId: s.ProductServiceId,
-                            ServiceName: s.ServiceName,
-                            Description: s.Description,
-                            ServiceImages: s.ServiceImages,
-                            ProductServiceAmount: s.ProductServiceAmount,
-                            ExpiryDate: s.ExpiryDate
-                        }));
-
-                        ProductEntry.ProductFreeServices = p.FreeServiceInfo.map(s => ({
-                            ProductServiceId: s._id,
-                            ServiceName: s.ServiceName,
-                            Description: s.Description,
-                            ServiceImages: s.ServiceImages,
-                            ProductServiceAmount: s.ProductServiceAmount,
-                            ExpiryDate: s.ExpiryDate
-                        }));
-
-                        OrderData.Products.push(ProductEntry);
-                    }
-                }
-                OrderData.TotalCartPrice = parseFloat(OrderData.Products.reduce((a, b) => a + (b.TotalPrice || 0), 0).toFixed(2));
-                OrderData.DiscountCartPrice = parseFloat(OrderData.Products.reduce((a, b) => a + (b.DiscountPrice || 0), 0).toFixed(2));
-                OrderData.FinalCartPrice = parseFloat(OrderData.Products.reduce((a, b) => a + (b.FinalPrice || 0), 0).toFixed(2));
-
-                const SaveOrder = await new ProductOrder(OrderData).save();
-                FoundOrder = await ProductOrder.findOne({ _id: SaveOrder._id });
-
-            } catch (err) {
-                console.error("Order Build Error:", err);
-                return res.status(500).json({ message: "Unable to create order", success: false });
-            }
-
-            if (!FoundOrder)
-                return res.status(500).json({ message: "Order initialization failed", success: false });
-
-            try {
-                const orderId =
-                    `ORDER_${FoundOrder._id.toString().slice(-6)}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
-
-                const totalAmount = FoundOrder.FinalCartPrice || FoundOrder.TotalCartPrice;
-
-                const paytmParams = {
-                    body: {
-                        requestType: "Payment",
-                        mid: process.env.PAYTM_MID,
-                        websiteName: process.env.PAYTM_WEBSITE,
-                        orderId,
-                        callbackUrl: `${process.env.BASE_URL}/api/payment/callback`,
-                        txnAmount: { value: totalAmount.toString(), currency: "INR" },
-                        userInfo: { custId: UserId.toString() }
-                    }
-                };
-
-                const checksum = await PaytmChecksum.generateSignature(
-                    JSON.stringify(paytmParams.body),
-                    process.env.PAYTM_KEY
-                );
-
-                paytmParams.head = { signature: checksum };
-                const post_data = JSON.stringify(paytmParams);
-
-                const options = {
-                    hostname: "securegw.paytm.in",
-                    port: 443,
-                    path: `/theia/api/v1/initiateTransaction?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Content-Length": post_data.length
-                    }
-                };
-
-                const paytmReq = https.request(options, (paytmRes) => {
-                    let response = "";
-
-                    paytmRes.on("data", chunk => response += chunk);
-
-                    paytmRes.on("end", async () => {
-                        try {
-                            const parsedResponse = JSON.parse(response);
-
-                            FoundOrder.PaymentSession = {
-                                orderId,
-                                txnId: null,
-                                status: "INITIATED",
-                                amount: totalAmount,
-                                paymentGateway: "Paytm"
-                            };
-
-                            FoundOrder.ReservationStartedAt = new Date();
-
-                            FoundCart.Products.forEach(p => {
-                                if (p.Reserved === true) return;
-                                const inOrder = FoundOrder.Products.some(op =>
-                                    op.CartProductId.toString() === p._id.toString()
-                                );
-                                if (inOrder) p.Reserved = true;
-                            });
-
-                            await FoundCart.save();
-                            await FoundOrder.save();
-
-                            return res.status(200).json({
-                                message: "Stock reserved and payment initiated.",
-                                success: true,
-                                orderId,
-                                txnToken: parsedResponse.body.txnToken,
-                                amount: totalAmount
-                            });
-
-                        } catch (err) {
-                            console.error("Paytm Response Error:", err);
-                            return res.status(500).json({ message: "Payment gateway error", success: false });
-                        }
-                    });
-                });
-
-                paytmReq.on("error", (err) => {
-                    console.error("Paytm HTTPS Error:", err);
-                    return res.status(500).json({ message: "Payment request failed", success: false });
-                });
-
-                paytmReq.write(post_data);
-                paytmReq.end();
-
-            } catch (err) {
-                console.error("Payment Initiation Error:", err);
-                return res.status(500).json({ message: "Failed to initiate payment", success: false });
-            }
-
-        } catch (err) {
-            console.error("ProceedToPayment Error:", err);
-            return res.status(500).json({ message: "Internal Server Error", success: false });
-        }
-    },
 
     proceedToPaymentForCart: async (req, res) => {
-        const { UserId, companyId } = req.body;
+        const { UserId, companyId, AddressId } = req.body;
 
         const session = await mongoose.startSession();
         session.startTransaction();
@@ -1212,6 +952,10 @@ module.exports = {
             let OrderData = {};
             let FoundOrder;
             let data;
+            let FoundUser = await User.findOne({ companyId, UserId }).session(session);
+            if (!FoundUser) {
+                return res.status(400).json({ message: "User Not Found", success: false })
+            }
 
             try {
                 data = await module.exports.getCartData({
@@ -1226,6 +970,12 @@ module.exports = {
                     Products: [],
                     ReservationStartedAt: new Date()
                 };
+                if (!FoundUser.Address || FoundUser.Address.length == 0) {
+                    if (!AddressId) {
+
+                    }
+                    let FoundedAddress = FoundUser.Address.find(EachAddress => EachAddress._id == AddressId)
+                }
 
                 if (data && data[0]) {
                     if (data.length) {
@@ -1559,18 +1309,16 @@ module.exports = {
             }
             let FoundCart = await ProductCart.findOne({ UserId, companyId, _id: FoundOrder.CartId })
             if (resultStatus === "TXN_SUCCESS") {
-                for (let item of FoundCart.Products) {
+                for (let item of FoundOrder.Products) {
                     await VariantProduct.updateOne(
-                        { _id: item.VariantProductId },
+                        { _id: item.ProductData.VariantProductInfo.VariantProductId },
                         { $inc: { "InventoryBaseStock.ReservedStock": -item.Quantity } }
                     );
                 }
-
                 FoundOrder.PaymentSession.status = "SUCCESS";
                 FoundOrder.PaymentSession.txnId = paymentInfo.txnId;
                 FoundOrder.PaymentSession.amount = paymentInfo.amount;
 
-                await ProductCart.deleteOne({ _id: FoundCart._id });
 
                 await Promise.all(FoundCart.Products.map(async (product) => {
                     const productInOrder = await ProductOrder.findOne({ CartId: FoundCart._id, "Products.ProductId": product.ProductId });
@@ -1584,7 +1332,7 @@ module.exports = {
                         }
                     }
                 }));
-
+                await FoundOrder.save();
                 return res.status(200).json({ message: "✅ Payment verified and order placed successfully.", success: true });
 
             } else {
@@ -1638,7 +1386,10 @@ module.exports = {
                         );
                     }
                 }
-
+                FoundOrder.PaymentSession.status = "FAILED";
+                FoundOrder.PaymentSession.txnId = paymentInfo.txnId || FoundOrder.PaymentSession.txnId;
+                FoundOrder.PaymentSession.amount = paymentInfo.amount || FoundOrder.PaymentSession.amount;
+                await FoundOrder.save();
                 for (let item of FoundOrder.Products) {
                     await VariantProduct.updateOne(
                         { _id: item.ProductData.VariantProductInfo.VariantProductId },
@@ -1646,7 +1397,6 @@ module.exports = {
                     );
                 }
                 await FoundCart.save();
-                let FoundOrder = await ProductOrder.findOneAndDelete({ UserId, companyId, "PaymentSession.orderId": paymentInfo.orderId });
 
                 return res.status(200).json({ message: "❌ Payment failed. Stock restored and cart reactivated.", success: false });
             }
@@ -1676,35 +1426,270 @@ module.exports = {
 
 
 
-    releaseAbandonedCartsCron: () => {
-        cron.schedule('*/10 * * * *', async () => {
-            console.log('🕒 Running abandoned cart cleanup...');
 
-            const cutoffTime = new Date(Date.now() - 15 * 60 * 1000);
-            const pendingCarts = await ProductCart.find({ CartType: "PaymentPending", ReservationStartedAt: { $lt: cutoffTime } });
+    processPendingOrdersCron: () => {
+        cron.schedule("*/10 * * * *", async () => {
+            console.log("🕒 Running Payment Status Check Cron...");
 
-            for (let cart of pendingCarts) {
-                console.log(`🧾 Releasing abandoned cart ${cart._id}`);
+            try {
+                const cutoffTime = new Date(Date.now() - 15 * 60 * 1000);
 
-                for (let item of cart.Products) {
-                    await VariantProduct.updateOne(
-                        { _id: item.VariantProductId },
-                        { $inc: { "InventoryBaseStock.AvailableStock": item.Quantity, "InventoryBaseStock.ReservedStock": -item.Quantity } }
-                    );
+                const orders = await ProductOrder.find({
+                    'PaymentSession.status': { $in: ["PENDING", "FAILED", 'INITIATED'] },
+                    ReservationStartedAt: { $exists: true }
+                });
+
+                if (!orders.length) {
+                    console.log("ℹ️ No orders to process.");
+                    return;
                 }
 
-                cart.CartType = "Regular";
-                cart.ReservationStartedAt = null;
-                cart.ReservationExpiresAt = null;
-                cart.PaymentSession = {
-                    orderId: null, txnId: null, status: "FAILED", amount: 0, paymentGateway: "Paytm"
-                };
-                await cart.save();
-            }
+                for (const order of orders) {
+                    console.log(`📌 Checking Order: ${order._id}`);
 
-            if (pendingCarts.length) console.log(`✅ Released ${pendingCarts.length} abandoned carts.`);
+
+
+                    const paytmParams = { body: { mid: process.env.PAYTM_MID, orderId: order.PaymentSession.orderId } };
+                    const checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), process.env.PAYTM_KEY);
+                    paytmParams.head = { signature: checksum };
+                    const post_data = JSON.stringify(paytmParams);
+
+                    const options = {
+                        hostname: "securegw.paytm.in",
+                        port: 443,
+                        path: `/v3/order/status`,
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Content-Length": post_data.length }
+                    };
+
+                    const verifyPaytmStatus = await new Promise((resolve, reject) => {
+                        let response = "";
+                        const paytmReq = https.request(options, (paytmRes) => {
+                            paytmRes.on("data", chunk => response += chunk);
+                            paytmRes.on("end", () => {
+                                try { resolve(JSON.parse(response)) }
+                                catch (err) { reject(err) }
+                            });
+                        });
+                        paytmReq.on("error", reject);
+                        paytmReq.write(post_data);
+                        paytmReq.end();
+                    });
+
+                    let resultStatus = verifyPaytmStatus?.body?.resultInfo?.resultStatus;
+                    console.log(`📡 Paytm Status: ${resultStatus} for Order: ${order._id}`);
+
+                    const FoundCart = await ProductCart.findOne({ _id: order.CartId });
+
+                    if (!FoundCart) {
+                        console.log(`❌ Cart missing for order ${order._id}, deleting order.`);
+                        await ProductOrder.deleteOne({ _id: order._id });
+                        continue;
+                    }
+
+                    const isExpired = order.ReservationStartedAt < cutoffTime;
+
+
+
+                    if (isExpired) {
+                        console.log(`⏱️ Order ${order._id} expired (>15 mins).`);
+
+                        if (resultStatus === "TXN_SUCCESS") {
+
+                            for (let item of order.Products) {
+                                await VariantProduct.updateOne(
+                                    { _id: item.ProductData.VariantProductInfo.VariantProductId },
+                                    { $inc: { "InventoryBaseStock.ReservedStock": -item.Quantity } }
+                                );
+                            }
+
+                            order.PaymentSession.status = "SUCCESS";
+                            await order.save();
+
+                            continue;
+                        }
+
+                        if (resultStatus === "TXN_FAILURE" || resultStatus === "FAILURE") {
+                            console.log(`🛑 FAILED after expiry: Removing order ${order._id}`);
+
+                            for (let product of FoundCart.Products) {
+
+                                let similarProducts = FoundCart.Products.filter(p =>
+                                    p.ProductId.toString() === product.ProductId.toString() &&
+                                    p.VariantProductId.toString() === product.VariantProductId.toString()
+                                );
+
+                                similarProducts = similarProducts.filter(EachProductOld =>
+                                    order.Products.some(EachProduct =>
+                                        EachProduct.ProductData.ProductInfo.ProductId == EachProductOld.ProductId &&
+                                        EachProduct.ProductData.VariantProductInfo.VariantProductId == EachProductOld.VariantProductId
+                                    )
+                                );
+
+                                if (similarProducts.length > 1) {
+                                    const reservedProduct = similarProducts.filter(p => p.Reserved === true);
+                                    const unreservedProduct = similarProducts.filter(p => p.Reserved === false);
+
+                                    if (reservedProduct.length && unreservedProduct.length) {
+                                        for (let EachReservedProduct of reservedProduct) {
+                                            await ProductCart.updateOne(
+                                                { _id: FoundCart._id },
+                                                { $pull: { Products: { _id: EachReservedProduct._id } } }
+                                            );
+                                        }
+
+                                    } else if (reservedProduct.length) {
+                                        const highestQuantityProduct =
+                                            reservedProduct.reduce((max, p) => p.Quantity > max.Quantity ? p : max, reservedProduct[0]);
+
+                                        await Promise.all(reservedProduct.map(async (p) => {
+                                            if (p._id.toString() !== highestQuantityProduct._id.toString()) {
+                                                await ProductCart.updateOne(
+                                                    { _id: FoundCart._id },
+                                                    { $pull: { Products: { _id: p._id } } }
+                                                );
+                                            }
+                                        }));
+
+                                        await ProductCart.updateOne(
+                                            { _id: FoundCart._id, "Products._id": highestQuantityProduct._id },
+                                            { $set: { "Products.$.Reserved": false } }
+                                        );
+                                    }
+                                } else if (similarProducts.length === 1 && similarProducts[0].Reserved) {
+                                    await ProductCart.updateOne(
+                                        { _id: FoundCart._id, "Products._id": similarProducts[0]._id },
+                                        { $set: { "Products.$.Reserved": false } }
+                                    );
+                                }
+                            }
+
+                            order.PaymentSession.status = "FAILED";
+                            await order.save();
+
+                            for (let item of order.Products) {
+                                await VariantProduct.updateOne(
+                                    { _id: item.ProductData.VariantProductInfo.VariantProductId },
+                                    {
+                                        $inc: {
+                                            "InventoryBaseStock.AvailableStock": item.Quantity,
+                                            "InventoryBaseStock.ReservedStock": -item.Quantity
+                                        }
+                                    }
+                                );
+                            }
+
+                            await FoundCart.save();
+                            continue;
+                        }
+
+                        if (resultStatus === "PENDING") {
+                            console.log(`🛑 PENDING after expiry: Removing order ${order._id}`);
+
+                            for (let product of FoundCart.Products) {
+
+                                let similarProducts = FoundCart.Products.filter(p =>
+                                    p.ProductId.toString() === product.ProductId.toString() &&
+                                    p.VariantProductId.toString() === product.VariantProductId.toString()
+                                );
+
+                                similarProducts = similarProducts.filter(EachProductOld =>
+                                    order.Products.some(EachProduct =>
+                                        EachProduct.ProductData.ProductInfo.ProductId == EachProductOld.ProductId &&
+                                        EachProduct.ProductData.VariantProductInfo.VariantProductId == EachProductOld.VariantProductId
+                                    )
+                                );
+
+                                if (similarProducts.length > 1) {
+                                    const reservedProduct = similarProducts.filter(p => p.Reserved === true);
+                                    const unreservedProduct = similarProducts.filter(p => p.Reserved === false);
+
+                                    if (reservedProduct.length && unreservedProduct.length) {
+                                        for (let EachReservedProduct of reservedProduct) {
+                                            await ProductCart.updateOne(
+                                                { _id: FoundCart._id },
+                                                { $pull: { Products: { _id: EachReservedProduct._id } } }
+                                            );
+                                        }
+
+                                    } else if (reservedProduct.length) {
+                                        const highestQuantityProduct =
+                                            reservedProduct.reduce((max, p) => p.Quantity > max.Quantity ? p : max, reservedProduct[0]);
+
+                                        await Promise.all(reservedProduct.map(async (p) => {
+                                            if (p._id.toString() !== highestQuantityProduct._id.toString()) {
+                                                await ProductCart.updateOne(
+                                                    { _id: FoundCart._id },
+                                                    { $pull: { Products: { _id: p._id } } }
+                                                );
+                                            }
+                                        }));
+
+                                        await ProductCart.updateOne(
+                                            { _id: FoundCart._id, "Products._id": highestQuantityProduct._id },
+                                            { $set: { "Products.$.Reserved": false } }
+                                        );
+                                    }
+                                } else if (similarProducts.length === 1 && similarProducts[0].Reserved) {
+                                    await ProductCart.updateOne(
+                                        { _id: FoundCart._id, "Products._id": similarProducts[0]._id },
+                                        { $set: { "Products.$.Reserved": false } }
+                                    );
+                                }
+                            }
+
+                            order.PaymentSession.status = "EXPIRED";
+                            await order.save();
+
+                            for (let item of order.Products) {
+                                await VariantProduct.updateOne(
+                                    { _id: item.ProductData.VariantProductInfo.VariantProductId },
+                                    {
+                                        $inc: {
+                                            "InventoryBaseStock.AvailableStock": item.Quantity,
+                                            "InventoryBaseStock.ReservedStock": -item.Quantity
+                                        }
+                                    }
+                                );
+                            }
+
+                            await FoundCart.save();
+                            continue;
+                        }
+
+                    }
+                    else {
+                        console.log(`⏳ Order ${order._id} still within valid time.`);
+
+                        if (resultStatus === "TXN_SUCCESS") {
+
+                            for (let item of order.Products) {
+                                await VariantProduct.updateOne(
+                                    { _id: item.ProductData.VariantProductInfo.VariantProductId },
+                                    { $inc: { "InventoryBaseStock.ReservedStock": -item.Quantity } }
+                                );
+                            }
+
+                            order.PaymentSession.status = "SUCCESS";
+                            await order.save();
+
+                            continue;
+                        }
+
+                        console.log(`🟡 Payment ${resultStatus}. Time not expired → No action.`);
+                        continue;
+                    }
+
+                }
+
+                console.log("✔ Cron finished.");
+
+            } catch (err) {
+                console.error("❌ Cron Error:", err);
+            }
         });
-    },
+    }
+
 
 };
 

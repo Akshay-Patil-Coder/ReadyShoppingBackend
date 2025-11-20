@@ -59,9 +59,9 @@ const cartSchema = new mongoose.Schema({
                 type: Boolean,
                 default: true
             },
-            createdAt:{
-                type:Date,
-                default:Date.now()
+            createdAt: {
+                type: Date,
+                default: Date.now
             }
 
         }
@@ -93,6 +93,56 @@ const OrderSchema = new mongoose.Schema({
     UserId: {
         type: mongoose.Schema.Types.ObjectId,
         required: true
+    },
+    UserDetails: {
+        UserName: {
+            type: String
+        },
+        Email: {
+            type: String
+        },
+        Phone: {
+            type: Number
+        },
+        AddresserName: {
+            type: String,
+            default: "Guest"
+        },
+        AddresserNumber: {
+            type: Number
+        },
+        DefaultAddress: {
+            type: Boolean,
+            default: false
+        },
+        AddressType: {
+            type: String,
+            default: "Home",
+        },
+        Street: {
+            type: String
+        },
+        City: {
+            type: String
+        },
+        State: {
+            type: String
+        },
+        Country: {
+            type: String
+        },
+        PostalCode: {
+            type: Number
+        },
+        Latitude: {
+            type: Number
+        },
+        Longitude: {
+            type: Number
+        },
+        ManualAddress: {
+            type: String
+        }
     },
     companyId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -357,7 +407,7 @@ const OrderSchema = new mongoose.Schema({
     PaymentSession: {
         orderId: { type: String },
         txnId: { type: String },
-        status: { type: String, enum: ['INITIATED', 'SUCCESS', 'FAILED'], default: 'INITIATED' },
+        status: { type: String, enum: ['INITIATED', 'SUCCESS', 'FAILED', 'PENDING', 'EXPIRED'], default: 'INITIATED' },
         amount: { type: Number },
         paymentGateway: { type: String, default: 'Paytm' }
     }
