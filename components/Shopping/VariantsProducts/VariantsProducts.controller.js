@@ -1863,6 +1863,16 @@ module.exports = {
 
                 filteredData = flattened;
             }
+            let ActiveSubCategoryIds = [];
+
+            if (filteredData && filteredData.length !== 0) {
+
+               ActiveSubCategoryIds = [
+                    ...new Set(filteredData.map(p =>p?.SubCategoryId?.toString()))
+                ].filter(Boolean)
+
+            }
+
             if (ListType === 'ProductList') {
 
                 let variantList = [];
@@ -1915,7 +1925,8 @@ module.exports = {
             return res.status(200).json({
                 success: true,
                 message: 'Products fetched successfully',
-                data: filteredData
+                data: filteredData,
+                ActiveSubCategoryIds
             });
 
         } catch (error) {

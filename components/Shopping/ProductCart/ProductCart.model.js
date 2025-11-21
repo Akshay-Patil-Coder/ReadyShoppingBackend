@@ -111,10 +111,7 @@ const OrderSchema = new mongoose.Schema({
         AddresserNumber: {
             type: Number
         },
-        DefaultAddress: {
-            type: Boolean,
-            default: false
-        },
+      
         AddressType: {
             type: String,
             default: "Home",

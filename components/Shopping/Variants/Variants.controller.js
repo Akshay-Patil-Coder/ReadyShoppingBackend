@@ -245,157 +245,359 @@ module.exports = {
             });
         }
     },
+    // getAvailableFilters: async (req, res) => {
+    //     try {
+    //         let { SubCategoryId, companyId } = req.query;
+    //         if (!companyId) {
+    //             return res.status(400).json({ message: 'company not found', success: false });
+    //         }
+    //         if (!SubCategoryId) {
+    //             return res.status(400).json({ message: 'category not found', success: false });
+    //         }
+
+    //         let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
+
+    //         if (SubCategoryId) {
+    //             if (!mongoose.Types.ObjectId.isValid(SubCategoryId)) {
+    //                 return res.status(400).json({ message: 'Invalid SubCategoryId format', success: false });
+    //             }
+    //             matchCondition.SubCategoryId = mongoose.Types.ObjectId.createFromHexString(SubCategoryId);
+    //         }
+
+    //         let data = await module.exports.getVariantData(matchCondition);
+    //         let Filter = {};
+
+    //         if (data?.length) {
+    //             data = data
+    //                 .map((eachData) => {
+    //                     eachData.VariantValues = (eachData.VariantValues || []).filter(
+    //                         (eachValue) => eachValue.Value && eachValue.Count > 0
+    //                     );
+    //                     return eachData;
+    //                 })
+    //                 .filter((eachData) => eachData.VariantValues.length > 0);
+
+    //             if (data.length) Filter.VariantFilter = data;
+    //         }
+
+    //         try {
+    //             let BrandData = await brandmodel
+    //                 .find({
+    //                     companyId,
+    //                     SubCategoryId,
+    //                     isActive: true,
+    //                 })
+    //                 .select('_id BrandName BrandImage');
+
+    //             if (BrandData?.length) {
+    //                 const FilteredBrands = await Promise.all(
+    //                     BrandData.map(async (EachBrand) => {
+    //                         const EachVariantProduct = await VariantProduct.find({
+    //                             BrandId: EachBrand._id,
+    //                             companyId,
+    //                             SubCategoryId,
+    //                         });
+    //                         return EachVariantProduct.length !== 0 ? EachBrand : null;
+    //                     })
+    //                 );
+
+    //                 const ValidBrands = FilteredBrands.filter((b) => b !== null);
+
+    //                 if (ValidBrands.length) Filter.BrandFilter = ValidBrands;
+    //             }
+    //         } catch (error) {
+    //             console.error('Error fetching brand data:', error);
+    //         }
+
+    //         try {
+    //             let BadgesData = await Batch.find({ isActive: true }).select('_id BatchName BatchLogo');
+
+    //             if (BadgesData?.length) {
+    //                 const FilteredBadges = await Promise.all(
+    //                     BadgesData.map(async (EachBadge) => {
+    //                         const EachVariantProduct = await VariantProduct.find({
+    //                             BatchIds: EachBadge._id,
+    //                             companyId,
+    //                             SubCategoryId,
+    //                         });
+    //                         return EachVariantProduct.length !== 0 ? EachBadge : null;
+    //                     })
+    //                 );
+
+    //                 const ValidBadges = FilteredBadges.filter((b) => b !== null);
+
+    //                 if (ValidBadges.length) Filter.BadgeFilter = ValidBadges;
+    //             }
+    //         } catch (error) {
+    //             console.error('Error fetching Badges data:', error);
+    //         }
+
+    //         try {
+    //             const PriceRange = await VariantProduct.aggregate([
+    //                 {
+    //                     $match: {
+    //                         companyId: new mongoose.Types.ObjectId(String(companyId)),
+    //                         SubCategoryId: new mongoose.Types.ObjectId(String(SubCategoryId)),
+    //                     },
+    //                 },
+    //                 {
+    //                     $group: {
+    //                         _id: null,
+    //                         minPrice: { $min: '$Price' },
+    //                         maxPrice: { $max: '$Price' },
+    //                     },
+    //                 },
+    //             ]);
+
+    //             if (PriceRange?.length) {
+    //                 Filter.PriceFilter = {
+    //                     minPrice: PriceRange[0].minPrice || 0,
+    //                     maxPrice: PriceRange[0].maxPrice || 0,
+    //                 };
+    //                 Filter.PriceSort = {
+    //                     lowToHigh: 'lowToHigh',
+    //                     highToLow: 'highToLow'
+    //                 }
+
+    //             }
+
+
+    //         } catch (error) {
+    //             console.error('Error fetching price range:', error);
+    //         }
+    //         try {
+    //             const FoundProducts = await VariantProduct.find({ companyId, SubCategoryId })
+    //             if (FoundProducts && FoundProducts.length !== 0) {
+    //                 Filter.SortByArrivalsFilter = {
+    //                     Newer: 'Newer',
+    //                     Older: 'Older'
+    //                 }
+    //             }
+    //         } catch (error) {
+    //             console.error('Error fetching sort by arrivals:', error);
+    //         }
+    //         if (!Object.keys(Filter).length) {
+    //             return res.status(404).json({
+    //                 message: 'No filters found for this criteria',
+    //                 success: false,
+    //             });
+    //         }
+
+
+
+    //         return res.status(200).json({
+    //             data: Filter,
+    //             success: true,
+    //             message: 'Filters fetched successfully',
+    //         });
+    //     } catch (error) {
+    //         console.error('getAvailableFilters error:', error);
+    //         return res.status(500).json({
+    //             message: 'Internal Server Error',
+    //             error: error.message,
+    //             success: false,
+    //         });
+    //     }
+    // },
     getAvailableFilters: async (req, res) => {
         try {
             let { SubCategoryId, companyId } = req.query;
-            if (!companyId) {
-                return res.status(400).json({ message: 'company not found', success: false });
-            }
-            if (!SubCategoryId) {
-                return res.status(400).json({ message: 'category not found', success: false });
+
+            // --------------------- VALIDATION ---------------------
+            if (!companyId)
+                return res.status(400).json({ message: "company not found", success: false });
+
+            if (!SubCategoryId)
+                return res.status(400).json({ message: "SubCategory not found", success: false });
+
+            if (!mongoose.Types.ObjectId.isValid(companyId))
+                return res.status(400).json({ message: "Invalid companyId format", success: false });
+
+            // Convert companyId
+            const companyObj = new mongoose.Types.ObjectId(companyId);
+
+            // --------------------- HANDLE MULTIPLE SUBCATEGORY IDS ---------------------
+            let SubCatArray = [];
+
+            if (Array.isArray(SubCategoryId)) {
+                // Case: SubCategoryId[]=id1&id[]=id2
+                SubCatArray = SubCategoryId;
+            } else if (typeof SubCategoryId === "string" && SubCategoryId.includes(",")) {
+                // Case: SubCategoryId=id1,id2,id3
+                SubCatArray = SubCategoryId.split(",");
+            } else {
+                // Case: single id
+                SubCatArray = [SubCategoryId];
             }
 
-            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
-
-            if (SubCategoryId) {
-                if (!mongoose.Types.ObjectId.isValid(SubCategoryId)) {
-                    return res.status(400).json({ message: 'Invalid SubCategoryId format', success: false });
+            // Validate all ids
+            for (let id of SubCatArray) {
+                if (!mongoose.Types.ObjectId.isValid(id)) {
+                    return res.status(400).json({ message: "Invalid SubCategoryId format", success: false });
                 }
-                matchCondition.SubCategoryId = mongoose.Types.ObjectId.createFromHexString(SubCategoryId);
             }
 
-            let data = await module.exports.getVariantData(matchCondition);
+            const SubCategoryIds = SubCatArray.map(id => new mongoose.Types.ObjectId(id));
+
+            // MATCH CONDITION
+            let matchCondition = {
+                companyId: companyObj,
+                SubCategoryId: { $in: SubCategoryIds }
+            };
+
             let Filter = {};
 
-            if (data?.length) {
-                data = data
-                    .map((eachData) => {
-                        eachData.VariantValues = (eachData.VariantValues || []).filter(
-                            (eachValue) => eachValue.Value && eachValue.Count > 0
-                        );
-                        return eachData;
-                    })
-                    .filter((eachData) => eachData.VariantValues.length > 0);
+            // --------------------- VARIANT FILTER ---------------------
+            let VariantData = await module.exports.getVariantData(matchCondition);
 
-                if (data.length) Filter.VariantFilter = data;
+            if (VariantData?.length) {
+                VariantData = VariantData
+                    .map(v => ({
+                        ...v,
+                        VariantValues: (v.VariantValues || []).filter(
+                            x => x.Value && x.Count > 0
+                        )
+                    }))
+                    .filter(v => v.VariantValues.length > 0);
+
+                if (VariantData.length)
+                    Filter.VariantFilter = VariantData;
+
+                if(Filter.VariantFilter){
+                    Filter.VariantFilter=Filter.VariantFilter.map(EachVariant=>{return {
+                        _id:EachVariant._id,
+                        VariantName:EachVariant.VariantName,
+                        VariantValues:EachVariant.VariantValues,
+                        Extension:EachVariant.Extension
+                    }})
+                }
             }
 
             try {
-                let BrandData = await brandmodel
+                const BrandData = await brandmodel
                     .find({
-                        companyId,
-                        SubCategoryId,
-                        isActive: true,
+                        companyId: companyObj,
+                        SubCategoryId: { $in: SubCategoryIds },
+                        isActive: true
                     })
-                    .select('_id BrandName BrandImage');
+                    .select("_id BrandName BrandImage");
 
                 if (BrandData?.length) {
-                    const FilteredBrands = await Promise.all(
-                        BrandData.map(async (EachBrand) => {
-                            const EachVariantProduct = await VariantProduct.find({
-                                BrandId: EachBrand._id,
-                                companyId,
-                                SubCategoryId,
+                    const ValidBrands = await Promise.all(
+                        BrandData.map(async brand => {
+                            const exists = await Product.exists({
+                                BrandId: brand._id,
+                                companyId: companyObj,
+                                SubCategoryId: { $in: SubCategoryIds }
                             });
-                            return EachVariantProduct.length !== 0 ? EachBrand : null;
+                            return exists ? brand : null;
                         })
                     );
 
-                    const ValidBrands = FilteredBrands.filter((b) => b !== null);
-
-                    if (ValidBrands.length) Filter.BrandFilter = ValidBrands;
+                    const Filtered = ValidBrands.filter(b => b);
+                    if (Filtered.length)
+                        Filter.BrandFilter = Filtered;
                 }
-            } catch (error) {
-                console.error('Error fetching brand data:', error);
+            } catch (err) {
+                console.error("Brand filter error:", err);
             }
 
+            // --------------------- BADGE FILTER ---------------------
             try {
-                let BadgesData = await Batch.find({ isActive: true }).select('_id BatchName BatchLogo');
+                const BadgesData = await Batch.find({ isActive: true })
+                    .select("_id BatchName BatchLogo");
 
                 if (BadgesData?.length) {
-                    const FilteredBadges = await Promise.all(
-                        BadgesData.map(async (EachBadge) => {
-                            const EachVariantProduct = await VariantProduct.find({
-                                BatchIds: EachBadge._id,
-                                companyId,
-                                SubCategoryId,
+                    const ValidBadges = await Promise.all(
+                        BadgesData.map(async badge => {
+                            const exists = await VariantProduct.exists({
+                                BatchIds: badge._id,
+                                companyId: companyObj,
+                                SubCategoryId: { $in: SubCategoryIds }
                             });
-                            return EachVariantProduct.length !== 0 ? EachBadge : null;
+                            return exists ? badge : null;
                         })
                     );
 
-                    const ValidBadges = FilteredBadges.filter((b) => b !== null);
-
-                    if (ValidBadges.length) Filter.BadgeFilter = ValidBadges;
+                    const Filtered = ValidBadges.filter(b => b);
+                    if (Filtered.length)
+                        Filter.BadgeFilter = Filtered;
                 }
-            } catch (error) {
-                console.error('Error fetching Badges data:', error);
+            } catch (err) {
+                console.error("Badge filter error:", err);
             }
 
+            // --------------------- PRICE FILTER ---------------------
             try {
                 const PriceRange = await VariantProduct.aggregate([
                     {
                         $match: {
-                            companyId: new mongoose.Types.ObjectId(String(companyId)),
-                            SubCategoryId: new mongoose.Types.ObjectId(String(SubCategoryId)),
-                        },
+                            companyId: companyObj,
+                            SubCategoryId: { $in: SubCategoryIds }
+                        }
                     },
                     {
                         $group: {
                             _id: null,
-                            minPrice: { $min: '$Price' },
-                            maxPrice: { $max: '$Price' },
-                        },
-                    },
+                            minPrice: { $min: "$Price" },
+                            maxPrice: { $max: "$Price" }
+                        }
+                    }
                 ]);
 
                 if (PriceRange?.length) {
                     Filter.PriceFilter = {
                         minPrice: PriceRange[0].minPrice || 0,
-                        maxPrice: PriceRange[0].maxPrice || 0,
+                        maxPrice: PriceRange[0].maxPrice || 0
                     };
+
                     Filter.PriceSort = {
-                        lowToHigh: 'lowToHigh',
-                        highToLow: 'highToLow'
-                    }
-
+                        lowToHigh: "lowToHigh",
+                        highToLow: "highToLow"
+                    };
                 }
-
-
-            } catch (error) {
-                console.error('Error fetching price range:', error);
+            } catch (err) {
+                console.error("Price range error:", err);
             }
+
+            // --------------------- SORT BY ARRIVALS ---------------------
             try {
-                const FoundProducts = await VariantProduct.find({ companyId, SubCategoryId })
-                if (FoundProducts && FoundProducts.length !== 0) {
+                const hasProducts = await VariantProduct.exists({
+                    companyId: companyObj,
+                    SubCategoryId: { $in: SubCategoryIds }
+                });
+
+                if (hasProducts) {
                     Filter.SortByArrivalsFilter = {
-                        Newer: 'Newer',
-                        Older: 'Older'
-                    }
+                        Newer: "Newer",
+                        Older: "Older"
+                    };
                 }
-            } catch (error) {
-                console.error('Error fetching sort by arrivals:', error);
+            } catch (err) {
+                console.error("Sort by arrivals error:", err);
             }
+
+            // --------------------- NO FILTERS FOUND ---------------------
             if (!Object.keys(Filter).length) {
                 return res.status(404).json({
-                    message: 'No filters found for this criteria',
-                    success: false,
+                    message: "No filters found",
+                    success: false
                 });
             }
 
-
-
+            // --------------------- SUCCESS ---------------------
             return res.status(200).json({
                 data: Filter,
                 success: true,
-                message: 'Filters fetched successfully',
+                message: "Filters fetched successfully"
             });
+
         } catch (error) {
-            console.error('getAvailableFilters error:', error);
+            console.error("getAvailableFilters error:", error);
             return res.status(500).json({
-                message: 'Internal Server Error',
+                message: "Internal Server Error",
                 error: error.message,
-                success: false,
+                success: false
             });
         }
     },
