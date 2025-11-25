@@ -36,16 +36,24 @@ const upload = multer({
 });
 
 
-router.post('/addmasterusers',upload.single('FunctionallityLogo'), (req, res) => {
+router.post('/addmasterusers', authentication, upload.single('FunctionallityLogo'), (req, res) => {
+    if (req.user.role == 'Admin') {
         return masteruserController.addmasterusers(req, res);
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 });
 
 router.get('/getmasterusers', (req, res) => {
-   return masteruserController.getmasterusers(req, res);
+    return masteruserController.getmasterusers(req, res);
 });
-router.put('/updatemasterusers/:id',upload.single('FunctionallityLogo'), (req, res) => {
+router.put('/updatemasterusers/:id', authentication, upload.single('FunctionallityLogo'), (req, res) => {
+    if (req.user.role == 'Admin') {
         return masteruserController.updatemasterusers(req, res);
-    });
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
+});
 
 
 module.exports = router;

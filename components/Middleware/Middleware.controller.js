@@ -17,7 +17,7 @@ module.exports = {
                 if (data.Role == 'Admin') {
                     req.user = { role: 'Admin' }
                 }
-                if(data.Role == 'User'){
+                if(data.userObject.Role == 'User'){
                     req.user = {role:'User',UserId:data._id,companyId:data.companyId}
                 }
                 if (data.Role === 'Company') {

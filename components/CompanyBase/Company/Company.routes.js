@@ -42,18 +42,46 @@ router.get('/getcompanies', (req, res) => {
   return companiesController.getcompanies(req, res);
 });
 
-router.put('/updatecompanies', upload.single('CompanyLogo'), (req, res) => {
-  return companiesController.updatecompanies(req, res);
+router.put('/updatecompanies', authentication, upload.single('CompanyLogo'), (req, res) => {
+  if (req.user.role == 'Company') {
+    req.body._id = req.user.companyId
+    return companiesController.updatecompanies(req, res);
+  }
+  else if (req.user.role == 'Admin') {
+    return companiesController.updatecompanies(req, res);
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 });
 
-router.delete('/deletecompanies/:_id', (req, res) => {
-  return companiesController.deletecompanies(req, res);
+router.delete('/deletecompanies/:_id', authentication, (req, res) => {
+  if (req.user.role == 'Admin') {
+    return companiesController.deletecompanies(req, res);
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 });
-router.put('/addBankDetailOfCompany', (req, res) => {
-  return companiesController.addBankDetailOfCompany(req, res);
+router.put('/addBankDetailOfCompany', authentication, (req, res) => {
+  if (req.user.role == 'Company') {
+    req.body.companyId = req.user.companyId
+    return companiesController.addBankDetailOfCompany(req, res);
+  }
+  else if (req.user.role == 'Admin') {
+    return companiesController.addBankDetailOfCompany(req, res);
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 });
-router.delete('/deleteBankDetailOfCompany', (req, res) => {
-  return companiesController.deleteBankDetailOfCompany(req, res);
+router.delete('/deleteBankDetailOfCompany', authentication, (req, res) => {
+  if (req.user.role == 'Company') {
+    req.query.companyId = req.user.companyId
+    return companiesController.deleteBankDetailOfCompany(req, res);
+  }
+  else if (req.user.role == 'Admin') {
+    return companiesController.deleteBankDetailOfCompany(req, res);
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 });
 router.post('/logincompany', (req, res) => {
   companiesController.loginCompnay(req, res);
