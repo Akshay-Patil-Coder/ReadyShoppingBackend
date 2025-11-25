@@ -875,9 +875,11 @@ module.exports = {
                 return res.status(400).json({ message: 'Not Found Proper Data Of Company Or User', success: false })
             }
 
+
             try {
-                req.body.UserId = UserId
-                req.body.companyId = companyId
+                req.body = req.body || {};
+                req.body.UserId = UserId;
+                req.body.companyId = companyId;
                 await module.exports.ValidateCart(req, res);
             } catch (e) {
                 console.warn("Cart validation failed:", e.message);
@@ -911,7 +913,7 @@ module.exports = {
                     cart.Products = cart.Products.sort(
                         (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
                     );
-                    cart.Products.filter(EachProduct => EachProduct.Reserved !== true)
+                    cart.Products = cart.Products.filter(EachProduct => EachProduct.Reserved !== true)
                     return cart;
                 });
 

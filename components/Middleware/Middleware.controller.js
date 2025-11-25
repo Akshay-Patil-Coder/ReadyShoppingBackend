@@ -14,15 +14,15 @@ module.exports = {
             }
             if (token) {
                 let data = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-                if (data.Role == 'Admin') {
+                if (data?.Role == 'Admin') {
                     req.user = { role: 'Admin' }
                 }
-                if(data.userObject.Role == 'User'){
+                else if(data?.userObject?.Role == 'User'){
                     req.user = {role:'User',UserId:data.userObject._id,companyId:data.userObject.companyId}
                 }
-                if (data.Role === 'Company') {
+                else if (data?.Role === 'Company') {
                     req.user = { companyId: data.companyId, role: 'Company' };
-                } else if (data.Role === 'Service Provider') {
+                } else if (data?.Role === 'Service Provider') {
                     req.user = { companyId: data.companyId, id: data.ServiceProviderId, role: 'Service Provider' };
                 } else {
                     return res.status(403).json({ message: 'Forbidden: Invalid role' });
