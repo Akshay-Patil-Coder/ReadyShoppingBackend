@@ -56,24 +56,44 @@ const upload = multer({
 
 router.post(
   "/addVariantProduct",
+  authentication,
   upload.fields([
     { name: 'ProductImages', maxCount: 1000 },
     { name: 'ProductVideos', maxCount: 5 },
   ]),
   (req, res) => {
-    return VariantProductController.addVariantProduct(req, res);
+    if (req.user.role == 'Company') {
+      req.body.companyId = req.user.companyId
+      return VariantProductController.addVariantProduct(req, res);
+    }
+    else if (req.user.role == 'Admin') {
+      return VariantProductController.addVariantProduct(req, res);
+
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
   }
 );
 
 router.post(
   "/addVariantProductCSV",
+  authentication,
   upload.fields([
     { name: 'ProductImages', maxCount: 1000 },
     { name: 'ProductVideos', maxCount: 5 },
     { name: 'CSVFile', maxCount: 1 }
   ]),
   (req, res) => {
-    return VariantProductController.addVariantProductCSV(req, res);
+    if (req.user.role == 'Company') {
+      req.body.companyId = req.user.companyId
+      return VariantProductController.addVariantProductCSV(req, res);
+    }
+    else if (req.user.role == 'Admin') {
+      return VariantProductController.addVariantProductCSV(req, res);
+
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
   }
 );
 
@@ -83,27 +103,83 @@ router.get(
     return VariantProductController.getVariantProductCsv(req, res);
   }
 );
-router.put("/UpdateVariantProduct", upload.array('ProductImages', 100), (req, res) => {
-  return VariantProductController.UpdateVariantProduct(req, res)
+router.put("/UpdateVariantProduct", authentication, upload.array('ProductImages', 100), (req, res) => {
+  if (req.user.role == 'Company') {
+    req.body.companyId = req.user.companyId
+    return VariantProductController.UpdateVariantProduct(req, res);
+  }
+  else if (req.user.role == 'Admin') {
+    return VariantProductController.UpdateVariantProduct(req, res);
+
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
+
 });
-router.put("/UpdateProductDetail", (req, res) => {
-  return VariantProductController.UpdateProductDetail(req, res)
+router.put("/UpdateProductDetail", authentication, (req, res) => {
+  if (req.user.role == 'Company') {
+    req.body.companyId = req.user.companyId
+    return VariantProductController.UpdateProductDetail(req, res);
+  }
+  else if (req.user.role == 'Admin') {
+    return VariantProductController.UpdateProductDetail(req, res);
+
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 });
-router.put("/UpdateCommonImages", upload.array('ProductImages', 100), (req, res) => {
-  return VariantProductController.UpdateCommonImages(req, res)
+router.put("/UpdateCommonImages", authentication, upload.array('ProductImages', 100), (req, res) => {
+  if (req.user.role == 'Company') {
+    req.body.companyId = req.user.companyId
+    return VariantProductController.UpdateCommonImages(req, res);
+  }
+  else if (req.user.role == 'Admin') {
+    return VariantProductController.UpdateCommonImages(req, res);
+
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 });
-router.put("/UpdateCommonVideos", upload.array('ProductVideos', 10), (req, res) => {
-  return VariantProductController.UpdateCommonVideos(req, res)
+router.put("/UpdateCommonVideos", authentication, upload.array('ProductVideos', 10), (req, res) => {
+  if (req.user.role == 'Company') {
+    req.body.companyId = req.user.companyId
+    return VariantProductController.UpdateCommonVideos(req, res);
+  }
+  else if (req.user.role == 'Admin') {
+    return VariantProductController.UpdateCommonVideos(req, res);
+
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 });
-router.delete("/DeleteProductWithVariant", (req, res) => {
-  return VariantProductController.DeleteProductWithVariant(req, res)
+router.delete("/DeleteProductWithVariant", authentication, (req, res) => {
+  if (req.user.role == 'Company') {
+    req.body.companyId = req.user.companyId
+    return VariantProductController.DeleteProductWithVariant(req, res);
+  }
+  else if (req.user.role == 'Admin') {
+    return VariantProductController.DeleteProductWithVariant(req, res);
+
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 });
 router.post('/getProductsById', (req, res) => {
   VariantProductController.getProductsById(req, res)
 })
 
-router.put('/updateVariantDetails', (req, res) => {
-  return VariantProductController.updateVariantDetails(req, res)
+router.put('/updateVariantDetails', authentication, (req, res) => {
+  if (req.user.role == 'Company') {
+    req.body.companyId = req.user.companyId
+    return VariantProductController.updateVariantDetails(req, res);
+  }
+  else if (req.user.role == 'Admin') {
+    return VariantProductController.updateVariantDetails(req, res);
+
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
+
 })
 const storage2 = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -133,16 +209,33 @@ const upload2 = multer({
   storage: storage2,
   fileFilter: fileFilter2
 });
-router.post("/addBatch", upload2.single('BatchLogo'), (req, res) => {
-  return VariantProductController.addBatch(req, res)
+router.post("/addBatch", authentication, upload2.single('BatchLogo'), (req, res) => {
+
+  if (req.user.role == 'Admin') {
+    return VariantProductController.addBatch(req, res);
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 });
 router.get("/getBatch", (req, res) => {
   return VariantProductController.getBatch(req, res)
 });
-router.put("/updateBatch", upload2.single('BatchLogo'), (req, res) => {
-  return VariantProductController.updateBatch(req, res)
+router.put("/updateBatch", authentication, upload2.single('BatchLogo'), (req, res) => {
+  if (req.user.role == 'Admin') {
+    return VariantProductController.addBatch(req, res);
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 });
-router.post("/EditBatchOfVariantProduct", (req, res) => {
+router.post("/EditBatchOfVariantProduct", authentication, (req, res) => {
+   if (req.user.role == 'Company') {
+    req.body.companyId = req.user.companyId
+    return VariantProductController.EditBatchOfVariantProduct(req, res);
+  }
+  else if (req.user.role == 'Admin') {
+    return VariantProductController.EditBatchOfVariantProduct(req, res);
+
+  }
   return VariantProductController.EditBatchOfVariantProduct(req, res)
 });
 

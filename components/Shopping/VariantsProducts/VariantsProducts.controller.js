@@ -7,7 +7,6 @@ const fs = require('fs');
 const path = require('path');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const csvParser = require('csv-parser');
-const { filter } = require('lodash');
 module.exports = {
     addVariantProduct: async (req, res) => {
         const {

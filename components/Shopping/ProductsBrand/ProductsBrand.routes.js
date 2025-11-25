@@ -1,6 +1,6 @@
 const mongoose = require('mongoose')
-const  express = require('express')
-const brandController  = require('./ProductsBrand.controller')
+const express = require('express')
+const brandController = require('./ProductsBrand.controller')
 const multer = require('multer')
 const path = require('path')
 const fs = require('fs')
@@ -9,47 +9,71 @@ const { authentication } = require('../../Middleware/Middleware.controller')
 
 //multer  
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-      const uploadDir = path.join(__dirname, '..', '..', 'public', 'BrandImage');
-      
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-  
-      cb(null, uploadDir); 
-    },
-    filename: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      cb(null, 'brand-' + uniqueSuffix + path.basename(file.originalname, path.extname(file.originalname)) + path.extname(file.originalname)); 
-    }
-  });
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '..', '..', 'public', 'BrandImage');
 
- const fileFilter = (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif','image/jpg'];
-    if (!allowedTypes.includes(file.mimetype)) {
-        return cb(new Error('Only image files (jpeg, png, gif,jpg) are allowed'), false);
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
     }
-    cb(null, true);
-};
 
-const upload= multer({ 
-    storage: storage, 
-    fileFilter: fileFilter 
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'brand-' + uniqueSuffix + path.basename(file.originalname, path.extname(file.originalname)) + path.extname(file.originalname));
+  }
 });
 
-router.post("/addbrands", upload.single('BrandImage'),(req,res)=>{
-    return   brandController.addbrands(req,res)
-  });
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
+  if (!allowedTypes.includes(file.mimetype)) {
+    return cb(new Error('Only image files (jpeg, png, gif,jpg) are allowed'), false);
+  }
+  cb(null, true);
+};
 
-router.get('/getBrandsById',(req,res)=>{
-    brandController.getBrandsById(req,res)
+const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter
+});
+
+router.post("/addbrands", authentication, upload.single('BrandImage'), (req, res) => {
+  if (req.user.role == 'Company') {
+    req.body.companyId = req.user.companyId
+    return brandController.addbrands(req, res)
+  }
+  else if (req.user.role == 'Admin') {
+    return brandController.addbrands(req, res)
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
+});
+
+router.get('/getBrandsById', (req, res) => {
+  brandController.getBrandsById(req, res)
 })
- 
-router.put('/updateSubCategoryList',(req,res)=>{
-    return   brandController.updateSubCategoryList(req,res)
+
+router.put('/updateSubCategoryList',authentication, (req, res) => {
+   if (req.user.role == 'Company') {
+    req.query.companyId = req.user.companyId
+    return brandController.updateSubCategoryList(req, res)
+  }
+  else if (req.user.role == 'Admin') {
+    return brandController.updateSubCategoryList(req, res)
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 })
-router.put('/updateBrandDetails',upload.single('BrandImage'),(req,res)=>{
-    return   brandController.updateBrandDetails(req,res)
+router.put('/updateBrandDetails',authentication, upload.single('BrandImage'), (req, res) => {
+  if (req.user.role == 'Company') {
+    req.query.companyId = req.user.companyId
+    return brandController.updateBrandDetails(req, res)
+  }
+  else if (req.user.role == 'Admin') {
+    return brandController.updateBrandDetails(req, res)
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 })
 
 

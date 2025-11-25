@@ -136,88 +136,90 @@ module.exports = {
             return res.status(500).json({ message: 'Internal Server Error', error: error.message, success: false });
         }
     },
-  updateProductsService: async (req, res) => {
-    const cleanupFiles = (files) => {
-        if (!files) return;
-        files.forEach(file => {
-            const filePath = path.join(__dirname, '..', '..', 'public', 'ProductServiceImage', file.filename);
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        });
-    };
+    updateProductsService: async (req, res) => {
+        const cleanupFiles = (files) => {
+            if (!files) return;
+            files.forEach(file => {
+                const filePath = path.join(__dirname, '..', '..', 'public', 'ProductServiceImage', file.filename);
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            });
+        };
 
-    try {
-        const { ServiceName, Description, ServiceProductId } = req.body;
-        const { companyId } = req.query;
+        try {
+            const { ServiceName, Description, ServiceProductId } = req.body;
+            const { companyId } = req.query;
 
-        if (!ServiceProductId || !ServiceName || !companyId) {
+            if (!ServiceProductId || !ServiceName || !companyId) {
+                cleanupFiles(req.files);
+                return res.status(400).json({ message: 'Please insert valid data', success: false });
+            }
+
+            let updateData = { $set: { ServiceName } };
+            if (Description) updateData.$set.Description = Description;
+
+            if (req.files?.length) {
+                const serviceImages = req.files.map(file => file.filename);
+                updateData.$push = { ServiceImages: { $each: serviceImages } };
+            }
+
+            const updatedResult = await ProductService.findOneAndUpdate(
+                { _id: ServiceProductId, companyId },
+                updateData,
+                { new: true }
+            );
+
+            if (!updatedResult) {
+                cleanupFiles(req.files);
+                return res.status(400).json({ message: 'Product Service not updated', success: false });
+            }
+
+            return res.status(200).json({ data: updatedResult, success: true, message: 'Updated successfully' });
+
+        } catch (error) {
             cleanupFiles(req.files);
-            return res.status(400).json({ message: 'Please insert valid data', success: false });
+            console.error('UpdateServiceProductError:', error)
+            return res.status(500).json({ error: error.message, success: false, message: 'Internal Server Error' });
         }
+    },
+    deleteProductServiceImage: async (req, res) => {
+        try {
+            const { ServiceImages, companyId } = req.body;
+            const { id } = req.params;
+            if (!companyId) {
+                return res.status(400).json({ message: 'CompanyN Not Found', success: false })
+            }
+            if (!ServiceImages || !id) {
+                return res.status(400).json({ message: "Product Service ID and image(s) are required", success: false });
+            }
 
-        let updateData = { $set: { ServiceName } };
-        if (Description) updateData.$set.Description = Description;
+            const imagesToDelete = Array.isArray(ServiceImages) ? ServiceImages : [ServiceImages];
 
-        if (req.files?.length) {
-            const serviceImages = req.files.map(file => file.filename);
-            updateData.$push = { ServiceImages: { $each: serviceImages } };
+            const serviceProduct = await ProductService.findById(id);
+            if (!serviceProduct) {
+                return res.status(404).json({ message: "Product Service not found", success: false });
+            }
+
+            const updatedService = await ProductService.findOneAndUpdate(
+                { _id: id,companyId },
+                { $pull: { ServiceImages: { $in: imagesToDelete } } },
+                { new: true }
+            );
+
+            if (!updatedService) {
+                return res.status(400).json({ message: "Product Service image(s) cannot be deleted", success: false });
+            }
+
+            imagesToDelete.forEach(file => {
+                const imagePath = path.join(__dirname, '..', '..', 'public', 'ProductServiceImage', file);
+                if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
+            });
+
+            return res.status(200).json({ message: "Product Service image(s) deleted successfully", success: true, data: updatedService });
+
+        } catch (error) {
+            console.error('ProductServiceImageDeletingError:', error);
+            return res.status(500).json({ error: error.message, success: false, message: "Internal Server Error" });
         }
-
-        const updatedResult = await ProductService.findOneAndUpdate(
-            { _id: ServiceProductId, companyId },
-            updateData,
-            { new: true }
-        );
-
-        if (!updatedResult) {
-            cleanupFiles(req.files);
-            return res.status(400).json({ message: 'Product Service not updated', success: false });
-        }
-
-        return res.status(200).json({ data: updatedResult, success: true, message: 'Updated successfully' });
-
-    } catch (error) {
-        cleanupFiles(req.files);
-        console.error('UpdateServiceProductError:',error)
-        return res.status(500).json({ error: error.message, success: false, message: 'Internal Server Error' });
-    }
-},
-deleteProductServiceImage: async (req, res) => {
-    try {
-        const { ServiceImages } = req.body;
-        const { id } = req.params;
-
-        if (!ServiceImages || !id) {
-            return res.status(400).json({ message: "Product Service ID and image(s) are required", success: false });
-        }
-
-        const imagesToDelete = Array.isArray(ServiceImages) ? ServiceImages : [ServiceImages];
-
-        const serviceProduct = await ProductService.findById(id);
-        if (!serviceProduct) {
-            return res.status(404).json({ message: "Product Service not found", success: false });
-        }
-
-        const updatedService = await ProductService.findOneAndUpdate(
-            { _id: id },
-            { $pull: { ServiceImages: { $in: imagesToDelete } } },
-            { new: true }
-        );
-
-        if (!updatedService) {
-            return res.status(400).json({ message: "Product Service image(s) cannot be deleted", success: false });
-        }
-
-        imagesToDelete.forEach(file => {
-            const imagePath = path.join(__dirname, '..', '..', 'public', 'ProductServiceImage', file);
-            if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
-        });
-
-        return res.status(200).json({ message: "Product Service image(s) deleted successfully", success: true, data: updatedService });
-
-    } catch (error) {
-        console.error('ProductServiceImageDeletingError:', error);
-        return res.status(500).json({ error: error.message, success: false, message: "Internal Server Error" });
-    }
-},
+    },
 
 };

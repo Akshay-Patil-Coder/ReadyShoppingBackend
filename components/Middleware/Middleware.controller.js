@@ -12,14 +12,14 @@ module.exports = {
             if (token.startsWith('Bearer ')) {
                 token = token.slice(7, token.length);
             }
-            console.log(token, 'token')
-            if (token == 'Admin') {
-                req.user = {role: 'Admin' };
-                next();
-            }
-            else {
+            if (token) {
                 let data = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-
+                if (data.Role == 'Admin') {
+                    req.user = { role: 'Admin' }
+                }
+                if(data.Role == 'User'){
+                    req.user = {role:'User',UserId:data._id,companyId:data.companyId}
+                }
                 if (data.Role === 'Company') {
                     req.user = { companyId: data.companyId, role: 'Company' };
                 } else if (data.Role === 'Service Provider') {
@@ -30,13 +30,16 @@ module.exports = {
 
                 next();
             }
+            else {
+                return res.status(401).json({ message: 'Token Not Found. Please log in again.' });
+            }
 
 
         } catch (error) {
             if (error.name === 'TokenExpiredError') {
                 return res.status(401).json({ message: 'Token has expired. Please log in again.' });
-              }
-              console.error('Authentication Error:', error.message);
+            }
+            console.error('Authentication Error:', error.message);
             return res.status(401).json({ message: 'Invalid or expired token' });
         }
     }

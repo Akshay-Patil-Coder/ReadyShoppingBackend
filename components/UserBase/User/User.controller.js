@@ -132,6 +132,8 @@ module.exports = {
           _id: user._id,
           phone: user.Phone,
           email: user.Email || "",
+          Role:'User',
+          companyId:user.companyId
         };
 
         const token = jwt.sign({ userObject }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "7d" });

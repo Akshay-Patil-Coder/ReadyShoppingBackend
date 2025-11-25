@@ -432,13 +432,12 @@ module.exports = {
 
     updateCategory: async (req, res) => {
         try {
-            const { categoryName } = req.body;
-
+            const { categoryName, companyId } = req.body;
+            if(!companyId){
+                return res.status(400).json({message:'Company Not Found',success:false})
+            }
             const category = await dynamicCategoriesModel.findOne({
-                $or: [
-                    { _id: req.params.id },
-                    { categoryName: categoryName }
-                ]
+                _id: req.params.id, companyId
             });
 
             if (!category) {
@@ -450,7 +449,7 @@ module.exports = {
                 }
                 return res.status(404).send({ success: false, message: "Category not found" });
             }
-            let updatedData = { ...req.body, updatedAt: new Date() };
+            let updatedData = { categoryName:categoryName, updatedAt: new Date() };
 
             if (req.file?.filename) {
                 if (category?.imageName) {

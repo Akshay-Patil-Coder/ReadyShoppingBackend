@@ -4,21 +4,41 @@ const cartsController = require('./ProductCart.controller')
 const { authentication } = require('../../Middleware/Middleware.controller')
 
 
-router.post('/addtocart',(req,res)=>{
-    cartsController.addtocart(req,res)
+router.post('/addtocart', authentication, (req, res) => {
+    if (req.user.role == 'User') {
+        req.body.UserId = req.user.UserId
+        req.body.companyId = req.user.companyId
+        return cartsController.addtocart(req, res)
+    }
+    return res.status(400).json({ message: 'User Not Found', success: false })
+
 })
 
 
-router.get('/getCart',(req,res)=>{
-    cartsController.getCart(req,res)
+router.get('/getCart', authentication, (req, res) => {
+    if (req.user.role == 'User') {
+        req.query.UserId = req.user.UserId
+        req.query.companyId = req.user.companyId
+        return cartsController.getCart(req, res)
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 })
-router.get('/getCart',(req,res)=>{
-    cartsController.getCart(req,res)
+
+router.post('/proceedToPaymentForCart', (req, res) => {
+    if (req.user.role == 'User') {
+        req.body.UserId = req.user.UserId
+        req.body.companyId = req.user.companyId
+        return cartsController.proceedToPaymentForCart(req, res)
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 })
-router.post('/proceedToPaymentForCart',(req,res)=>{
-    cartsController.proceedToPaymentForCart(req,res)
-})
-router.post('/handlePaymentStatus',(req,res)=>{
-    cartsController.handlePaymentStatus(req,res)
+router.post('/handlePaymentStatus', (req, res) => {
+    if (req.user.role == 'User') {
+        req.body.UserId = req.user.UserId
+        req.body.companyId = req.user.companyId
+        return cartsController.handlePaymentStatus(req, res)
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 })
 module.exports = router

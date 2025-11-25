@@ -1,6 +1,6 @@
 const mongoose = require('mongoose')
-const  express = require('express')
-const ProductReviewController  = require('./ProductRating.controller')
+const express = require('express')
+const ProductReviewController = require('./ProductRating.controller')
 const multer = require('multer')
 const path = require('path')
 const fs = require('fs')
@@ -35,19 +35,35 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
-router.post("/addProductReview",upload.array('ReviewImages', 10),(req,res)=>{
-    return   ProductReviewController.addProductReview(req,res)
-  });
+router.post("/addProductReview", authentication, upload.array('ReviewImages', 10), (req, res) => {
+  if (req.user.role == 'User') {
+    req.body.UserId = req.user.UserId
+    req.body.companyId = req.user.companyId
+    return ProductReviewController.addProductReview(req, res)
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
-router.delete('/DeleteReview',(req,res)=>{
-    ProductReviewController.DeleteReview(req,res)
+});
+
+router.delete('/DeleteReview', authentication, (req, res) => {
+  if (req.user.role == 'Company') {
+    req.body.companyId = req.user.companyId
+    return ProductReviewController.DeleteReview(req, res)
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 })
 
-router.put('/MakeResponseReview',(req,res)=>{
-    return   ProductReviewController.MakeResponseReview(req,res)
+router.put('/MakeResponseReview', authentication, (req, res) => {
+  if (req.user.role == 'User') {
+    req.body.UserId = req.user.UserId
+    req.body.companyId = req.user.companyId
+    return ProductReviewController.MakeResponseReview(req, res)
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 })
-router.get('/getReview',(req,res)=>{
-    return   ProductReviewController.getReview(req,res)
+router.get('/getReview', (req, res) => {
+  return ProductReviewController.getReview(req, res)
 })
 
 

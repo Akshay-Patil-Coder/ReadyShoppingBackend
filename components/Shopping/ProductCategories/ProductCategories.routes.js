@@ -8,25 +8,32 @@ const { authentication } = require('../../Middleware/Middleware.controller')
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const dir = path.join(__dirname, '..','..','public','ProductCategories');
+        const dir = path.join(__dirname, '..', '..', 'public', 'ProductCategories');
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
         }
         cb(null, dir);
     },
     filename: (req, file, cb) => {
-         const uniqueSuffix = Date.now()+'-'+Math.round(Math.random()*1E9)
-        cb(null,'ShoppingCategory-'+ uniqueSuffix + path.basename(file.originalname,path.extname(file.originalname)) + path.extname(file.originalname));
-  
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+        cb(null, 'ShoppingCategory-' + uniqueSuffix + path.basename(file.originalname, path.extname(file.originalname)) + path.extname(file.originalname));
+
     }
 });
 
 
 const upload = multer({ storage });
 
-router.post('/addCategory',  upload.single('image'), (req, res) => {
-        return dynamicCategoryController.addCategory(req, res);
-  });
+router.post('/addCategory', authentication, upload.single('image'), (req, res) => {
+    if (req.user.role == 'Company') {
+        req.body.companyId = req.user.companyId
+        return dynamicCategoryController.addCategory(req, res)
+    }
+    else if (req.user.role == 'Admin') {
+        return dynamicCategoryController.addCategory(req, res)
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+});
 
 
 router.get('/getCategory', (req, res) => {
@@ -42,16 +49,33 @@ router.get('/getCategoryWithLeafNodes', (req, res) => {
 router.get('/getCategoryWithHeadAndLeafParentNodes', (req, res) => {
     dynamicCategoryController.getCategoryWithHeadAndLeafParentNodes(req, res);
 });
-router.put('/updateCategory/:id',  upload.single('image'), (req, res) => {
-        return dynamicCategoryController.updateCategory(req, res);
-  });
+router.put('/updateCategory/:id', authentication, upload.single('image'), (req, res) => {
+    if (req.user.role == 'Company') {
+        req.body.companyId = req.user.companyId
+        return dynamicCategoryController.updateCategory(req, res)
+    }
+    else if (req.user.role == 'Admin') {
+        return dynamicCategoryController.updateCategory(req, res)
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
-router.post('/toggleCategoriesStatus',  (req, res) => {
-        return dynamicCategoryController.toggleCategoriesStatus(req, res);
-   });
+});
 
-router.delete('/deleteCategories', (req, res) => {
-        return dynamicCategoryController.deleteCategories(req, res);
+router.post('/toggleCategoriesStatus', (req, res) => {
+    return dynamicCategoryController.toggleCategoriesStatus(req, res);
+});
+
+router.delete('/deleteCategories', authentication, (req, res) => {
+    if (req.user.role == 'Company') {
+        req.query.companyId = req.user.companyId
+        return dynamicCategoryController.deleteCategories(req, res)
+    }
+    else if (req.user.role == 'Admin') {
+        return dynamicCategoryController.deleteCategories(req, res)
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
+  
 });
 
 module.exports = router;

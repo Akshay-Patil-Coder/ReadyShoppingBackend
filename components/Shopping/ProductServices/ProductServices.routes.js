@@ -1,6 +1,6 @@
 const mongoose = require('mongoose')
-const  express = require('express')
-const ProductServiceController  = require('./ProductServices.controller')
+const express = require('express')
+const ProductServiceController = require('./ProductServices.controller')
 const multer = require('multer')
 const path = require('path')
 const fs = require('fs')
@@ -35,19 +35,44 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
-router.post("/addProductService",upload.array('ProductServiceImages', 10),(req,res)=>{
-    return   ProductServiceController.addProductService(req,res)
-  });
+router.post("/addProductService", authentication, upload.array('ProductServiceImages', 10), (req, res) => {
+  if (req.user.role == 'Company') {
+    req.body.companyId = req.user.companyId
+    return ProductServiceController.addProductService(req, res)
+  }
+  else if (req.user.role == 'Admin') {
+    return ProductServiceController.addProductService(req, res)
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
-router.get('/getProductServicesById',(req,res)=>{
-    ProductServiceController.getProductServicesById(req,res)
+
+});
+
+router.get('/getProductServicesById', (req, res) => {
+  ProductServiceController.getProductServicesById(req, res)
 })
 
-router.put('/updateProductsService',upload.array('ProductServiceImages', 10),(req,res)=>{
-    return   ProductServiceController.updateProductsService(req,res)
+router.put('/updateProductsService', authentication, upload.array('ProductServiceImages', 10), (req, res) => {
+  if (req.user.role == 'Company') {
+    req.query.companyId = req.user.companyId
+    return ProductServiceController.updateProductsService(req, res)
+  }
+  else if (req.user.role == 'Admin') {
+    return ProductServiceController.updateProductsService(req, res)
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 })
-router.delete('/deleteProductServiceImage/:id',(req,res)=>{
-    return   ProductServiceController.deleteProductServiceImage(req,res)
+router.delete('/deleteProductServiceImage/:id', authentication, (req, res) => {
+  if (req.user.role == 'Company') {
+    req.body.companyId = req.user.companyId
+    return ProductServiceController.deleteProductServiceImage(req, res)
+  }
+  else if (req.user.role == 'Admin') {
+    return ProductServiceController.deleteProductServiceImage(req, res)
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 })
 
 

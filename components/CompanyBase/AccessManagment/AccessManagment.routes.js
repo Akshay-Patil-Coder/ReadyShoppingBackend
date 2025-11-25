@@ -15,12 +15,24 @@ router.get('/getadminusers', async (req, res) => {
 router.get('/getadminusersforallcompany', async (req, res) => {
     await adminUserController.getadminusersforallcompany(req, res);
 });
-router.put('/deleteFunctionallity', async (req, res) => {
+router.put('/deleteFunctionallity', authentication, async (req, res) => {
+    if (req.user.role == 'Company') {
+        req.body.companyId = req.user.companyId
         return await adminUserController.deleteFunctionallity(req, res);
+    }
+    else if (req.user.role == 'Admin') {
+        return await adminUserController.deleteFunctionallity(req, res);
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 });
 
-router.delete('/deleteadminusers/:id', async (req, res) => {
+router.delete('/deleteadminusers/:id', authentication, async (req, res) => {
+    if (req.user.role == 'Admin') {
         return await adminUserController.deleteadminusers(req, res);
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 });
 
 module.exports = router;

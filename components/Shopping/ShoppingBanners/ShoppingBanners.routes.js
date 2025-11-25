@@ -36,20 +36,56 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
-router.post('/addbanner', upload.single('BannerImage'), (req, res) => {
-    return bannersController.addbanner(req, res);
+router.post('/addbanner',authentication, upload.single('BannerImage'), (req, res) => {
+   if (req.user.role == 'Company') {
+      req.body.companyId = req.user.companyId
+      return bannersController.addbanner(req, res);
+    }
+    else if (req.user.role == 'Admin') {
+        return bannersController.addbanner(req, res);
+
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+  
 })
 router.get('/getBannersById', (req, res) => {
   bannersController.getBannersById(req, res)
 })
-router.put('/updateProductsById', (req, res) => {
-    return bannersController.updateProductsById(req, res)
+router.put('/updateProductsById',authentication, (req, res) => {
+  if (req.user.role == 'Company') {
+      req.query.companyId = req.user.companyId
+      return bannersController.updateProductsById(req, res);
+    }
+    else if (req.user.role == 'Admin') {
+        return bannersController.updateProductsById(req, res);
+
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+  
 })
-router.put('/updateBannerDetails', upload.single('BannerImage'), (req, res) => {
-    return bannersController.updateBannerDetails(req, res)
+router.put('/updateBannerDetails',authentication, upload.single('BannerImage'), (req, res) => {
+   if (req.user.role == 'Company') {
+      req.query.companyId = req.user.companyId
+      return bannersController.updateBannerDetails(req, res);
+    }
+    else if (req.user.role == 'Admin') {
+        return bannersController.updateBannerDetails(req, res);
+
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+  
 })
-router.delete('/deleteBanner', (req, res) => {
-    return bannersController.deleteBanner(req, res)
+router.delete('/deleteBanner',authentication, (req, res) => {
+   if (req.user.role == 'Company') {
+      req.query.companyId = req.user.companyId
+      return bannersController.deleteBanner(req, res);
+    }
+    else if (req.user.role == 'Admin') {
+        return bannersController.deleteBanner(req, res);
+
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+ 
  })
 
 
