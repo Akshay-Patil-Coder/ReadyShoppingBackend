@@ -615,7 +615,6 @@ module.exports = {
             if (!data) {
                 return resp.status(400).json({ message: "token is expired or data not found", success: false })
             }
-            console.log(data, 'data')
             resp.status(200).json({ message: 'token verified successfully', data: data })
 
         } catch (error) {
