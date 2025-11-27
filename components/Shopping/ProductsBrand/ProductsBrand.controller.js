@@ -8,6 +8,8 @@ module.exports = {
   addbrands: async (req, resp) => {
     try {
       let { BrandName, companyId, HeadCategoryId, SubCategoryId } = req.body;
+      if (req.user.companyId) companyId = req.user.companyId
+
       if (SubCategoryId) {
         try {
           if (typeof SubCategoryId === "string") {
@@ -122,8 +124,9 @@ module.exports = {
   updateSubCategoryList: async (req, resp) => {
     try {
       let { BrandId, SubCategoryId } = req.body;
-      const companyId = req.query.companyId;
+      let companyId = req.query.companyId;
       const operation = req.query.operation;
+      if (req.user.companyId) companyId = req.user.companyId
 
       if (!BrandId || !SubCategoryId || SubCategoryId.length === 0) {
         return resp.status(400).send({ message: 'Please insert valid data', success: false });
@@ -154,8 +157,8 @@ module.exports = {
   updateBrandDetails: async (req, resp) => {
     try {
       const { BrandId, BrandName, SubCategoryId } = req.body;
-      const companyId = req.query.companyId;
-
+      let companyId = req.query.companyId;
+      if (req.user.companyId) companyId = req.user.companyId
       if (!BrandId || !BrandName) {
         if (req.file?.filename) {
           const newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);

@@ -62,14 +62,10 @@ router.post(
     { name: 'ProductVideos', maxCount: 5 },
   ]),
   (req, res) => {
-    if (req.user.role == 'Company') {
-      req.body.companyId = req.user.companyId
+    if (req.user.role == 'Company' || req.user.role == 'Admin') {
       return VariantProductController.addVariantProduct(req, res);
     }
-    else if (req.user.role == 'Admin') {
-      return VariantProductController.addVariantProduct(req, res);
-
-    }
+   
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
   }
@@ -84,13 +80,8 @@ router.post(
     { name: 'CSVFile', maxCount: 1 }
   ]),
   (req, res) => {
-    if (req.user.role == 'Company') {
-      req.body.companyId = req.user.companyId
+    if (req.user.role == 'Company' || req.user.role == 'Admin') {
       return VariantProductController.addVariantProductCSV(req, res);
-    }
-    else if (req.user.role == 'Admin') {
-      return VariantProductController.addVariantProductCSV(req, res);
-
     }
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
@@ -104,63 +95,43 @@ router.get(
   }
 );
 router.put("/UpdateVariantProduct", authentication, upload.array('ProductImages', 100), (req, res) => {
-  if (req.user.role == 'Company') {
-    req.body.companyId = req.user.companyId
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return VariantProductController.UpdateVariantProduct(req, res);
   }
-  else if (req.user.role == 'Admin') {
-    return VariantProductController.UpdateVariantProduct(req, res);
-
-  }
+ 
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 
 });
 router.put("/UpdateProductDetail", authentication, (req, res) => {
-  if (req.user.role == 'Company') {
-    req.body.companyId = req.user.companyId
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return VariantProductController.UpdateProductDetail(req, res);
   }
-  else if (req.user.role == 'Admin') {
-    return VariantProductController.UpdateProductDetail(req, res);
-
-  }
+ 
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 });
 router.put("/UpdateCommonImages", authentication, upload.array('ProductImages', 100), (req, res) => {
-  if (req.user.role == 'Company') {
-    req.body.companyId = req.user.companyId
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return VariantProductController.UpdateCommonImages(req, res);
   }
-  else if (req.user.role == 'Admin') {
-    return VariantProductController.UpdateCommonImages(req, res);
-
-  }
+ 
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 });
 router.put("/UpdateCommonVideos", authentication, upload.array('ProductVideos', 10), (req, res) => {
-  if (req.user.role == 'Company') {
-    req.body.companyId = req.user.companyId
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return VariantProductController.UpdateCommonVideos(req, res);
   }
-  else if (req.user.role == 'Admin') {
-    return VariantProductController.UpdateCommonVideos(req, res);
 
-  }
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 });
 router.delete("/DeleteProductWithVariant", authentication, (req, res) => {
-  if (req.user.role == 'Company') {
-    req.body.companyId = req.user.companyId
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return VariantProductController.DeleteProductWithVariant(req, res);
   }
-  else if (req.user.role == 'Admin') {
-    return VariantProductController.DeleteProductWithVariant(req, res);
-
-  }
+ 
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 });
@@ -169,14 +140,10 @@ router.post('/getProductsById', (req, res) => {
 })
 
 router.put('/updateVariantDetails', authentication, (req, res) => {
-  if (req.user.role == 'Company') {
-    req.body.companyId = req.user.companyId
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return VariantProductController.updateVariantDetails(req, res);
   }
-  else if (req.user.role == 'Admin') {
-    return VariantProductController.updateVariantDetails(req, res);
-
-  }
+  
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 

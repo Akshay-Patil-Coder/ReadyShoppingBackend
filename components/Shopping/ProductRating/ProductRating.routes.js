@@ -37,8 +37,6 @@ const upload = multer({
 
 router.post("/addProductReview", authentication, upload.array('ReviewImages', 10), (req, res) => {
   if (req.user.role == 'User') {
-    req.body.UserId = req.user.UserId
-    req.body.companyId = req.user.companyId
     return ProductReviewController.addProductReview(req, res)
   }
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
@@ -47,7 +45,6 @@ router.post("/addProductReview", authentication, upload.array('ReviewImages', 10
 
 router.delete('/DeleteReview', authentication, (req, res) => {
   if (req.user.role == 'Company') {
-    req.body.companyId = req.user.companyId
     return ProductReviewController.DeleteReview(req, res)
   }
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
@@ -55,8 +52,6 @@ router.delete('/DeleteReview', authentication, (req, res) => {
 
 router.put('/MakeResponseReview', authentication, (req, res) => {
   if (req.user.role == 'User') {
-    req.body.UserId = req.user.UserId
-    req.body.companyId = req.user.companyId
     return ProductReviewController.MakeResponseReview(req, res)
   }
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })

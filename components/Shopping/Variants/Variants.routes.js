@@ -8,14 +8,10 @@ const router = express.Router()
 const { authentication } = require('../../Middleware/Middleware.controller')
 
 router.post("/addVariant", authentication, (req, res) => {
-    if (req.user.role == 'Company') {
-        req.body.companyId = req.user.companyId
+    if (req.user.role == 'Company' ||req.user.role == 'Admin') {
         return VariantController.addVariant(req, res)
     }
-    else if (req.user.role == 'Admin') {
-        return VariantController.addVariant(req, res)
-
-    }
+    
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 });
@@ -27,14 +23,10 @@ router.get('/getAvailableFilters', (req, res) => {
     VariantController.getAvailableFilters(req, res)
 })
 router.put('/updateVariantDetails', authentication, (req, res) => {
-    if (req.user.role == 'Company') {
-        req.query.companyId = req.user.companyId
+    if (req.user.role == 'Company' ||req.user.role == 'Admin') {
         return VariantController.updateVariantDetails(req, res)
     }
-    else if (req.user.role == 'Admin') {
-        return VariantController.updateVariantDetails(req, res)
-
-    }
+   
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 })

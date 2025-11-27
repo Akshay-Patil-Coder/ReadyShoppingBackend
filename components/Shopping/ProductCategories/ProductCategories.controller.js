@@ -13,6 +13,7 @@ module.exports = {
     addCategory: async (req, res) => {
         try {
             let { companyId, categoryName, parentCategoryId, Description } = req.body;
+            if (req.user.companyId) companyId = req.user.companyId
 
             if (!companyId || !categoryName || !Description) {
                 if (req.file?.filename) {
@@ -432,7 +433,9 @@ module.exports = {
 
     updateCategory: async (req, res) => {
         try {
-            const { categoryName, companyId } = req.body;
+            let { categoryName, companyId } = req.body;
+            if (req.user.companyId) companyId = req.user.companyId
+
             if(!companyId){
                 return res.status(400).json({message:'Company Not Found',success:false})
             }
@@ -517,7 +520,8 @@ module.exports = {
 
     deleteCategories: async (req, res) => {
         try {
-            const { _id, companyId } = req.query;
+            let { _id, companyId } = req.query;
+            if (req.user.companyId) companyId = req.user.companyId
 
             const category = await dynamicCategoriesModel.findOne({ _id, companyId });
             if (!category) {

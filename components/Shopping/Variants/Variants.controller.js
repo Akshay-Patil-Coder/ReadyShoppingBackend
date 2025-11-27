@@ -9,7 +9,8 @@ const path = require('path');
 module.exports = {
     addVariant: async (req, res) => {
         try {
-            const { companyId, HeadCategoryId, SubCategoryId, VariantName, VariantType, VariantValues, Extension } = req.body;
+            let { companyId, HeadCategoryId, SubCategoryId, VariantName, VariantType, VariantValues, Extension } = req.body;
+            if (req.user.companyId) companyId = req.user.companyId
 
             if (!companyId || !HeadCategoryId || !SubCategoryId || !VariantName || !VariantType) {
                 return res.status(400).json({
@@ -167,7 +168,8 @@ module.exports = {
     updateVariantDetails: async (req, res) => {
         try {
             const { VariantId, VariantName, VariantValues, Extension } = req.body;
-            const companyId = req.query.companyId;
+            let companyId = req.query.companyId;
+            if (req.user.companyId) companyId = req.user.companyId
 
             if (!VariantId || !companyId) {
                 return res.status(400).json({ message: 'Please insert valid data', success: false });

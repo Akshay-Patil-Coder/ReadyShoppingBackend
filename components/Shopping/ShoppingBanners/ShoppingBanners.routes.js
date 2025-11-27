@@ -37,14 +37,10 @@ const upload = multer({
 });
 
 router.post('/addbanner',authentication, upload.single('BannerImage'), (req, res) => {
-   if (req.user.role == 'Company') {
-      req.body.companyId = req.user.companyId
+   if (req.user.role == 'Company' || req.user.role == 'Admin') {
       return bannersController.addbanner(req, res);
     }
-    else if (req.user.role == 'Admin') {
-        return bannersController.addbanner(req, res);
-
-    }
+   
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
   
 })
@@ -52,38 +48,26 @@ router.get('/getBannersById', (req, res) => {
   bannersController.getBannersById(req, res)
 })
 router.put('/updateProductsById',authentication, (req, res) => {
-  if (req.user.role == 'Company') {
-      req.query.companyId = req.user.companyId
+  if (req.user.role == 'Company' ||req.user.role == 'Admin') {
       return bannersController.updateProductsById(req, res);
     }
-    else if (req.user.role == 'Admin') {
-        return bannersController.updateProductsById(req, res);
-
-    }
+   
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
   
 })
 router.put('/updateBannerDetails',authentication, upload.single('BannerImage'), (req, res) => {
-   if (req.user.role == 'Company') {
-      req.query.companyId = req.user.companyId
+   if (req.user.role == 'Company' || req.user.role == 'Admin') {
       return bannersController.updateBannerDetails(req, res);
     }
-    else if (req.user.role == 'Admin') {
-        return bannersController.updateBannerDetails(req, res);
-
-    }
+   
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
   
 })
 router.delete('/deleteBanner',authentication, (req, res) => {
-   if (req.user.role == 'Company') {
-      req.query.companyId = req.user.companyId
+   if (req.user.role == 'Company' || req.user.role == 'Admin') {
       return bannersController.deleteBanner(req, res);
     }
-    else if (req.user.role == 'Admin') {
-        return bannersController.deleteBanner(req, res);
-
-    }
+  
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
  
  })

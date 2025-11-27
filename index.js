@@ -12,6 +12,7 @@ const cors = require('cors')
 const PaytmChecksum = require("paytmchecksum");
 const https = require("https");
 const crypto = require('crypto');
+const axios = require('axios')
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -19,7 +20,7 @@ app.set("view engine", "ejs");
 
 app.use(cors({
   origin: '*',
-  methods: ["GET", "POST", "PUT", "DELETE", "PETCH", "HEAD"],
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
@@ -304,36 +305,84 @@ function groupCartByKey(cartProducts = [], orderProductKeySet) {
   return Array.from(map.values());
 }
 
+
+
+let cronRunning = false;
+
 cron.schedule("*/10 * * * *", async () => {
-  console.log("🕒 Running Payment Status Check Cron...");
+  if (cronRunning) {
+    console.log("⏳ Previous cron still running, skipping this tick.");
+    return;
+  }
+
+  cronRunning = true;
+  console.log("🕒 Running company-wise order processing cron...");
+
+  try {
+    const companies = await ProductOrder.distinct("companyId", {
+      'PaymentSession.status': { $in: ["PENDING", 'INITIATED'] },
+      ReservationStartedAt: { $exists: true }
+    });
+
+
+    const runningCompanies = new Set();
+
+    await Promise.all(companies.map(async (companyId) => {
+      if (runningCompanies.has(companyId)) return;
+      runningCompanies.add(companyId);
+
+      try {
+        await axios.post(`http://localhost:5296/processOrders`, { companyId });
+      } catch (err) {
+        console.error(`❌ Error hitting API for company ${companyId}:`, err.message);
+      } finally {
+        runningCompanies.delete(companyId);
+      }
+    }));
+
+
+    console.log("✔ Cron finished for all companies.");
+  } catch (err) {
+    console.error("❌ Cron Error:", err.message);
+  } finally {
+    cronRunning = false;
+  }
+});
+app.post('/processOrders', async (req, res) => {
+  const { companyId } = req.body;
+  if (!companyId) return res.status(400).json({ message: "companyId is required", success: false });
 
   try {
     const cutoffTime = new Date(Date.now() - FIFTEEN_MIN);
     const pendingCutoff = new Date(Date.now() - FIVE_HOURS);
 
     const orders = await ProductOrder.find({
+      companyId,
       'PaymentSession.status': { $in: ["PENDING", 'INITIATED'] },
       ReservationStartedAt: { $exists: true }
     });
 
-    if (!orders || !orders.length) {
-      console.log("ℹ️ No orders to process.");
-      return;
+    if (!orders.length) {
+      return res.status(200).json({ message: `No pending orders for company ${companyId}`, success: true });
     }
 
     for (let order of orders) {
       try {
         await processOrder(order, cutoffTime, pendingCutoff);
       } catch (err) {
-        console.error(`Error processing order ${order._id}:`, err);
+        console.error(`❌ Error processing order ${order._id}:`, err.message);
       }
     }
 
-    console.log("✔ Cron finished.");
+
+    return res.status(200).json({ message: `Processed orders for company ${companyId}`, success: true });
   } catch (err) {
-    console.error("❌ Cron Error:", err);
+    console.error("❌ Error in processOrders API:", err);
+    return res.status(500).json({ message: "Internal Server Error", success: false });
   }
 });
+
+
 const staticPaths = {
   '/api/v1/UserImage': './components/public/UserImage',
   '/api/v1/BrandImage': './components/public/BrandImage',

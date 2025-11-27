@@ -38,11 +38,7 @@ const upload = multer({
 });
 
 router.post("/addbrands", authentication, upload.single('BrandImage'), (req, res) => {
-  if (req.user.role == 'Company') {
-    req.body.companyId = req.user.companyId
-    return brandController.addbrands(req, res)
-  }
-  else if (req.user.role == 'Admin') {
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return brandController.addbrands(req, res)
   }
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
@@ -54,22 +50,14 @@ router.get('/getBrandsById', (req, res) => {
 })
 
 router.put('/updateSubCategoryList',authentication, (req, res) => {
-   if (req.user.role == 'Company') {
-    req.query.companyId = req.user.companyId
-    return brandController.updateSubCategoryList(req, res)
-  }
-  else if (req.user.role == 'Admin') {
+   if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return brandController.updateSubCategoryList(req, res)
   }
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 })
 router.put('/updateBrandDetails',authentication, upload.single('BrandImage'), (req, res) => {
-  if (req.user.role == 'Company') {
-    req.query.companyId = req.user.companyId
-    return brandController.updateBrandDetails(req, res)
-  }
-  else if (req.user.role == 'Admin') {
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return brandController.updateBrandDetails(req, res)
   }
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })

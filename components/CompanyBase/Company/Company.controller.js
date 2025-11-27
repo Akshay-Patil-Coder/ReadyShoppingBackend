@@ -295,7 +295,7 @@ module.exports = {
         };
 
         try {
-            const {
+            let {
                 CompanyName,
                 PredifinedDomain,
                 Street,
@@ -312,6 +312,7 @@ module.exports = {
                 Latitude,
                 Longitude
             } = req.body;
+            if (req.user.companyId) _id = req.user.companyId
 
             if (!_id) {
                 removeUploadedFile();
@@ -466,7 +467,8 @@ module.exports = {
     },
     addBankDetailOfCompany: async (req, res) => {
         try {
-            const { companyId, IFSC, AccountNumber, BankName, BranchName, MICR, Address, BankState } = req.body;
+            let { companyId, IFSC, AccountNumber, BankName, BranchName, MICR, Address, BankState } = req.body;
+            if (req.user.companyId) companyId = req.user.companyId
 
             if (!companyId || !IFSC || !AccountNumber) {
                 return res.status(400).json({
@@ -530,7 +532,8 @@ module.exports = {
     },
     deleteBankDetailOfCompany: async (req, res) => {
         try {
-            const { companyId } = req.query;
+            let { companyId } = req.query;
+            if (req.user.companyId) companyId = req.user.companyId
 
             if (!companyId) {
                 return res.status(400).json({

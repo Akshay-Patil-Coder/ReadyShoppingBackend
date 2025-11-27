@@ -10,6 +10,8 @@ module.exports = {
 
     addProductReview: async (req, res) => {
         let { companyId, ProductId, UserId, ReviewText, RatingStar } = req.body;
+        if (req.user.UserId) UserId = req.user.UserId
+        if (req.user.companyId) companyId = req.user.companyId
         const ReviewImages = req.files?.map(f => f.filename) || [];
 
         const clearFiles = (files) => {
@@ -127,7 +129,7 @@ module.exports = {
 
     DeleteReview: async (req, res) => {
         let { companyId, ProductId, ReviewIds } = req.body;
-
+        if (req.user.companyId) companyId = req.user.companyId
         const clearFiles = (files) => {
             files.forEach((file) => {
                 const CurrentImagePath = path.join(__dirname, '..', '..', 'public', 'ProductSRatingImage', file);
@@ -338,8 +340,9 @@ module.exports = {
         }
     },
     MakeResponseReview: async (req, res) => {
-        const { companyId, ReviewId, UserId, ProductId, Reaction } = req.body;
-
+        let { companyId, ReviewId, UserId, ProductId, Reaction } = req.body;
+        if (req.user.UserId) UserId = req.user.UserId
+        if (req.user.companyId) companyId = req.user.companyId
         try {
             if (!companyId || !ReviewId || !UserId || !ProductId || !Reaction) {
                 return res.status(400).json({ success: false, message: "Missing required fields." });

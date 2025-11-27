@@ -76,6 +76,8 @@ module.exports = {
     deleteFunctionallity: async (req, res) => {
         try {
             let  {companyId,assignvalues}= req.body;
+            if (req.user.companyId) companyId = req.user.companyId
+
             if(!companyId || !assignvalues){
               response.status(400).json({message:"please provide required data",success:false})
               return;

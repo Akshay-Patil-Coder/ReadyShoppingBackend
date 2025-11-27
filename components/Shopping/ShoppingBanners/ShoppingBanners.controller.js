@@ -19,6 +19,7 @@ module.exports = {
                 OfferPercentage,
                 BannerType
             } = req.body;
+            if (req.user.companyId) companyId = req.user.companyId
 
             const deleteBannerImage = () => {
                 if (req.file?.filename) {
@@ -436,8 +437,9 @@ module.exports = {
     updateProductsById: async (req, resp) => {
         try {
             let { BannerId, VariantsProductsId, BannerType } = req.body;
-            const companyId = req.query.companyId;
+            let companyId = req.query.companyId;
             const operation = req.query.operation;
+            if (req.user.companyId) companyId = req.user.companyId
 
             if (!BannerId || !VariantsProductsId || VariantsProductsId.length === 0) {
                 return resp.status(400).json({ message: 'Please insert valid data', success: false });
@@ -510,7 +512,8 @@ module.exports = {
 
     deleteBanner: async (req, res) => {
         try {
-            const { _id, companyId } = req.query;
+            let { _id, companyId } = req.query;
+            if (req.user.companyId) companyId = req.user.companyId
 
             if (!_id || !companyId) {
                 return res.status(400).json({ message: 'Provide banner id and company id', success: false });
@@ -563,7 +566,8 @@ module.exports = {
     updateBannerDetails: async (req, resp) => {
         try {
             const { BannerId, BannerName } = req.body;
-            const { companyId } = req.query;
+            let { companyId } = req.query;
+            if (req.user.companyId) companyId = req.user.companyId
 
             if (!BannerId || !BannerName) {
                 if (req.file?.filename) {

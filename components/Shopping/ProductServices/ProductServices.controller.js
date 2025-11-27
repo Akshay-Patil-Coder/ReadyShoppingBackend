@@ -15,7 +15,8 @@ module.exports = {
         };
 
         try {
-            const { companyId, HeadCategoryId, SubCategoryId, ServiceName, Description } = req.body;
+            let { companyId, HeadCategoryId, SubCategoryId, ServiceName, Description } = req.body;
+            if (req.user.companyId) companyId = req.user.companyId
 
             if (!companyId || !HeadCategoryId || !SubCategoryId || !ServiceName) {
                 cleanupFiles(req.files);
@@ -147,7 +148,8 @@ module.exports = {
 
         try {
             const { ServiceName, Description, ServiceProductId } = req.body;
-            const { companyId } = req.query;
+            let { companyId } = req.query;
+            if (req.user.companyId) companyId = req.user.companyId
 
             if (!ServiceProductId || !ServiceName || !companyId) {
                 cleanupFiles(req.files);
@@ -183,8 +185,10 @@ module.exports = {
     },
     deleteProductServiceImage: async (req, res) => {
         try {
-            const { ServiceImages, companyId } = req.body;
+            let { ServiceImages, companyId } = req.body;
             const { id } = req.params;
+            if (req.user.companyId) companyId = req.user.companyId
+
             if (!companyId) {
                 return res.status(400).json({ message: 'CompanyN Not Found', success: false })
             }
@@ -200,7 +204,7 @@ module.exports = {
             }
 
             const updatedService = await ProductService.findOneAndUpdate(
-                { _id: id,companyId },
+                { _id: id, companyId },
                 { $pull: { ServiceImages: { $in: imagesToDelete } } },
                 { new: true }
             );

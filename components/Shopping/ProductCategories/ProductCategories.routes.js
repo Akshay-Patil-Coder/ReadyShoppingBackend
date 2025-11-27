@@ -25,11 +25,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 router.post('/addCategory', authentication, upload.single('image'), (req, res) => {
-    if (req.user.role == 'Company') {
-        req.body.companyId = req.user.companyId
-        return dynamicCategoryController.addCategory(req, res)
-    }
-    else if (req.user.role == 'Admin') {
+    if (req.user.role == 'Company'  || req.user.role == 'Admin') {  
         return dynamicCategoryController.addCategory(req, res)
     }
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
@@ -50,11 +46,7 @@ router.get('/getCategoryWithHeadAndLeafParentNodes', (req, res) => {
     dynamicCategoryController.getCategoryWithHeadAndLeafParentNodes(req, res);
 });
 router.put('/updateCategory/:id', authentication, upload.single('image'), (req, res) => {
-    if (req.user.role == 'Company') {
-        req.body.companyId = req.user.companyId
-        return dynamicCategoryController.updateCategory(req, res)
-    }
-    else if (req.user.role == 'Admin') {
+    if (req.user.role == 'Company' || req.user.role == 'Admin') {
         return dynamicCategoryController.updateCategory(req, res)
     }
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
@@ -66,11 +58,7 @@ router.post('/toggleCategoriesStatus', (req, res) => {
 });
 
 router.delete('/deleteCategories', authentication, (req, res) => {
-    if (req.user.role == 'Company') {
-        req.query.companyId = req.user.companyId
-        return dynamicCategoryController.deleteCategories(req, res)
-    }
-    else if (req.user.role == 'Admin') {
+    if (req.user.role == 'Company' || req.user.role == 'Admin') {
         return dynamicCategoryController.deleteCategories(req, res)
     }
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })

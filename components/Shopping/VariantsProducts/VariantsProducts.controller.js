@@ -9,7 +9,7 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const csvParser = require('csv-parser');
 module.exports = {
     addVariantProduct: async (req, res) => {
-        const {
+        let {
             companyId,
             HeadCategoryId,
             SubCategoryId,
@@ -21,6 +21,7 @@ module.exports = {
             VariantProductDatas
         } = req.body;
 
+        if (req.user.companyId) companyId = req.user.companyId
 
         const clearFiles = (files) => {
             if (!Array.isArray(files)) return;
@@ -261,6 +262,8 @@ module.exports = {
     },
     addVariantProductCSV: async (req, res) => {
         const csvFilePath = req.files?.CSVFile?.[0]?.path;
+        if (req.user.companyId) companyId = req.user.companyId
+
         if (!csvFilePath) {
             return res.status(400).json({ success: false, message: 'CSV file is required.' });
         }
@@ -505,6 +508,7 @@ module.exports = {
             Operation,
             ImageName,
         } = req.body;
+            if (req.user.companyId) companyId = req.user.companyId
 
         const uploadedImages = req.files?.length ? req.files.map(f => f.filename) : [];
 
@@ -720,6 +724,7 @@ module.exports = {
 
     UpdateProductDetail: async (req, res) => {
         let { ProductId, companyId, ProductName, CommonDescription, ProductServices } = req.body;
+            if (req.user.companyId) companyId = req.user.companyId
 
         try {
             if (!ProductId || !companyId) {
@@ -786,8 +791,9 @@ module.exports = {
 
     UpdateCommonImages: async (req, res) => {
         try {
-            const { ProductId, companyId, Operation, ImageName } = req.body;
+            let { ProductId, companyId, Operation, ImageName } = req.body;
             const AllProductImages = req.files?.length ? req.files.map(f => f.filename) : [];
+            if (req.user.companyId) companyId = req.user.companyId
 
             const clearFiles = async (files) => {
                 if (!files?.length) return;
@@ -925,8 +931,9 @@ module.exports = {
     },
     UpdateCommonVideos: async (req, res) => {
         try {
-            const { ProductId, companyId, Operation, VideoName } = req.body;
+            let { ProductId, companyId, Operation, VideoName } = req.body;
             const AllProductVideos = req.files?.length ? req.files.map(f => f.filename) : [];
+            if (req.user.companyId) companyId = req.user.companyId
 
             const clearFiles = async (files) => {
                 if (!files?.length) return;
@@ -1047,7 +1054,8 @@ module.exports = {
         }
     },
     DeleteProductWithVariant: async (req, res) => {
-        const { ProductId, companyId } = req.body;
+        let { ProductId, companyId } = req.body;
+            if (req.user.companyId) companyId = req.user.companyId
 
         const clearFiles = async (files) => {
             if (!Array.isArray(files) || files.length === 0) return;
@@ -1866,8 +1874,8 @@ module.exports = {
 
             if (filteredData && filteredData.length !== 0) {
 
-               ActiveSubCategoryIds = [
-                    ...new Set(filteredData.map(p =>p?.SubCategoryId?.toString()))
+                ActiveSubCategoryIds = [
+                    ...new Set(filteredData.map(p => p?.SubCategoryId?.toString()))
                 ].filter(Boolean)
 
             }

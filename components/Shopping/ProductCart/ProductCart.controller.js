@@ -25,7 +25,8 @@ module.exports = {
             IsActive,
         } = req.body;
 
-
+        if (req.user.UserId) UserId = req.user.UserId
+        if (req.user.companyId) companyId = req.user.companyId
         try {
             if (!UserId || !companyId)
                 return res
@@ -867,6 +868,8 @@ module.exports = {
 
     getCart: async (req, res) => {
         let { UserId, companyId } = req.query;
+        if (req.user.UserId) UserId = req.user.UserId
+        if (req.user.companyId) companyId = req.user.companyId
         try {
             let matchCondition = {};
             if (!mongoose.isValidObjectId(companyId) || !mongoose.isValidObjectId(UserId)) {
@@ -933,7 +936,9 @@ module.exports = {
     },
 
     proceedToPaymentForCart: async (req, res) => {
-        const { UserId, companyId, AddressId } = req.body;
+        let { UserId, companyId, AddressId } = req.body;
+        if (req.user.UserId) UserId = req.user.UserId
+        if (req.user.companyId) companyId = req.user.companyId
         let rollback = { orderId: null, stockUpdates: [], ReservedUpdated: [] };
 
         const RollBackFunction = async (rollback) => {
@@ -1321,7 +1326,8 @@ module.exports = {
 
     handlePaymentStatus: async (req, res) => {
         let { UserId, companyId, paymentInfo } = req.body;
-
+        if (req.user.UserId) UserId = req.user.UserId
+        if (req.user.companyId) companyId = req.user.companyId
         const safeId = (v) => (v === undefined || v === null) ? null : (typeof v === "string" ? v : (v.toString ? v.toString() : String(v)));
         const isReserved = (p) => Boolean(p && (p.Reserved == true || p.Reserved == "true" || p.Reserved == 1 || p.Reserved == "1"));
         const pullCartProduct = async (cartId, cartProductId) => {
@@ -1537,7 +1543,8 @@ module.exports = {
     getOrders: async (req, res) => {
         try {
             let { UserId, companyId, Status, ProductOrderId } = req.query;
-
+            if (req.user.UserId) UserId = req.user.UserId
+            if (req.user.companyId) companyId = req.user.companyId
             if (!mongoose.isValidObjectId(companyId) || !mongoose.isValidObjectId(UserId)) {
                 return res.status(400).json({ message: 'Not Found Proper Data Of Company Or User', success: false });
             }
@@ -1585,6 +1592,7 @@ module.exports = {
     getAllOrders: async (req, res) => {
         try {
             let { UserId, companyId, Status, ProductOrderId, SortOrder, StartDate, EndDate } = req.query;
+            if (req.user.companyId) companyId = req.user.companyId
 
             if (!mongoose.isValidObjectId(companyId)) {
                 return res.status(400).json({ message: 'Not Found Proper Data Of Company Or User', success: false });
