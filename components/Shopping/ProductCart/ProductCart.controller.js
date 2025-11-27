@@ -1231,7 +1231,7 @@ module.exports = {
                         mid: process.env.PAYTM_MID,
                         websiteName: process.env.PAYTM_WEBSITE,
                         orderId,
-                        callbackUrl: `${process.env.BASE_URL}/api/payment/callback`,
+                        callbackUrl: `${process.env.BASE_URL}productcart/handlePaymentStatus`,
                         txnAmount: { value: totalAmount.toString(), currency: "INR" },
                         userInfo: { custId: UserId.toString() }
                     }
@@ -1305,7 +1305,7 @@ module.exports = {
                 return res.status(200).json({
                     success: true,
                     message: "Payment Initiated",
-                    url: `https://securegw.paytm.in/theia/api/v1/showPaymentPage?mid=MxRvkW87993542401257&orderId=${orderId}`,
+                    url: `https://securegw.paytm.in/theia/api/v1/showPaymentPage?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
                     txnToken: paytmResponse.body.txnToken,
                     orderId,
                     mid: process.env.PAYTM_MID,
@@ -1326,9 +1326,16 @@ module.exports = {
     },
 
     handlePaymentStatus: async (req, res) => {
-        let { UserId, companyId, paymentInfo } = req.body;
-        if (req.user.UserId) UserId = req.user.UserId
-        if (req.user.companyId) companyId = req.user.companyId
+        const paytmResponse = req.body;
+        const orderId = paytmResponse?.body?.orderId;
+        const body = paytmResponse.body || {};
+        const paymentInfo = {
+            orderId: body.orderId,
+            txnId: body.txnId,
+            amount: body.txnAmount?.value || 0,
+            resultInfo: body.resultInfo
+        };
+
         const safeId = (v) => (v === undefined || v === null) ? null : (typeof v === "string" ? v : (v.toString ? v.toString() : String(v)));
         const isReserved = (p) => Boolean(p && (p.Reserved == true || p.Reserved == "true" || p.Reserved == 1 || p.Reserved == "1"));
         const pullCartProduct = async (cartId, cartProductId) => {
@@ -1455,14 +1462,18 @@ module.exports = {
             });
 
             const resultStatus = verifyPaytmStatus?.body?.resultInfo?.resultStatus;
-            let FoundOrder = await ProductOrder.findOne({ UserId, companyId, "PaymentSession.orderId": paymentInfo.orderId });
-            if (!FoundOrder) return res.status(400).json({ message: "Order not found or invalid", success: false });
+            let FoundOrder = await ProductOrder.findOne({ "PaymentSession.orderId": orderId });
 
+            if (!FoundOrder) return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=ORDER-NOT-FOUND`);
+
+            const UserId = FoundOrder.UserId;
+            const companyId = FoundOrder.companyId;
             let FoundCart = await ProductCart.findOne({ UserId, companyId, _id: FoundOrder.CartId });
 
             if (resultStatus === "TXN_SUCCESS") {
                 if (FoundOrder.PaymentSession?.status === 'SUCCESS') {
-                    return res.status(200).json({ message: "✅ Payment verified and order placed successfully.", success: true });
+                    return res.redirect(`${process.env.FRONTEND_URL}/order-checked?orderId=${paymentInfo.orderId}&Status=SUCCESS&cartorderid=${FoundOrder._id}`);
+                    // return res.status(200).json({ message: "✅ Payment verified and order placed successfully.", success: true });
                 }
 
                 for (const item of (FoundOrder.Products || [])) {
@@ -1491,12 +1502,15 @@ module.exports = {
                 }
 
                 await FoundOrder.save();
-                return res.status(200).json({ message: "✅ Payment verified and order placed successfully.", success: true });
+                return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=SUCCESS&cartorderid=${FoundOrder._id}`);
+                // return res.status(200).json({ message: "✅ Payment verified and order placed successfully.", success: true });
             }
 
             if (resultStatus === "TXN_FAILURE" || resultStatus === "FAILURE") {
                 if (FoundOrder.PaymentSession?.status === 'FAILED') {
-                    return res.status(200).json({ message: "❌ Payment failed. Stock restored and cart reactivated.", success: false });
+                    return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=FAILED&cartorderid=${FoundOrder._id}`);
+
+                    // return res.status(200).json({ message: "❌ Payment failed. Stock restored and cart reactivated.", success: false });
                 }
 
                 const orderKeySet = new Set((FoundOrder.Products || []).map(p => {
@@ -1529,15 +1543,23 @@ module.exports = {
                 } catch (err) {
                     console.error('Restored Stock On Payment Failed Error', err?.message || err);
                 }
+                const isCancelled = verifyPaytmStatus?.body?.resultInfo?.resultMsg?.includes('cancelled');
+                if (isCancelled) {
+                    return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=CANCELLED&cartorderid=${FoundOrder._id}`);
+                }
 
-                return res.status(200).json({ message: "❌ Payment failed. Stock restored and cart reactivated.", success: false });
+                return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=FAILED&cartorderid=${FoundOrder._id}`);
+
+                // return res.status(200).json({ message: "❌ Payment failed. Stock restored and cart reactivated.", success: false });
             }
+            return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=${resultStatus}&cartorderid=${FoundOrder._id}`);
 
-            return res.status(200).json({ message: `Payment status: ${resultStatus}. No action taken.`, success: false });
+            // return res.status(200).json({ message: `Payment status: ${resultStatus}. No action taken.`, success: false });
 
         } catch (err) {
             console.error("handlePaymentStatus Error:", err);
-            return res.status(500).json({ message: "Internal Server Error", success: false });
+            return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=INTERNAL-SERVER-ERROR`);
+            // return res.status(500).json({ message: "Internal Server Error", success: false });
         }
     },
 
