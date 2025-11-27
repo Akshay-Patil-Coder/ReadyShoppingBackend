@@ -115,7 +115,7 @@ async function cleanupSimilarProducts(FoundCart, similarProducts) {
 async function adjustVariantStock(variantId, incObj = {}) {
     if (!variantId) return;
     try {
-        await VariantProduct.updateOne({ _id: variantId }, { $inc: incObj });
+        await VariantProduct.updateOne({ _id: variantId,'InventoryBaseStock.InventoryBase':true  }, { $inc: incObj });
     } catch (error) {
         console.error('Adjust Stock Error for variant', variantId, error.message);
     }

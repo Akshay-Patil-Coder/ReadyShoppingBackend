@@ -947,7 +947,7 @@ module.exports = {
                     if (rollback.stockUpdates && rollback.stockUpdates.length !== 0) {
                         await Promise.all(rollback.stockUpdates.map(async ({ variantId, quantity }) => {
                             await VariantProduct.updateOne(
-                                { _id: variantId },
+                                { _id: variantId, 'InventoryBaseStock.InventoryBase': true },
                                 {
                                     $inc: {
                                         "InventoryBaseStock.AvailableStock": quantity,
@@ -1203,7 +1203,7 @@ module.exports = {
 
                 await Promise.all(productsToUpdate.map(async ({ variantId, quantity }) => {
                     await VariantProduct.updateOne(
-                        { _id: variantId },
+                        { _id: variantId, 'InventoryBaseStock.InventoryBase': true },
                         {
                             $inc: {
                                 "InventoryBaseStock.AvailableStock": -quantity,
@@ -1302,14 +1302,15 @@ module.exports = {
                     return res.status(500).json({ message: "Payment gateway did not return txnToken", success: false });
                 }
 
-
-
-                return res.render("response", {
+                return res.status(200).json({
+                    success: true,
+                    message: "Payment Initiated",
+                    url: `https://securegw.paytm.in/theia/api/v1/showPaymentPage?mid=MxRvkW87993542401257&orderId=${orderId}`,
                     txnToken: paytmResponse.body.txnToken,
                     orderId,
                     mid: process.env.PAYTM_MID,
                     amount: totalAmount
-                });
+                })
 
             } catch (err) {
                 console.error("Payment Initiation Error:", err);
@@ -1347,7 +1348,7 @@ module.exports = {
         const adjustVariantStock = async (variantId, incObj = {}) => {
             if (!variantId) return;
             try {
-                await VariantProduct.updateOne({ _id: variantId }, { $inc: incObj });
+                await VariantProduct.updateOne({ _id: variantId, 'InventoryBaseStock.InventoryBase': true }, { $inc: incObj });
             } catch (err) {
                 console.error('adjustVariantStock Error', err?.message || err);
             }
