@@ -22,7 +22,7 @@ import notificationModel from "../notification/notification.model.js";
 import offernewModel from "../offernew/offernew.model.js";
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
-import CoachingCourceOrder from '../CoachingOrder/CoachingOrder.model.js';
+import CoachingCourseOrder from '../CoachingOrder/CoachingOrder.model.js';
 import { PaymentTokenModel } from './PaymentToken.model.js';
 import CoachingGainerCompaniesModel from '../CoachingGainerCompnay/CoachingGainerCompnay.model.js';
 import { CompanyGainerRequestModel } from "../CoachingGainerCompanyOrder/CoachingGainerCompanyOrder.model.js";
@@ -696,30 +696,30 @@ export const successForPaytmPaymentViaEmail = async (req, resp) => {
         const TokenData = jwt.verify(FindedTokenOfPayment.PaymentToken, process.env.ACCESS_TOKEN_SECRET);
         
         if (TokenData.orderId == data.orderId && TokenData.orderId == FindedTokenOfPayment.orderId && data.orderId == FindedTokenOfPayment.orderId) {
-          const FindCource = await CompanyGainerRequestModel.findOne({ _id: req.body.ORDERID });
-          let TokenOfCource = jwt.sign({ 
-            UserId: FindCource.GainerCompanyId, 
-            CourceIds: FindCource.CourceIds, 
+          const FindCourse = await CompanyGainerRequestModel.findOne({ _id: req.body.ORDERID });
+          let TokenOfCourse = jwt.sign({ 
+            UserId: FindCourse.GainerCompanyId, 
+            CourseIds: FindCourse.CourseIds, 
             PaymentId: transaction._id, 
             Status: 'Completed' 
           }, process.env.ACCESS_TOKEN_SECRET);
           
-          if (transaction.amount == FindCource.NegotiatedAmount) {
+          if (transaction.amount == FindCourse.NegotiatedAmount) {
             PendingAmount = null;
             status = 'Completed';
             valid = true;
           } else {
-            PendingAmount = FindCource.NegotiatedAmount - transaction.amount;
+            PendingAmount = FindCourse.NegotiatedAmount - transaction.amount;
             status = 'PendingAmount';
-            TokenOfCource = jwt.sign({ 
-              UserId: FindCource.GainerCompanyId, 
-              CourceIds: FindCource.CourceIds, 
+            TokenOfCourse = jwt.sign({ 
+              UserId: FindCourse.GainerCompanyId, 
+              CourseIds: FindCourse.CourseIds, 
               PaymentId: transaction._id, 
               Status: 'PendingAmount' 
             }, process.env.ACCESS_TOKEN_SECRET);
           }
           
-          if (FindCource) {
+          if (FindCourse) {
             await CompanyGainerRequestModel.findOneAndUpdate({
               _id: data.orderId
             }, {
@@ -732,7 +732,7 @@ export const successForPaytmPaymentViaEmail = async (req, resp) => {
                 PaidAmount: transaction.amount,
                 PendingAmount: PendingAmount,
                 valid: valid,
-                TokenOfCource: TokenOfCource
+                TokenOfCourse: TokenOfCourse
               }
             }, { new: true });
           }
@@ -760,16 +760,16 @@ export const successForPaytmPaymentViaEmail = async (req, resp) => {
         const TokenData = jwt.verify(FindedTokenOfPayment.PaymentToken, process.env.ACCESS_TOKEN_SECRET);
         
         if (TokenData.orderId == data.orderId && TokenData.orderId == FindedTokenOfPayment.orderId && data.orderId == FindedTokenOfPayment.orderId) {
-          const FindCource = await CoachingCourceOrder.findOne({ _id: req.body.ORDERID });
-          const TokenOfCource = jwt.sign({ 
-            UserId: FindCource.UserId, 
-            CourceId: FindCource.CourceId, 
+          const FindCourse = await CoachingCourseOrder.findOne({ _id: req.body.ORDERID });
+          const TokenOfCourse = jwt.sign({ 
+            UserId: FindCourse.UserId, 
+            CourseId: FindCourse.CourseId, 
             PaymentId: transaction._id, 
             Status: 'In Progress' 
           }, process.env.ACCESS_TOKEN_SECRET);
           
-          if (FindCource) {
-            await CoachingCourceOrder.findOneAndUpdate({
+          if (FindCourse) {
+            await CoachingCourseOrder.findOneAndUpdate({
               _id: data.orderId
             }, {
               $set: {
@@ -778,7 +778,7 @@ export const successForPaytmPaymentViaEmail = async (req, resp) => {
                 Transaction: transaction._id,
                 OrderDate: transaction.createdAt.toISOString().split('T')[0],
                 OrderTime: transaction.createdAt.toISOString().split('T')[1].split('.')[0],
-                TokenOfCource: TokenOfCource
+                TokenOfCourse: TokenOfCourse
               }
             }, { new: true });
           }
@@ -806,16 +806,16 @@ export const successForPaytmPaymentViaEmail = async (req, resp) => {
         const TokenData = jwt.verify(FindedTokenOfPayment.PaymentToken, process.env.ACCESS_TOKEN_SECRET);
         
         if (TokenData.orderId == data.orderId && TokenData.orderId == FindedTokenOfPayment.orderId && data.orderId == FindedTokenOfPayment.orderId) {
-          const FindCource = await CoachingCourceOrder.findOne({ _id: req.body.ORDERID });
-          const TokenOfCource = jwt.sign({ 
-            UserId: FindCource.UserId, 
-            CourceId: FindCource.CourceId, 
+          const FindCourse = await CoachingCourseOrder.findOne({ _id: req.body.ORDERID });
+          const TokenOfCourse = jwt.sign({ 
+            UserId: FindCourse.UserId, 
+            CourseId: FindCourse.CourseId, 
             PaymentId: transaction._id, 
             Status: 'Cancelled' 
           }, process.env.ACCESS_TOKEN_SECRET);
           
-          if (FindCource) {
-            await CoachingCourceOrder.findOneAndUpdate({
+          if (FindCourse) {
+            await CoachingCourseOrder.findOneAndUpdate({
               _id: data.orderId
             }, {
               $set: {
@@ -824,7 +824,7 @@ export const successForPaytmPaymentViaEmail = async (req, resp) => {
                 Transaction: transaction._id,
                 OrderDate: transaction.createdAt.toISOString().split('T')[0],
                 OrderTime: transaction.createdAt.toISOString().split('T')[1].split('.')[0],
-                TokenOfCource: TokenOfCource
+                TokenOfCourse: TokenOfCourse
               }
             }, { new: true });
           }
@@ -976,31 +976,31 @@ export const successForEachCoachingOrder = async (req, resp) => {
         const TokenData = jwt.verify(FindedTokenOfPayment.PaymentToken, process.env.ACCESS_TOKEN_SECRET);
         
         if (TokenData.orderId == data.orderId && TokenData.orderId == FindedTokenOfPayment.orderId && data.orderId == FindedTokenOfPayment.orderId) {
-          const FindCource = await CoachingCourceOrder.findOne({ _id: req.body.ORDERID });
-          let TokenOfCource = jwt.sign({ 
-            UserId: FindCource.UserId, 
-            CourceId: FindCource.CourceId, 
+          const FindCourse = await CoachingCourseOrder.findOne({ _id: req.body.ORDERID });
+          let TokenOfCourse = jwt.sign({ 
+            UserId: FindCourse.UserId, 
+            CourseId: FindCourse.CourseId, 
             PaymentId: transaction._id, 
             Status: 'Completed' 
           }, process.env.ACCESS_TOKEN_SECRET);
           
-          if (transaction.amount == FindCource.TotalAmount) {
+          if (transaction.amount == FindCourse.TotalAmount) {
             PendingAmount = null;
             status = 'Completed';
             valid = true;
           } else {
-            PendingAmount = FindCource.TotalAmount - transaction.amount;
+            PendingAmount = FindCourse.TotalAmount - transaction.amount;
             status = 'PendingAmount';
-            TokenOfCource = jwt.sign({ 
-              UserId: FindCource.UserId, 
-              CourceId: FindCource.CourceId, 
+            TokenOfCourse = jwt.sign({ 
+              UserId: FindCourse.UserId, 
+              CourseId: FindCourse.CourseId, 
               PaymentId: transaction._id, 
               Status: 'PendingAmount' 
             }, process.env.ACCESS_TOKEN_SECRET);
           }
           
-          if (FindCource) {
-            await CoachingCourceOrder.findOneAndUpdate({
+          if (FindCourse) {
+            await CoachingCourseOrder.findOneAndUpdate({
               _id: data.orderId
             }, {
               $set: {
@@ -1012,7 +1012,7 @@ export const successForEachCoachingOrder = async (req, resp) => {
                 PaidAmount: transaction.amount,
                 PendingAmount: PendingAmount,
                 valid: valid,
-                TokenOfCource: TokenOfCource
+                TokenOfCourse: TokenOfCourse
               }
             }, { new: true });
           }
@@ -1040,16 +1040,16 @@ export const successForEachCoachingOrder = async (req, resp) => {
         const TokenData = jwt.verify(FindedTokenOfPayment.PaymentToken, process.env.ACCESS_TOKEN_SECRET);
         
         if (TokenData.orderId == data.orderId && TokenData.orderId == FindedTokenOfPayment.orderId && data.orderId == FindedTokenOfPayment.orderId) {
-          const FindCource = await CoachingCourceOrder.findOne({ _id: req.body.ORDERID });
-          const TokenOfCource = jwt.sign({ 
-            UserId: FindCource.UserId, 
-            CourceId: FindCource.CourceId, 
+          const FindCourse = await CoachingCourseOrder.findOne({ _id: req.body.ORDERID });
+          const TokenOfCourse = jwt.sign({ 
+            UserId: FindCourse.UserId, 
+            CourseId: FindCourse.CourseId, 
             PaymentId: transaction._id, 
             Status: 'In Progress' 
           }, process.env.ACCESS_TOKEN_SECRET);
           
-          if (FindCource) {
-            await CoachingCourceOrder.findOneAndUpdate({
+          if (FindCourse) {
+            await CoachingCourseOrder.findOneAndUpdate({
               _id: data.orderId
             }, {
               $set: {
@@ -1058,7 +1058,7 @@ export const successForEachCoachingOrder = async (req, resp) => {
                 Transaction: transaction._id,
                 OrderDate: transaction.createdAt.toISOString().split('T')[0],
                 OrderTime: transaction.createdAt.toISOString().split('T')[1].split('.')[0],
-                TokenOfCource: TokenOfCource
+                TokenOfCourse: TokenOfCourse
               }
             }, { new: true });
           }
@@ -1086,16 +1086,16 @@ export const successForEachCoachingOrder = async (req, resp) => {
         const TokenData = jwt.verify(FindedTokenOfPayment.PaymentToken, process.env.ACCESS_TOKEN_SECRET);
         
         if (TokenData.orderId == data.orderId && TokenData.orderId == FindedTokenOfPayment.orderId && data.orderId == FindedTokenOfPayment.orderId) {
-          const FindCource = await CoachingCourceOrder.findOne({ _id: req.body.ORDERID });
-          const TokenOfCource = jwt.sign({ 
-            UserId: FindCource.UserId, 
-            CourceId: FindCource.CourceId, 
+          const FindCourse = await CoachingCourseOrder.findOne({ _id: req.body.ORDERID });
+          const TokenOfCourse = jwt.sign({ 
+            UserId: FindCourse.UserId, 
+            CourseId: FindCourse.CourseId, 
             PaymentId: transaction._id, 
             Status: 'Cancelled' 
           }, process.env.ACCESS_TOKEN_SECRET);
           
-          if (FindCource) {
-            await CoachingCourceOrder.findOneAndUpdate({
+          if (FindCourse) {
+            await CoachingCourseOrder.findOneAndUpdate({
               _id: data.orderId
             }, {
               $set: {
@@ -1104,7 +1104,7 @@ export const successForEachCoachingOrder = async (req, resp) => {
                 Transaction: transaction._id,
                 OrderDate: transaction.createdAt.toISOString().split('T')[0],
                 OrderTime: transaction.createdAt.toISOString().split('T')[1].split('.')[0],
-                TokenOfCource: TokenOfCource
+                TokenOfCourse: TokenOfCourse
               }
             }, { new: true });
           }

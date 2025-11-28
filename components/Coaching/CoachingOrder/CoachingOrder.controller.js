@@ -1,11 +1,11 @@
 const { ObjectId } = require('mongodb');
-const CoachingCourceOrder = require('./CoachingOrder.model');
+const CoachingCourseOrder = require('./CoachingOrder.model');
 const mongoose = require('mongoose');
 const path = require('path');
 const jwt = require('jsonwebtoken')
-const { CoachingCourceModel, CoachingVideoModel, QuizModel } = require('../CoachingCource/CoachingCource.model');
+const { CoachingCourseModel, CoachingVideoModel, QuizModel } = require('../CoachingCourse/CoachingCourse.model');
 const UserController = require('../user/user.model')
-const CoachingCourceController = require('../CoachingCource/CoachingCource.controller')
+const CoachingCourseController = require('../CoachingCourse/CoachingCourse.controller')
 const CompanyModel = require('../../CompanyBase/Company/Company.model')
 const TransactionModel = require('../payment/transaction.model');
 const fs = require('fs');
@@ -23,13 +23,13 @@ class CourseOrderService {
             let { UserId, courseId } = req.body;
             let companyId = req.query.companyId;
 
-            let course = await CoachingCourceOrder.findById(id)
+            let course = await CoachingCourseOrder.findById(id)
 
             if (!course) {
                 return res.status(404).json({ success: false, message: "Course not Found" })
             }
 
-            let result = await CoachingCourceOrder.deleteOne({ _id: courseId, UserId: UserId, companyId, companyId })
+            let result = await CoachingCourseOrder.deleteOne({ _id: courseId, UserId: UserId, companyId, companyId })
             console.log("result", result)
             if (!result) {
                 res.status(400).json({ success: false, message: "Course not deleted" })
@@ -50,36 +50,36 @@ class CourseOrderService {
     async addCoachingCourseOrder(req, res) {
         console.log("xxxxxxxxxxxxxx", req.body)
         try {
-            let { UserId, CourceId, companyId, TotalAmount, OfferPercentage } = req.body
-            //  UserId    CourceId   companyId  TotalAmount  OfferPercentage
-            if (!UserId || !CourceId || !companyId || !TotalAmount || !OfferPercentage) {
+            let { UserId, CourseId, companyId, TotalAmount, OfferPercentage } = req.body
+            //  UserId    CourseId   companyId  TotalAmount  OfferPercentage
+            if (!UserId || !CourseId || !companyId || !TotalAmount || !OfferPercentage) {
                 throw new Error('please provide valid data')
             }
-            let existingCource = await CoachingCourceModel.findOne({ _id: CourceId })
-            if (!existingCource) {
+            let existingCourse = await CoachingCourseModel.findOne({ _id: CourseId })
+            if (!existingCourse) {
                 throw new Error('course not found')
             }
             else {
 
-                let CourceData = {
+                let CourseData = {
                     companyId: companyId,
                     UserId: UserId,
-                    CourceId: CourceId,
+                    CourseId: CourseId,
                     TotalAmount: TotalAmount,
                     OfferPercentage: OfferPercentage,
                 }
 
 
-                if (existingCource.CourceContent || existingCource.CourceContent.length !== 0 || existingCource.CourceContent[0].CourceData.length !== 0) {
+                if (existingCourse.CourseContent || existingCourse.CourseContent.length !== 0 || existingCourse.CourseContent[0].CourseData.length !== 0) {
                     let PlayList = [];
-                    for (let EachPlaylist of existingCource.CourceContent) {
+                    for (let EachPlaylist of existingCourse.CourseContent) {
                         let VideoIds = [];
                         let QuizData = [];
                         let PlayListData = {
                             Heading: EachPlaylist.Heading,
                             PlayListId: EachPlaylist._id
                         }
-                        for (let EachVideoId of EachPlaylist.CourceData) {
+                        for (let EachVideoId of EachPlaylist.CourseData) {
                             let VideoData = {
                                 VideoId: EachVideoId
                             }
@@ -99,11 +99,11 @@ class CourseOrderService {
                         PlayListData.VideoData = VideoIds
                         PlayList.push(PlayListData)
                     }
-                    CourceData.CourceContent = PlayList
-                    let token = jwt.sign({ CourceId: CourceId, UserId: UserId }, 'secret-for-now')
-                    CourceData.TokenOfCource = token
+                    CourseData.CourseContent = PlayList
+                    let token = jwt.sign({ CourseId: CourseId, UserId: UserId }, 'secret-for-now')
+                    CourseData.TokenOfCourse = token
                     console.log("vvvvvvvvvv", token)
-                    let result = new CoachingCourceOrder(CourceData)
+                    let result = new CoachingCourseOrder(CourseData)
                     console.log("vvvvvvvvvv", result)
 
                     result = await result.save();
@@ -118,16 +118,16 @@ class CourseOrderService {
             }
 
 
-            if (existingCource.CourceContent || existingCource.CourceContent.length !== 0 || existingCource.CourceContent[0].CourceData.length !== 0) {
+            if (existingCourse.CourseContent || existingCourse.CourseContent.length !== 0 || existingCourse.CourseContent[0].CourseData.length !== 0) {
                 let PlayList = [];
-                for (let EachPlaylist of existingCource.CourceContent) {
+                for (let EachPlaylist of existingCourse.CourseContent) {
                     let VideoIds = [];
                     let QuizData = [];
                     let PlayListData = {
                         Heading: EachPlaylist.Heading,
                         PlayListId: EachPlaylist._id
                     }
-                    for (let EachVideoId of EachPlaylist.CourceData) {
+                    for (let EachVideoId of EachPlaylist.CourseData) {
                         let VideoData = {
                             VideoId: EachVideoId
                         }
@@ -147,10 +147,10 @@ class CourseOrderService {
                     PlayListData.VideoData = VideoIds
                     PlayList.push(PlayListData)
                 }
-                CourceData.CourceContent = PlayList
-                let token = jwt.sign({ CourceId: CourceId, UserId: UserId }, process.env.ACCESS_TOKEN_SECRET)
-                CourceData.TokenOfCource = token
-                let result = new CoachingCourceOrder(CourceData)
+                CourseData.CourseContent = PlayList
+                let token = jwt.sign({ CourseId: CourseId, UserId: UserId }, process.env.ACCESS_TOKEN_SECRET)
+                CourseData.TokenOfCourse = token
+                let result = new CoachingCourseOrder(CourseData)
                 result = await result.save();
                 if (!result) {
                     return res.status(400).json({ message: 'Data not added something went wrong', success: false })
@@ -169,37 +169,37 @@ class CourseOrderService {
             });
         }
     }
-    async getCoachingCourceOrderData(matchCondition) {
-        let result = await CoachingCourceOrder.aggregate([
+    async getCoachingCourseOrderData(matchCondition) {
+        let result = await CoachingCourseOrder.aggregate([
             { $match: matchCondition },
-            { $unwind: { path: "$CourceContent", preserveNullAndEmptyArrays: true } },
-            { $unwind: { path: "$CourceContent.VideoData", preserveNullAndEmptyArrays: true } },
-            { $unwind: { path: "$CourceContent.VideoData.QuizData", preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: "$CourseContent", preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: "$CourseContent.VideoData", preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: "$CourseContent.VideoData.QuizData", preserveNullAndEmptyArrays: true } },
 
             {
                 $lookup: {
                     from: "coachingvideos",
-                    localField: "CourceContent.VideoData.VideoId",
+                    localField: "CourseContent.VideoData.VideoId",
                     foreignField: "_id",
-                    as: "CourceContent.VideoData.VideoInfo"
+                    as: "CourseContent.VideoData.VideoInfo"
                 }
             },
 
             {
                 $lookup: {
-                    from: "courcequizes",
-                    localField: "CourceContent.VideoData.QuizData.QuizId",
+                    from: "Coursequizes",
+                    localField: "CourseContent.VideoData.QuizData.QuizId",
                     foreignField: "_id",
-                    as: "CourceContent.VideoData.QuizData.QuizInfo"
+                    as: "CourseContent.VideoData.QuizData.QuizInfo"
                 }
             },
             //pri
             {
                 $lookup: {
-                    from: "coachingcources",
-                    localField: "CourceId",
+                    from: "coachingCourses",
+                    localField: "CourseId",
                     foreignField: "_id",
-                    as: "CourceData"
+                    as: "CourseData"
                 }
             },
             //
@@ -207,12 +207,12 @@ class CourseOrderService {
                 $group: {
                     _id: {
                         orderId: "$_id",
-                        CourceHeading: "$CourceContent.Heading",
-                        VideoId: "$CourceContent.VideoData.VideoId"
+                        CourseHeading: "$CourseContent.Heading",
+                        VideoId: "$CourseContent.VideoData.VideoId"
                     },
-                    QuizData: { $push: "$CourceContent.VideoData.QuizData" },
-                    VideoCompleted: { $first: "$CourceContent.VideoData.VideoCompleted" },
-                    VideoInfo: { $first: "$CourceContent.VideoData.VideoInfo" },
+                    QuizData: { $push: "$CourseContent.VideoData.QuizData" },
+                    VideoCompleted: { $first: "$CourseContent.VideoData.VideoCompleted" },
+                    VideoInfo: { $first: "$CourseContent.VideoData.VideoInfo" },
                     baseDoc: { $first: "$$ROOT" }
                 }
             },
@@ -221,7 +221,7 @@ class CourseOrderService {
                 $group: {
                     _id: {
                         orderId: "$_id.orderId",
-                        CourceHeading: "$_id.CourceHeading"
+                        CourseHeading: "$_id.CourseHeading"
                     },
                     Videos: {
                         $push: {
@@ -238,14 +238,14 @@ class CourseOrderService {
             {
                 $group: {
                     _id: "$_id.orderId",
-                    CourceContent: {
+                    CourseContent: {
                         $push: {
-                            Heading: "$_id.CourceHeading",
+                            Heading: "$_id.CourseHeading",
                             VideoData: "$Videos",
                             //pri
-                            CourceDuration: "$_id.CourceDuration",
-                            CourceName: "$_id.CourceName",
-                            CourceThumbnail: "$_id.CourceThumbnail"
+                            CourseDuration: "$_id.CourseDuration",
+                            CourseName: "$_id.CourseName",
+                            CourseThumbnail: "$_id.CourseThumbnail"
                             //
                         }
                     },
@@ -256,7 +256,7 @@ class CourseOrderService {
             {
                 $replaceRoot: {
                     newRoot: {
-                        $mergeObjects: ["$baseDoc", { CourceContent: "$CourceContent" }]
+                        $mergeObjects: ["$baseDoc", { CourseContent: "$CourseContent" }]
                     }
                 }
             },
@@ -272,15 +272,15 @@ class CourseOrderService {
 
         console.log("bbbbbbbbbbbbbb", result)
         if (result) {
-            let CourceInfo = await Promise.all(result.map(async (EachResult) => {
-                let data = await CoachingCourceController.getCoachingCourceData({ _id: EachResult.CourceId });
+            let CourseInfo = await Promise.all(result.map(async (EachResult) => {
+                let data = await CoachingCourseController.getCoachingCourseData({ _id: EachResult.CourseId });
                 return data;
             }));
 
-            result = result.map((EachCource) => {
+            result = result.map((EachCourse) => {
                 return {
-                    ...EachCource,
-                    CourceInfo: CourceInfo.filter((EachData) => EachData._id === EachCource.CourceId)
+                    ...EachCourse,
+                    CourseInfo: CourseInfo.filter((EachData) => EachData._id === EachCourse.CourseId)
                 };
             });
 
@@ -289,7 +289,7 @@ class CourseOrderService {
     }
 
 
-    async getCoachingCourceOrder(req, res) {
+    async getCoachingCourseOrder(req, res) {
         let { CourseId, UserId, companyId } = req.query;
         try {
             let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
@@ -298,7 +298,7 @@ class CourseOrderService {
                 if (!mongoose.Types.ObjectId.isValid(CourseId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.CourceId = mongoose.Types.ObjectId.createFromHexString(CourseId)
+                matchCondition.CourseId = mongoose.Types.ObjectId.createFromHexString(CourseId)
             }
             if (UserId) {
                 if (!mongoose.Types.ObjectId.isValid(UserId)) {
@@ -307,10 +307,10 @@ class CourseOrderService {
                 matchCondition.UserId = mongoose.Types.ObjectId.createFromHexString(UserId)
             }
 
-            const data = await this.getCoachingCourceOrderData(matchCondition);
+            const data = await this.getCoachingCourseOrderData(matchCondition);
 
             if (data.length === 0) {
-                return res.status(404).json({ message: 'No Cource Found', success: false });
+                return res.status(404).json({ message: 'No Course Found', success: false });
             }
             return res.status(200).json({ data: data, success: true });
 
@@ -327,24 +327,24 @@ class CourseOrderService {
                 return resp.status(400).json({ message: "Please Provide Token Of Payment", success: false })
             }
             let TokenData = jwt.verify(TokenOfPayment, process.env.ACCESS_TOKEN_SECRET)
-            let findedCource = await CoachingCourceOrder.findOne({ CourceId: TokenData.CourceId, UserId: TokenData.UserId })
-            if (!findedCource) {
+            let findedCourse = await CoachingCourseOrder.findOne({ CourseId: TokenData.CourseId, UserId: TokenData.UserId })
+            if (!findedCourse) {
                 return resp.status(400).json({ message: "Course Not Found", success: false })
             }
             let FindedTransaction = await TransactionModel.default.findOne({ _id: PaymentId })
             if (!FindedTransaction) {
                 return resp.status(400).json({ message: "Transaction Detail Not Found", success: false })
             }
-            let updateStatus = await CoachingCourceOrder.findOneAndUpdate({
-                _id: TokenData.CourceId, UserId: TokenData.UserId
+            let updateStatus = await CoachingCourseOrder.findOneAndUpdate({
+                _id: TokenData.CourseId, UserId: TokenData.UserId
             },
                 {
 
-                    $set: { PaymentStatus: findedCource.status }
+                    $set: { PaymentStatus: findedCourse.status }
                 },
                 {
 
-                    $set: { PaymentStatus: findedCource.status }
+                    $set: { PaymentStatus: findedCourse.status }
                 },
                 {
                     new: true
@@ -359,49 +359,49 @@ class CourseOrderService {
 
         }
     }
-    async getTokenOfCource(req, resp) {
+    async getTokenOfCourse(req, resp) {
         try {
-            let { UserId, companyId, CourceId } = req.body
-            if (!companyId || !UserId || !CourceId) {
+            let { UserId, companyId, CourseId } = req.body
+            if (!companyId || !UserId || !CourseId) {
                 return resp.status(400).json({ message: 'please provide valid data', success: false })
             }
-            let findedCource = await CoachingCourceOrder.findOne({
-                companyId, UserId, CourceId
+            let findedCourse = await CoachingCourseOrder.findOne({
+                companyId, UserId, CourseId
             })
-            if (!findedCource) {
+            if (!findedCourse) {
                 return resp.status(400).json({ message: "Course Not Found", success: false })
             }
-            resp.status(200).json({ message: "token founded", TokenOfCource: findedCource.TokenOfCource, success: true })
+            resp.status(200).json({ message: "token founded", TokenOfCourse: findedCourse.TokenOfCourse, success: true })
         } catch (error) {
             console.error(error);
             return resp.status(400).json({ error: error.message, success: false });
 
         }
     }
-    async changeStateOfCourceContent(req, resp) {
+    async changeStateOfCourseContent(req, resp) {
         try {
-            let { QuizId, companyId, PlayListId, VideoId, UserId, CourceId } = req.body;
-            if (!companyId || !UserId || !CourceId) {
+            let { QuizId, companyId, PlayListId, VideoId, UserId, CourseId } = req.body;
+            if (!companyId || !UserId || !CourseId) {
                 return resp.status(400).json({ message: 'please provide valid data', success: false })
             }
-            let findedCource = await CoachingCourceOrder.findOne({
-                companyId, UserId, CourceId
+            let findedCourse = await CoachingCourseOrder.findOne({
+                companyId, UserId, CourseId
             })
-            if (!findedCource) {
+            if (!findedCourse) {
                 return resp.status(400), json({ message: "Course not found", success: false })
             }
             if (QuizId && PlayListId && VideoId) {
-                let orderDoc = await CoachingCourceOrder.findOne({
+                let orderDoc = await CoachingCourseOrder.findOne({
                     companyId,
                     UserId,
-                    CourceId
+                    CourseId
                 });
 
                 if (!orderDoc) {
                     return resp.status(404).json({ message: 'order not found', success: false });
                 }
 
-                orderDoc.CourceContent.forEach((content) => {
+                orderDoc.CourseContent.forEach((content) => {
                     if (content.PlayListId == PlayListId) {
                         content.VideoData.forEach((video) => {
                             if (video.VideoId == VideoId) {
@@ -421,17 +421,17 @@ class CourseOrderService {
 
             }
             else if (PlayListId && VideoId) {
-                let orderDoc = await CoachingCourceOrder.findOne({
+                let orderDoc = await CoachingCourseOrder.findOne({
                     companyId,
                     UserId,
-                    CourceId
+                    CourseId
                 });
 
                 if (!orderDoc) {
                     return resp.status(404).json({ message: 'order not found', success: false });
                 }
 
-                orderDoc.CourceContent.forEach((content) => {
+                orderDoc.CourseContent.forEach((content) => {
                     if (content.PlayListId == PlayListId) {
                         content.VideoData.forEach((video) => {
                             if (video.VideoId == VideoId) {
@@ -447,17 +447,17 @@ class CourseOrderService {
                 resp.status(200).json({ message: 'data updated', data: orderDoc, success: true });
             }
             else if (PlayListId) {
-                let orderDoc = await CoachingCourceOrder.findOne({
+                let orderDoc = await CoachingCourseOrder.findOne({
                     companyId,
                     UserId,
-                    CourceId
+                    CourseId
                 });
 
                 if (!orderDoc) {
                     return resp.status(404).json({ message: 'order not found', success: false });
                 }
 
-                orderDoc.CourceContent.forEach((content) => {
+                orderDoc.CourseContent.forEach((content) => {
                     if (content.PlayListId == PlayListId) {
                         content.PlayListCompleted = true;
                     }
@@ -477,19 +477,19 @@ class CourseOrderService {
 
     async generateCoachingCertificate(req, resp) {
         try {
-            const { UserId, CourceId, companyId } = req.body;
-            if (!UserId || !CourceId || !companyId) {
+            const { UserId, CourseId, companyId } = req.body;
+            if (!UserId || !CourseId || !companyId) {
                 return resp.status(400).json({ message: 'Please provide valid data', success: false });
             }
 
-            const courseOrder = await CoachingCourceOrder.findOne({ UserId, CourceId, companyId });
+            const courseOrder = await CoachingCourseOrder.findOne({ UserId, CourseId, companyId });
             if (!courseOrder) {
                 return resp.status(404).json({ message: 'Course order not found', success: false });
             }
-            if (!courseOrder.TokenOfCource) {
+            if (!courseOrder.TokenOfCourse) {
                 return resp.status(404).json({ message: 'Course Token Not Found', success: false });
             }
-            let TokenData = jwt.verify(courseOrder.TokenOfCource, process.env.ACCESS_TOKEN_SECRET)
+            let TokenData = jwt.verify(courseOrder.TokenOfCourse, process.env.ACCESS_TOKEN_SECRET)
             if (!TokenData) {
                 return resp.status(404).json({ message: 'Course Token Not Verified', success: false });
 
@@ -512,28 +512,28 @@ class CourseOrderService {
                 return resp.status(400).json({ message: 'Course not yet completed', success: false });
             }
 
-            await CoachingCourceOrder.findOneAndUpdate(
-                { UserId, CourceId, companyId },
-                { $set: { CourceCompleted: true } },
+            await CoachingCourseOrder.findOneAndUpdate(
+                { UserId, CourseId, companyId },
+                { $set: { CourseCompleted: true } },
                 { new: true }
             );
 
-            const matchCondition = { companyId, _id: CourceId };
-            const OriginalCourceData = await CoachingCourceController.getCoachingCourceData(matchCondition);
+            const matchCondition = { companyId, _id: CourseId };
+            const OriginalCourseData = await CoachingCourseController.getCoachingCourseData(matchCondition);
             const user = await UserController.default.findOne({ _id: UserId });
-            if (!OriginalCourceData || !user) {
+            if (!OriginalCourseData || !user) {
                 return resp.status(404).json({ message: 'Course or User not found', success: false });
             }
 
-            if (!OriginalCourceData.config) {
+            if (!OriginalCourseData.config) {
                 return resp.status(404).json({ message: 'Certificate template config not found', success: false });
             }
 
-            const config = OriginalCourceData.config;
-            const templatePath = path.join(__dirname, '..', '..', 'public', `${OriginalCourceData.CourceName}-${OriginalCourceData.ProviderId}`, 'Certificate', OriginalCourceData.Certificate);
+            const config = OriginalCourseData.config;
+            const templatePath = path.join(__dirname, '..', '..', 'public', `${OriginalCourseData.CourseName}-${OriginalCourseData.ProviderId}`, 'Certificate', OriginalCourseData.Certificate);
             const { width, height } = sizeOf(templatePath);
             const doc = new PDFDocument({ size: [width, height], margin: 0 });
-            const filePath = path.join(__dirname, '..', '..', 'public', 'MyCertificate', `${OriginalCourceData.CourceName}-${CourceId}-${UserId.replace(/\s+/g, '_')}.pdf`);
+            const filePath = path.join(__dirname, '..', '..', 'public', 'MyCertificate', `${OriginalCourseData.CourseName}-${CourseId}-${UserId.replace(/\s+/g, '_')}.pdf`);
             doc.pipe(fs.createWriteStream(filePath));
 
             doc.image(templatePath, 0, 0, { width, height }).fillColor('black');
@@ -559,23 +559,23 @@ class CourseOrderService {
                     }
                 } else if (key === 'Provider') {
 
-                    if (OriginalCourceData.ProviderInfo[0]) {
+                    if (OriginalCourseData.ProviderInfo[0]) {
                         let logoPath
-                        if (OriginalCourceData.ProviderTypeValue.CourceProviderType == 'Tutor') {
-                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingTutorImage', OriginalCourceData.ProviderInfo[0].TutorImage);
-                            doc.fontSize(pos.fontSize).text(OriginalCourceData.ProviderInfo[0].TutorName, pos.x, pos.y, { lineBreak: false });
+                        if (OriginalCourseData.ProviderTypeValue.CourseProviderType == 'Tutor') {
+                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingTutorImage', OriginalCourseData.ProviderInfo[0].TutorImage);
+                            doc.fontSize(pos.fontSize).text(OriginalCourseData.ProviderInfo[0].TutorName, pos.x, pos.y, { lineBreak: false });
                         }
-                        if (OriginalCourceData.ProviderTypeValue.CourceProviderType == 'Class') {
-                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingClassesImage', OriginalCourceData.ProviderTypeValue[0].ClassLogo);
-                            doc.fontSize(pos.fontSize).text(OriginalCourceData.ProviderInfo[0].ClassName, pos.x, pos.y, { lineBreak: false });
+                        if (OriginalCourseData.ProviderTypeValue.CourseProviderType == 'Class') {
+                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingClassesImage', OriginalCourseData.ProviderTypeValue[0].ClassLogo);
+                            doc.fontSize(pos.fontSize).text(OriginalCourseData.ProviderInfo[0].ClassName, pos.x, pos.y, { lineBreak: false });
                         }
-                        if (OriginalCourceData.ProviderTypeValue.CourceProviderType == 'Company') {
-                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingCompanyImage', OriginalCourceData.ProviderTypeValue[0].CourceCompanyLogo);
-                            doc.fontSize(pos.fontSize).text(OriginalCourceData.ProviderInfo[0].CourseCompanyName, pos.x, pos.y, { lineBreak: false });
+                        if (OriginalCourseData.ProviderTypeValue.CourseProviderType == 'Company') {
+                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingCompanyImage', OriginalCourseData.ProviderTypeValue[0].CourseCompanyLogo);
+                            doc.fontSize(pos.fontSize).text(OriginalCourseData.ProviderInfo[0].CourseCompanyName, pos.x, pos.y, { lineBreak: false });
                         }
-                        if (OriginalCourceData.ProviderTypeValue.CourceProviderType == 'University') {
-                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingUniversityImage', OriginalCourceData.ProviderTypeValue[0].UniversityLogo);
-                            doc.fontSize(pos.fontSize).text(OriginalCourceData.ProviderInfo[0].UniversityName, pos.x, pos.y, { lineBreak: false });
+                        if (OriginalCourseData.ProviderTypeValue.CourseProviderType == 'University') {
+                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingUniversityImage', OriginalCourseData.ProviderTypeValue[0].UniversityLogo);
+                            doc.fontSize(pos.fontSize).text(OriginalCourseData.ProviderInfo[0].UniversityName, pos.x, pos.y, { lineBreak: false });
 
                         }
 
@@ -587,14 +587,14 @@ class CourseOrderService {
                     }
                 }
 
-                const courseOrder = await CoachingCourceOrder.findOne({ UserId, CourceId, companyId });
+                const courseOrder = await CoachingCourseOrder.findOne({ UserId, CourseId, companyId });
                 if (!courseOrder) {
                     return resp.status(404).json({ message: 'Course order not found', success: false });
                 }
-                if (!courseOrder.TokenOfCource) {
+                if (!courseOrder.TokenOfCourse) {
                     return resp.status(404).json({ message: 'Course Token Not Found', success: false });
                 }
-                let TokenData = jwt.verify(courseOrder.TokenOfCource, 'secret-for-now')
+                let TokenData = jwt.verify(courseOrder.TokenOfCourse, 'secret-for-now')
                 if (!TokenData) {
                     return resp.status(404).json({ message: 'Course Token Not Verified', success: false });
 
@@ -617,28 +617,28 @@ class CourseOrderService {
                     return resp.status(400).json({ message: 'Course not yet completed', success: false });
                 }
 
-                await CoachingCourceOrder.findOneAndUpdate(
-                    { UserId, CourceId, companyId },
-                    { $set: { CourceCompleted: true } },
+                await CoachingCourseOrder.findOneAndUpdate(
+                    { UserId, CourseId, companyId },
+                    { $set: { CourseCompleted: true } },
                     { new: true }
                 );
 
-                const matchCondition = { companyId, _id: CourceId };
-                const OriginalCourceData = await CoachingCourceController.getCoachingCourceData(matchCondition);
+                const matchCondition = { companyId, _id: CourseId };
+                const OriginalCourseData = await CoachingCourseController.getCoachingCourseData(matchCondition);
                 const user = await UserController.default.findOne({ _id: UserId });
-                if (!OriginalCourceData || !user) {
+                if (!OriginalCourseData || !user) {
                     return resp.status(404).json({ message: 'Course or User not found', success: false });
                 }
 
-                if (!OriginalCourceData.config) {
+                if (!OriginalCourseData.config) {
                     return resp.status(404).json({ message: 'Certificate template config not found', success: false });
                 }
 
-                const config = OriginalCourceData.config;
-                const templatePath = path.join(__dirname, '..', '..', 'public', `${OriginalCourceData.CourceName}-${OriginalCourceData.ProviderId}`, 'Certificate', OriginalCourceData.Certificate);
+                const config = OriginalCourseData.config;
+                const templatePath = path.join(__dirname, '..', '..', 'public', `${OriginalCourseData.CourseName}-${OriginalCourseData.ProviderId}`, 'Certificate', OriginalCourseData.Certificate);
                 const { width, height } = sizeOf(templatePath);
                 const doc = new PDFDocument({ size: [width, height], margin: 0 });
-                const filePath = path.join(__dirname, '..', '..', 'public', 'MyCertificate', `${OriginalCourceData.CourceName}-${CourceId}-${UserId.replace(/\s+/g, '_')}.pdf`);
+                const filePath = path.join(__dirname, '..', '..', 'public', 'MyCertificate', `${OriginalCourseData.CourseName}-${CourseId}-${UserId.replace(/\s+/g, '_')}.pdf`);
                 doc.pipe(fs.createWriteStream(filePath));
 
                 doc.image(templatePath, 0, 0, { width, height }).fillColor('black');
@@ -664,23 +664,23 @@ class CourseOrderService {
                         }
                     } else if (key === 'Provider') {
 
-                        if (OriginalCourceData.ProviderInfo[0]) {
+                        if (OriginalCourseData.ProviderInfo[0]) {
                             let logoPath
-                            if (OriginalCourceData.ProviderTypeValue.CourceProviderType == 'Tutor') {
-                                logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingTutorImage', OriginalCourceData.ProviderInfo[0].TutorImage);
-                                doc.fontSize(pos.fontSize).text(OriginalCourceData.ProviderInfo[0].TutorName, pos.x, pos.y, { lineBreak: false });
+                            if (OriginalCourseData.ProviderTypeValue.CourseProviderType == 'Tutor') {
+                                logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingTutorImage', OriginalCourseData.ProviderInfo[0].TutorImage);
+                                doc.fontSize(pos.fontSize).text(OriginalCourseData.ProviderInfo[0].TutorName, pos.x, pos.y, { lineBreak: false });
                             }
-                            if (OriginalCourceData.ProviderTypeValue.CourceProviderType == 'Class') {
-                                logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingClassesImage', OriginalCourceData.ProviderTypeValue[0].ClassLogo);
-                                doc.fontSize(pos.fontSize).text(OriginalCourceData.ProviderInfo[0].ClassName, pos.x, pos.y, { lineBreak: false });
+                            if (OriginalCourseData.ProviderTypeValue.CourseProviderType == 'Class') {
+                                logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingClassesImage', OriginalCourseData.ProviderTypeValue[0].ClassLogo);
+                                doc.fontSize(pos.fontSize).text(OriginalCourseData.ProviderInfo[0].ClassName, pos.x, pos.y, { lineBreak: false });
                             }
-                            if (OriginalCourceData.ProviderTypeValue.CourceProviderType == 'Company') {
-                                logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingCompanyImage', OriginalCourceData.ProviderTypeValue[0].CourceCompanyLogo);
-                                doc.fontSize(pos.fontSize).text(OriginalCourceData.ProviderInfo[0].CourseCompanyName, pos.x, pos.y, { lineBreak: false });
+                            if (OriginalCourseData.ProviderTypeValue.CourseProviderType == 'Company') {
+                                logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingCompanyImage', OriginalCourseData.ProviderTypeValue[0].CourseCompanyLogo);
+                                doc.fontSize(pos.fontSize).text(OriginalCourseData.ProviderInfo[0].CourseCompanyName, pos.x, pos.y, { lineBreak: false });
                             }
-                            if (OriginalCourceData.ProviderTypeValue.CourceProviderType == 'University') {
-                                logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingUniversityImage', OriginalCourceData.ProviderTypeValue[0].UniversityLogo);
-                                doc.fontSize(pos.fontSize).text(OriginalCourceData.ProviderInfo[0].UniversityName, pos.x, pos.y, { lineBreak: false });
+                            if (OriginalCourseData.ProviderTypeValue.CourseProviderType == 'University') {
+                                logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingUniversityImage', OriginalCourseData.ProviderTypeValue[0].UniversityLogo);
+                                doc.fontSize(pos.fontSize).text(OriginalCourseData.ProviderInfo[0].UniversityName, pos.x, pos.y, { lineBreak: false });
 
                             }
 
@@ -694,9 +694,9 @@ class CourseOrderService {
 
                 }
 
-                if (OriginalCourceData.ConnectedInfo) {
+                if (OriginalCourseData.ConnectedInfo) {
                     const logoDirArr = [];
-                    OriginalCourceData.ConnectedInfo.forEach((conn) => {
+                    OriginalCourseData.ConnectedInfo.forEach((conn) => {
                         let logoPath;
                         if (conn.TutorImage) {
                             logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingTutorImage', conn.TutorImage);
@@ -704,8 +704,8 @@ class CourseOrderService {
                             logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingClassesImage', conn.ClassLogo);
                         } else if (conn.UniversityLogo) {
                             logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingUniversityImage', conn.UniversityLogo);
-                        } else if (conn.CourceCompanyLogo) {
-                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingCompanyImage', conn.CourceCompanyLogo);
+                        } else if (conn.CourseCompanyLogo) {
+                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingCompanyImage', conn.CourseCompanyLogo);
                         }
                         if (fs.existsSync(logoPath)) logoDirArr.push(logoPath);
                     });
@@ -721,12 +721,12 @@ class CourseOrderService {
                         });
                     }
                 }
-                const token = jwt.sign({ CourceId: CourceId, UserId: UserId, CourceName: OriginalCourceData.CourceName, UserName: user.name, UserEmail: user.email, UserPhone: user.phone });
+                const token = jwt.sign({ CourseId: CourseId, UserId: UserId, CourseName: OriginalCourseData.CourseName, UserName: user.name, UserEmail: user.email, UserPhone: user.phone });
                 let dataOfCertificate = {
                     companyId: companyId,
                     CertificateToken: token
                 }
-                let savedToken = new CoachingCourceOrder.CertificateModel(dataOfCertificate)
+                let savedToken = new CoachingCourseOrder.CertificateModel(dataOfCertificate)
                 savedToken = await savedToken.save();
                 let CertificateConfig = config.fields.CertificateId
                 doc.fontSize(CertificateConfig.fontSize).text(savedToken._id, CertificateConfig.x, CertificateConfig.y, { lineBreak: false });
@@ -744,7 +744,7 @@ class CourseOrderService {
             if (!companyId || !CertificateId) {
                 return resp.status(400).json({ message: 'please provide certificate id or compnay id', success: false })
             }
-            let FindCertificate = await CoachingCourceOrder.CertificateModel.findOne({ companyId: companyId, _id: CertificateId })
+            let FindCertificate = await CoachingCourseOrder.CertificateModel.findOne({ companyId: companyId, _id: CertificateId })
             if (!FindCertificate) {
                 return resp.status(400).json({ message: 'certificate not found', success: false })
             }
@@ -753,7 +753,7 @@ class CourseOrderService {
                 if (!CertiFicateData) {
                     return resp.status(400).json({ message: 'certificate data not found or token not vbe verified', success: false })
                 }
-                let FindCertificate = await CoachingCourceOrder.CertificateModel.findOne({ companyId: companyId, _id: CertificateId })
+                let FindCertificate = await CoachingCourseOrder.CertificateModel.findOne({ companyId: companyId, _id: CertificateId })
                 if (!FindCertificate) {
                     return resp.status(400).json({ message: 'certificate not found', success: false })
                 }

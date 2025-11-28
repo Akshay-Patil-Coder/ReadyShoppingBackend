@@ -47,16 +47,16 @@ router.get('/getCoachingClassesByData', (req, res) => {
     CoachingClassesController.getCoachingClassesByData(req, res)
 })
 
-router.put('/updateSubCourceCategoryList', authentication, (req, res) => {
+router.put('/updateSubCourseCategoryList', authentication, (req, res) => {
   if (req.user.role === 'Admin' || req.user.role === 'Company') {
-  return  CoachingClassesController.updateSubCourceCategoryList(req, res)
+  return  CoachingClassesController.updateSubCourseCategoryList(req, res)
   }
   res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 })
 
-router.put('/updateHeadCourceCategoryList', authentication, (req, res) => {
+router.put('/updateHeadCourseCategoryList', authentication, (req, res) => {
   if (req.user.role === 'Admin' || req.user.role === 'Company') {
-  return  CoachingClassesController.updateHeadCourceCategoryList(req, res)
+  return  CoachingClassesController.updateHeadCourseCategoryList(req, res)
   }
   res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 

@@ -1,5 +1,5 @@
 const { ObjectId } = require('mongodb');
-const { CoachingCourceModel, CoachingVideoModel, QuizModel } = require('./CoachingCource.model');
+const { CoachingCourseModel, CoachingVideoModel, QuizModel } = require('./CoachingCourse.model');
 const mongoose = require('mongoose');
 const fs = require('fs').promises;
 const fssync = require('fs');
@@ -10,7 +10,7 @@ const ffprobePath = path.join("C:", "ffmpeg", "bin", "ffprobe.exe");
 ffmpeg.setFfprobePath(ffprobePath);
 class CourseService {
     constructor() {
-        this.tempDir = path.join(__dirname, '..', '..', 'public', 'CourceTemporarlyData');
+        this.tempDir = path.join(__dirname, '..', '..', 'public', 'CourseTemporarlyData');
         this.publicDir = path.join(__dirname, '..', '..', 'public');
         this.privateDir = path.join(__dirname, '..', '..', 'private');
     }
@@ -96,8 +96,8 @@ class CourseService {
     }
     validateCourseData(courseData, files) {
         const requiredFields = [
-            'CourceName', 'ProviderId', 'companyId',
-            'HeadCourceCatId', 'SubCourceCatId', 'ProviderType', 'ContentData'
+            'CourseName', 'ProviderId', 'companyId',
+            'HeadCourseCatId', 'SubCourseCatId', 'ProviderType', 'ContentData'
         ];
         const missing = requiredFields.filter(f => !courseData[f]);
         if (missing.length) throw new Error(`Missing required fields: ${missing.join(', ')}`);
@@ -105,7 +105,7 @@ class CourseService {
         if (!courseData.ContentData || courseData.ContentData.length === 0)
             throw new Error('Course content is required');
 
-        if (!files.CourceThumbnail || !files.CourceThumbnail[0] ||
+        if (!files.CourseThumbnail || !files.CourseThumbnail[0] ||
             !files.CertificateTemplate || !files.CertificateTemplate[0]) {
             throw new Error('Thumbnail and certificate template are required');
         }
@@ -366,8 +366,8 @@ class CourseService {
 
                 const quizIds = item.QuizData
                     ? await this.processQuizData(item.QuizData, {
-                        HeadCourceCatId: content.HeadCourceCatId,
-                        SubCourceCatId: content.SubCourceCatId,
+                        HeadCourseCatId: content.HeadCourseCatId,
+                        SubCourseCatId: content.SubCourseCatId,
                         ProviderType: content.ProviderType,
                         ProviderId: content.ProviderId,
                         companyId: content.companyId,
@@ -383,8 +383,8 @@ class CourseService {
                     }
 
                     const videoInfo = {
-                        HeadCourceCatId: content.HeadCourceCatId,
-                        SubCourceCatId: content.SubCourceCatId,
+                        HeadCourseCatId: content.HeadCourseCatId,
+                        SubCourseCatId: content.SubCourseCatId,
                         ProviderType: content.ProviderType,
                         ProviderId: content.ProviderId,
                         companyId: content.companyId,
@@ -478,14 +478,14 @@ class CourseService {
                     // Package to HLS
                     const hlsOutDir = path.join(
                         this.publicDir, 'streams',
-                        `${content.CourceName}-${content.ProviderId}`,
+                        `${content.CourseName}-${content.ProviderId}`,
                         section.Heading,
                         item.VideoData.title
                     );
 
                     const publicBaseUrl = path.join(
                         '/streams',
-                        `${content.CourceName}-${content.ProviderId}`,
+                        `${content.CourseName}-${content.ProviderId}`,
                         section.Heading,
                         item.VideoData.title
                     ).replace(/\\/g, '/');
@@ -515,7 +515,7 @@ class CourseService {
             if (videoDataIds.length > 0) {
                 courseContentFinal.push({
                     Heading: section.Heading,
-                    CourceData: videoDataIds
+                    CourseData: videoDataIds
                 });
             }
         }
@@ -524,13 +524,13 @@ class CourseService {
     }
     async resolveVideoOrders(CourseId, PlayListId, currentVideoData, Operation, VideoDuration) {
         try {
-            const courseData = await CoachingCourceModel.findOne({ _id: CourseId });
+            const courseData = await CoachingCourseModel.findOne({ _id: CourseId });
             if (!courseData) throw new Error("Course not found");
 
-            const playlist = courseData.CourceContent.find(each => each._id.toString() === PlayListId.toString());
+            const playlist = courseData.CourseContent.find(each => each._id.toString() === PlayListId.toString());
             if (!playlist) throw new Error("Playlist not found");
 
-            const videoIds = playlist.CourceData || [];
+            const videoIds = playlist.CourseData || [];
             const allVideos = await CoachingVideoModel.find({ _id: { $in: videoIds } });
 
             let ordered = allVideos.map(v => ({ _id: v._id.toString(), order: v.order }))
@@ -556,9 +556,9 @@ class CourseService {
             }));
 
             const videoIdList = ordered.map(v => v._id);
-            await CoachingCourceModel.findOneAndUpdate(
-                { _id: CourseId, 'CourceContent._id': PlayListId },
-                { $set: { 'CourceContent.$.CourceData': videoIdList, CourceDuration: VideoDuration } },
+            await CoachingCourseModel.findOneAndUpdate(
+                { _id: CourseId, 'CourseContent._id': PlayListId },
+                { $set: { 'CourseContent.$.CourseData': videoIdList, CourseDuration: VideoDuration } },
                 { new: true }
             );
         } catch (error) {
@@ -576,13 +576,13 @@ class CourseService {
                 ContentVideos: files.ContentVideos ? files.ContentVideos.map(f => f.originalname) : [],
                 VideoAudioLanguages: files.VideoAudioLanguages ? files.VideoAudioLanguages.map(f => f.originalname) : [],
                 VideoSubtitles: files.VideoSubtitles ? files.VideoSubtitles.map(f => f.originalname) : [],
-                CourceThumbnail: files.CourceThumbnail[0] ? files.CourceThumbnail[0].originalname : null,
+                CourseThumbnail: files.CourseThumbnail[0] ? files.CourseThumbnail[0].originalname : null,
                 CertificateTemplate: files.CertificateTemplate[0] ? files.CertificateTemplate[0].originalname : null
             };
 
             await this.validateCourseData(courseData, files);
 
-            const courseDirName = `${courseData.CourceName}-${courseData.ProviderId}`;
+            const courseDirName = `${courseData.CourseName}-${courseData.ProviderId}`;
             const coursePublicPath = path.join(this.publicDir, courseDirName);
             const coursePrivatePath = path.join(this.privateDir, courseDirName);
             await fs.mkdir(coursePublicPath, { recursive: true });
@@ -604,32 +604,32 @@ class CourseService {
                 );
             }
 
-            if (uploadedFiles.CourceThumbnail) {
-                const pubThumbDir = path.join(coursePublicPath, 'CourceThumbnail');
-                const priThumbDir = path.join(coursePrivatePath, 'CourceThumbnail');
+            if (uploadedFiles.CourseThumbnail) {
+                const pubThumbDir = path.join(coursePublicPath, 'CourseThumbnail');
+                const priThumbDir = path.join(coursePrivatePath, 'CourseThumbnail');
                 await fs.mkdir(pubThumbDir, { recursive: true });
                 await fs.mkdir(priThumbDir, { recursive: true });
                 await fs.rename(
-                    path.join(this.tempDir, uploadedFiles.CourceThumbnail),
-                    path.join(pubThumbDir, uploadedFiles.CourceThumbnail)
+                    path.join(this.tempDir, uploadedFiles.CourseThumbnail),
+                    path.join(pubThumbDir, uploadedFiles.CourseThumbnail)
                 );
                 await fs.copyFile(
-                    path.join(pubThumbDir, uploadedFiles.CourceThumbnail),
-                    path.join(priThumbDir, uploadedFiles.CourceThumbnail)
+                    path.join(pubThumbDir, uploadedFiles.CourseThumbnail),
+                    path.join(priThumbDir, uploadedFiles.CourseThumbnail)
                 );
             }
 
             const courseDocument = {
-                CourceName: courseData.CourceName,
+                CourseName: courseData.CourseName,
                 ProviderId: courseData.ProviderId,
                 ProviderType: courseData.ProviderType,
                 companyId: courseData.companyId,
-                HeadCourceCatId: courseData.HeadCourceCatId,
-                SubCourceCatId: courseData.SubCourceCatId,
-                CourceDuration: totalDuration,
-                CourceThumbnail: uploadedFiles.CourceThumbnail,
+                HeadCourseCatId: courseData.HeadCourseCatId,
+                SubCourseCatId: courseData.SubCourseCatId,
+                CourseDuration: totalDuration,
+                CourseThumbnail: uploadedFiles.CourseThumbnail,
                 Certificate: uploadedFiles.CertificateTemplate,
-                CourceContent: courseContentFinal,
+                CourseContent: courseContentFinal,
             };
             if (courseData.Skills) courseDocument.Skills = courseData.Skills;
             if (courseData.SkillsId) courseDocument.SkillsId = courseData.SkillsId;
@@ -640,13 +640,13 @@ class CourseService {
             if (courseData.ConnectedWith) courseDocument.ConnectedWith = courseData.ConnectedWith;
             if (courseData.CertificateConfig) courseDocument.CertificateConfig = courseData.CertificateConfig;
 
-            const result = await CoachingCourceModel.create(courseDocument);
+            const result = await CoachingCourseModel.create(courseDocument);
 
             const filesToClean = []
                 .concat(uploadedFiles.ContentVideos || [])
                 .concat(uploadedFiles.VideoAudioLanguages || [])
                 .concat(uploadedFiles.VideoSubtitles || []);
-            if (uploadedFiles.CourceThumbnail) filesToClean.push(uploadedFiles.CourceThumbnail);
+            if (uploadedFiles.CourseThumbnail) filesToClean.push(uploadedFiles.CourseThumbnail);
             if (uploadedFiles.CertificateTemplate) filesToClean.push(uploadedFiles.CertificateTemplate);
             if (filesToClean.length) await this.cleanFiles(filesToClean);
 
@@ -659,7 +659,7 @@ class CourseService {
                     .concat(uploadedFiles.ContentVideos || [])
                     .concat(uploadedFiles.VideoAudioLanguages || [])
                     .concat(uploadedFiles.VideoSubtitles || []);
-                if (uploadedFiles.CourceThumbnail) filesToClean.push(uploadedFiles.CourceThumbnail);
+                if (uploadedFiles.CourseThumbnail) filesToClean.push(uploadedFiles.CourseThumbnail);
                 if (uploadedFiles.CertificateTemplate) filesToClean.push(uploadedFiles.CertificateTemplate);
                 if (filesToClean.length) await this.cleanFiles(filesToClean);
             }
@@ -691,8 +691,8 @@ class CourseService {
 
             const quizIds = section.QuizData
                 ? await this.processQuizData(section.QuizData, {
-                    HeadCourceCatId: content.HeadCourceCatId,
-                    SubCourceCatId: content.SubCourceCatId,
+                    HeadCourseCatId: content.HeadCourseCatId,
+                    SubCourseCatId: content.SubCourseCatId,
                     ProviderType: content.ProviderType,
                     ProviderId: content.ProviderId,
                     companyId: content.companyId,
@@ -707,8 +707,8 @@ class CourseService {
                 }
 
                 const videoInfo = {
-                    HeadCourceCatId: content.HeadCourceCatId,
-                    SubCourceCatId: content.SubCourceCatId,
+                    HeadCourseCatId: content.HeadCourseCatId,
+                    SubCourseCatId: content.SubCourseCatId,
                     ProviderType: content.ProviderType,
                     ProviderId: content.ProviderId,
                     companyId: content.companyId,
@@ -812,14 +812,14 @@ class CourseService {
             if (videoDataIds.length > 0) {
                 courseContentFinal.push({
                     Heading: section.Heading,
-                    CourceData: videoDataIds
+                    CourseData: videoDataIds
                 });
             }
         }
         return { videoDataIds, totalDuration };
     }
-    validateCourseDataForUpdateTheCourceDetails(courseData, filesToClean) {
-        const required = ['CourceName', 'companyId', 'HeadCourceCatId', 'SubCourceCatId'];
+    validateCourseDataForUpdateTheCourseDetails(courseData, filesToClean) {
+        const required = ['CourseName', 'companyId', 'HeadCourseCatId', 'SubCourseCatId'];
         const missing = required.filter(f => !courseData[f]);
         if (missing.length) {
             if (filesToClean.length) this.cleanFiles(filesToClean);
@@ -915,11 +915,11 @@ class CourseService {
 
     // validateCourseData(courseData, files) {
     //     const requiredFields = [
-    //         'CourceName',
+    //         'CourseName',
     //         'ProviderId',
     //         'companyId',
-    //         'HeadCourceCatId',
-    //         'SubCourceCatId',
+    //         'HeadCourseCatId',
+    //         'SubCourseCatId',
     //         'ProviderType',
     //         'ContentData'
     //     ];
@@ -933,7 +933,7 @@ class CourseService {
     //         throw new Error('Course content is required');
     //     }
 
-    //     if (!files.CourceThumbnail || !files.CourceThumbnail[0] ||
+    //     if (!files.CourseThumbnail || !files.CourseThumbnail[0] ||
     //         !files.CertificateTemplate || !files.CertificateTemplate[0]) {
     //         throw new Error('Thumbnail and certificate template are required');
     //     }
@@ -947,12 +947,12 @@ class CourseService {
     //         }
     //     }
     // }
-    // validateCourseDataForUpdateTheCourceDetails(courseData, filesToClean) {
+    // validateCourseDataForUpdateTheCourseDetails(courseData, filesToClean) {
     //     const requiredFields = [
-    //         'CourceName',
+    //         'CourseName',
     //         'companyId',
-    //         'HeadCourceCatId',
-    //         'SubCourceCatId',
+    //         'HeadCourseCatId',
+    //         'SubCourseCatId',
     //     ];
 
     //     const missingFields = requiredFields.filter(field => !courseData[field]);
@@ -1043,8 +1043,8 @@ class CourseService {
 
     //             const quizIds = item.QuizData
     //                 ? await this.processQuizData(item.QuizData, {
-    //                     HeadCourceCatId: content.HeadCourceCatId,
-    //                     SubCourceCatId: content.SubCourceCatId,
+    //                     HeadCourseCatId: content.HeadCourseCatId,
+    //                     SubCourseCatId: content.SubCourseCatId,
     //                     ProviderType: content.ProviderType,
     //                     ProviderId: content.ProviderId,
     //                     companyId: content.companyId,
@@ -1059,8 +1059,8 @@ class CourseService {
     //                 }
 
     //                 const videoInfo = {
-    //                     HeadCourceCatId: content.HeadCourceCatId,
-    //                     SubCourceCatId: content.SubCourceCatId,
+    //                     HeadCourseCatId: content.HeadCourseCatId,
+    //                     SubCourseCatId: content.SubCourseCatId,
     //                     ProviderType: content.ProviderType,
     //                     ProviderId: content.ProviderId,
     //                     companyId: content.companyId,
@@ -1165,7 +1165,7 @@ class CourseService {
     //         if (videoDataIds.length > 0) {
     //             courseContentFinal.push({
     //                 Heading: section.Heading,
-    //                 CourceData: videoDataIds
+    //                 CourseData: videoDataIds
     //             });
     //         }
     //     }
@@ -1174,13 +1174,13 @@ class CourseService {
     // }
     //   async resolveVideoOrders(CourseId, PlayListId, currentVideoData, Operation, VideoDuration) {
     //     try {
-    //         const courseData = await CoachingCourceModel.findOne({ _id: CourseId });
+    //         const courseData = await CoachingCourseModel.findOne({ _id: CourseId });
     //         if (!courseData) throw new Error("Course not found");
 
-    //         const playlist = courseData.CourceContent.find(each => each._id.toString() === PlayListId.toString());
+    //         const playlist = courseData.CourseContent.find(each => each._id.toString() === PlayListId.toString());
     //         if (!playlist) throw new Error("Playlist not found");
 
-    //         const videoIds = playlist.CourceData || [];
+    //         const videoIds = playlist.CourseData || [];
     //         const allVideos = await CoachingVideoModel.find({ _id: { $in: videoIds } });
 
     //         let orderedVideos = allVideos
@@ -1220,12 +1220,12 @@ class CourseService {
 
     //         const videoIdList = orderedVideos.map(v => v._id);
     //         console.log(videoIdList, PlayListId, CourseId, VideoDuration, 'hello ')
-    //         await CoachingCourceModel.findOneAndUpdate(
-    //             { _id: CourseId, 'CourceContent._id': PlayListId },
+    //         await CoachingCourseModel.findOneAndUpdate(
+    //             { _id: CourseId, 'CourseContent._id': PlayListId },
     //             {
     //                 $set: {
-    //                     'CourceContent.$.CourceData': videoIdList,
-    //                     CourceDuration: VideoDuration
+    //                     'CourseContent.$.CourseData': videoIdList,
+    //                     CourseDuration: VideoDuration
     //                 }
     //             },
     //             { new: true }
@@ -1250,13 +1250,13 @@ class CourseService {
     //             ContentVideos: files.ContentVideos ? files.ContentVideos.map(f => f.originalname) : [],
     //             VideoAudioLanguages: files.VideoAudioLanguages ? files.VideoAudioLanguages.map(f => f.originalname) : [],
     //             VideoSubtitles: files.VideoSubtitles ? files.VideoSubtitles.map(f => f.originalname) : [],
-    //             CourceThumbnail: files.CourceThumbnail && files.CourceThumbnail[0] ? files.CourceThumbnail[0].originalname : null,
+    //             CourseThumbnail: files.CourseThumbnail && files.CourseThumbnail[0] ? files.CourseThumbnail[0].originalname : null,
     //             CertificateTemplate: files.CertificateTemplate && files.CertificateTemplate[0] ? files.CertificateTemplate[0].originalname : null
     //         };
 
     //         await this.validateCourseData(courseData, files);
 
-    //         const courseDirName = `${courseData.CourceName}-${courseData.ProviderId}`;
+    //         const courseDirName = `${courseData.CourseName}-${courseData.ProviderId}`;
     //         const coursePath = path.join(this.publicDir, courseDirName);
     //         const PrivateCoursePath = path.join(this.privateDir, courseDirName);
     //         await fs.mkdir(coursePath, { recursive: true });
@@ -1278,31 +1278,31 @@ class CourseService {
 
     //         }
 
-    //         if (uploadedFiles.CourceThumbnail) {
-    //             const thumbDir = path.join(coursePath, 'CourceThumbnail');
-    //             const privateThumbDir = path.join(PrivateCoursePath, 'CourceThumbnail');
+    //         if (uploadedFiles.CourseThumbnail) {
+    //             const thumbDir = path.join(coursePath, 'CourseThumbnail');
+    //             const privateThumbDir = path.join(PrivateCoursePath, 'CourseThumbnail');
     //             await fs.mkdir(thumbDir, { recursive: true });
     //             await fs.mkdir(privateThumbDir, { recursive: true });
     //             await fs.rename(
-    //                 path.join(this.tempDir, uploadedFiles.CourceThumbnail),
-    //                 path.join(thumbDir, uploadedFiles.CourceThumbnail)
+    //                 path.join(this.tempDir, uploadedFiles.CourseThumbnail),
+    //                 path.join(thumbDir, uploadedFiles.CourseThumbnail)
     //             );
     //             await fs.copyFile(
-    //                 path.join(thumbDir, uploadedFiles.CourceThumbnail),
-    //                 path.join(privateThumbDir, uploadedFiles.CourceThumbnail)
+    //                 path.join(thumbDir, uploadedFiles.CourseThumbnail),
+    //                 path.join(privateThumbDir, uploadedFiles.CourseThumbnail)
     //             );
     //         }
     //         const courseDocument = {
-    //             CourceName: courseData.CourceName,
+    //             CourseName: courseData.CourseName,
     //             ProviderId: courseData.ProviderId,
     //             ProviderType: courseData.ProviderType,
     //             companyId: courseData.companyId,
-    //             HeadCourceCatId: courseData.HeadCourceCatId,
-    //             SubCourceCatId: courseData.SubCourceCatId,
-    //             CourceDuration: totalDuration,
-    //             CourceThumbnail: uploadedFiles.CourceThumbnail,
+    //             HeadCourseCatId: courseData.HeadCourseCatId,
+    //             SubCourseCatId: courseData.SubCourseCatId,
+    //             CourseDuration: totalDuration,
+    //             CourseThumbnail: uploadedFiles.CourseThumbnail,
     //             Certificate: uploadedFiles.CertificateTemplate,
-    //             CourceContent: courseContentFinal,
+    //             CourseContent: courseContentFinal,
     //         };
 
     //         if (courseData.Skills) courseDocument.Skills = courseData.Skills;
@@ -1314,14 +1314,14 @@ class CourseService {
     //         if (courseData.ConnectedWith) courseDocument.ConnectedWith = courseData.ConnectedWith;
     //         if (courseData.CertificateConfig) courseDocument.CertificateConfig = courseData.CertificateConfig
 
-    //         const result = await CoachingCourceModel.create(courseDocument);
+    //         const result = await CoachingCourseModel.create(courseDocument);
 
     //         const filesToClean = []
     //             .concat(uploadedFiles.ContentVideos || [])
     //             .concat(uploadedFiles.VideoAudioLanguages || [])
     //             .concat(uploadedFiles.VideoSubtitles || []);
 
-    //         if (uploadedFiles.CourceThumbnail) filesToClean.push(uploadedFiles.CourceThumbnail);
+    //         if (uploadedFiles.CourseThumbnail) filesToClean.push(uploadedFiles.CourseThumbnail);
     //         if (uploadedFiles.CertificateTemplate) filesToClean.push(uploadedFiles.CertificateTemplate);
 
     //         if (filesToClean.length !== 0) {
@@ -1338,7 +1338,7 @@ class CourseService {
     //                 .concat(uploadedFiles.VideoAudioLanguages || [])
     //                 .concat(uploadedFiles.VideoSubtitles || []);
 
-    //             if (uploadedFiles.CourceThumbnail) filesToClean.push(uploadedFiles.CourceThumbnail);
+    //             if (uploadedFiles.CourseThumbnail) filesToClean.push(uploadedFiles.CourseThumbnail);
     //             if (uploadedFiles.CertificateTemplate) filesToClean.push(uploadedFiles.CertificateTemplate);
 
     //             if (filesToClean.length !== 0) {
@@ -1352,14 +1352,14 @@ class CourseService {
     //         });
     //     }
     // }
-    async getCoachingCourceData(matchCondition) {
-        return await CoachingCourceModel.aggregate([
+    async getCoachingCourseData(matchCondition) {
+        return await CoachingCourseModel.aggregate([
             { $match: matchCondition },
 
             {
                 $lookup: {
                     from: "coachingcategories",
-                    localField: "HeadCourceCatId",
+                    localField: "HeadCourseCatId",
                     foreignField: "_id",
                     as: "HeadCoachingCategories"
                 }
@@ -1367,7 +1367,7 @@ class CourseService {
             {
                 $lookup: {
                     from: "coachingcategories",
-                    localField: "SubCourceCatId",
+                    localField: "SubCourseCatId",
                     foreignField: "_id",
                     as: "SubCoachingCategories"
                 }
@@ -1465,10 +1465,10 @@ class CourseService {
                     ProviderInfo: {
                         $switch: {
                             branches: [
-                                { case: { $eq: ["$ProviderTypeValue.CourceProviderType", "Class"] }, then: "$ClassProviderInfo" },
-                                { case: { $eq: ["$ProviderTypeValue.CourceProviderType", "Tutor"] }, then: "$TutorProviderInfo" },
-                                { case: { $eq: ["$ProviderTypeValue.CourceProviderType", "University"] }, then: "$UniversityProviderInfo" },
-                                { case: { $eq: ["$ProviderTypeValue.CourceProviderType", "Company"] }, then: "$CompanyProviderInfo" }
+                                { case: { $eq: ["$ProviderTypeValue.CourseProviderType", "Class"] }, then: "$ClassProviderInfo" },
+                                { case: { $eq: ["$ProviderTypeValue.CourseProviderType", "Tutor"] }, then: "$TutorProviderInfo" },
+                                { case: { $eq: ["$ProviderTypeValue.CourseProviderType", "University"] }, then: "$UniversityProviderInfo" },
+                                { case: { $eq: ["$ProviderTypeValue.CourseProviderType", "Company"] }, then: "$CompanyProviderInfo" }
                             ],
                             default: []
                         }
@@ -1476,10 +1476,10 @@ class CourseService {
                     ConnectedInfo: {
                         $switch: {
                             branches: [
-                                { case: { $eq: ["$ConnectedTypeValue.CourceProviderType", "Class"] }, then: "$ClassConnectedInfo" },
-                                { case: { $eq: ["$ConnectedTypeValue.CourceProviderType", "Tutor"] }, then: "$TutorConnectedInfo" },
-                                { case: { $eq: ["$ConnectedTypeValue.CourceProviderType", "University"] }, then: "$UniversityConnectedInfo" },
-                                { case: { $eq: ["$ConnectedTypeValue.CourceProviderType", "Company"] }, then: "$CompanyConnectedInfo" }
+                                { case: { $eq: ["$ConnectedTypeValue.CourseProviderType", "Class"] }, then: "$ClassConnectedInfo" },
+                                { case: { $eq: ["$ConnectedTypeValue.CourseProviderType", "Tutor"] }, then: "$TutorConnectedInfo" },
+                                { case: { $eq: ["$ConnectedTypeValue.CourseProviderType", "University"] }, then: "$UniversityConnectedInfo" },
+                                { case: { $eq: ["$ConnectedTypeValue.CourseProviderType", "Company"] }, then: "$CompanyConnectedInfo" }
                             ],
                             default: []
                         }
@@ -1509,25 +1509,25 @@ class CourseService {
                 }
             },
 
-            { $unwind: { path: "$CourceContent", preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: "$CourseContent", preserveNullAndEmptyArrays: true } },
 
             {
                 $lookup: {
                     from: "coachingvideos",
-                    localField: "CourceContent.CourceData",
+                    localField: "CourseContent.CourseData",
                     foreignField: "_id",
-                    as: "CourceContent.Videos"
+                    as: "CourseContent.Videos"
                 }
             },
 
-            { $unwind: { path: "$CourceContent.Videos", preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: "$CourseContent.Videos", preserveNullAndEmptyArrays: true } },
 
             {
                 $lookup: {
-                    from: "courcequizes",
-                    localField: "CourceContent.Videos.Quizes",
+                    from: "Coursequizes",
+                    localField: "CourseContent.Videos.Quizes",
                     foreignField: "_id",
-                    as: "CourceContent.Videos.QuizesInfo"
+                    as: "CourseContent.Videos.QuizesInfo"
                 }
             },
 
@@ -1535,10 +1535,10 @@ class CourseService {
                 $group: {
                     _id: {
                         courseId: "$_id",
-                        heading: "$CourceContent.Heading"
+                        heading: "$CourseContent.Heading"
                     },
                     CourseData: { $first: "$$ROOT" },
-                    Videos: { $push: "$CourceContent.Videos" }
+                    Videos: { $push: "$CourseContent.Videos" }
                 }
             },
 
@@ -1546,7 +1546,7 @@ class CourseService {
                 $group: {
                     _id: "$_id.courseId",
                     CourseInfo: { $first: "$CourseData" },
-                    CourceContent: {
+                    CourseContent: {
                         $push: {
                             Heading: "$_id.heading",
                             Videos: "$Videos"
@@ -1557,21 +1557,21 @@ class CourseService {
 
             {
                 $replaceRoot: {
-                    newRoot: { $mergeObjects: ["$CourseInfo", { "CourceContent": "$CourceContent" }] }
+                    newRoot: { $mergeObjects: ["$CourseInfo", { "CourseContent": "$CourseContent" }] }
                 }
             }
         ]);
     }
 
 
-    async getCoachingCource(req, res) {
-        let { CourseId, CourceName, Skills, SkillsId, ProviderId, ProviderType, connectedId, connectedType, HeadCourceCatId, SubCourceCatId, companyId } = req.query;
+    async getCoachingCourse(req, res) {
+        let { CourseId, CourseName, Skills, SkillsId, ProviderId, ProviderType, connectedId, connectedType, HeadCourseCatId, SubCourseCatId, companyId } = req.query;
         console.log("zzzzzzzzzzzzzzz", req.query)
         try {
             let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
-            if (CourceName) {
-                matchCondition.CourceName = { $in: [String(CourceName)] };
+            if (CourseName) {
+                matchCondition.CourseName = { $in: [String(CourseName)] };
             }
             if (Skills) {
                 matchCondition.Skills = { $in: [String(Skills)] };
@@ -1611,17 +1611,17 @@ class CourseService {
                 }
                 matchCondition.ConnectedWith = { $elemMatch: elemMatch };
             }
-            if (HeadCourceCatId) {
-                if (!mongoose.Types.ObjectId.isValid(HeadCourceCatId)) {
+            if (HeadCourseCatId) {
+                if (!mongoose.Types.ObjectId.isValid(HeadCourseCatId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.HeadCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(HeadCourceCatId)] }
+                matchCondition.HeadCourseCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(HeadCourseCatId)] }
             }
-            if (SubCourceCatId) {
-                if (!mongoose.Types.ObjectId.isValid(SubCourceCatId)) {
+            if (SubCourseCatId) {
+                if (!mongoose.Types.ObjectId.isValid(SubCourseCatId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.SubCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubCourceCatId)] };
+                matchCondition.SubCourseCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubCourseCatId)] };
             }
             if (CourseId) {
                 if (!mongoose.Types.ObjectId.isValid(CourseId)) {
@@ -1629,10 +1629,10 @@ class CourseService {
                 }
                 matchCondition._id = mongoose.Types.ObjectId.createFromHexString(CourseId)
             }
-            const data = await this.getCoachingCourceData(matchCondition);
+            const data = await this.getCoachingCourseData(matchCondition);
 
             if (data.length === 0) {
-                return res.status(404).json({ message: 'No Cource Found', success: false });
+                return res.status(404).json({ message: 'No Course Found', success: false });
             }
 
             return res.status(200).json({ data: data, success: true });
@@ -1644,15 +1644,15 @@ class CourseService {
         }
     }
 
-    async DeleteCoachingCource(req, resp) {
+    async DeleteCoachingCourse(req, resp) {
         try {
             if (!req.params.id) {
-                return resp.status(400).json({ message: "please provide id of cource", success: false })
+                return resp.status(400).json({ message: "please provide id of Course", success: false })
             }
-            const coachingcourcedata = await CoachingCourceModel.findOne({ _id: req.params.id })
-            if (coachingcourcedata) {
-                if (coachingcourcedata.CourceContent) {
-                    coachingcourcedata.CourceContent.forEach(async (EachContent) => {
+            const coachingCoursedata = await CoachingCourseModel.findOne({ _id: req.params.id })
+            if (coachingCoursedata) {
+                if (coachingCoursedata.CourseContent) {
+                    coachingCoursedata.CourseContent.forEach(async (EachContent) => {
                         EachContent.ContentData.forEach(async (EachVideoId) => {
                             let findedVideo = await CoachingVideoModel.findOne({ _id: EachVideoId })
                             if (findedVideo) {
@@ -1671,26 +1671,26 @@ class CourseService {
                     })
                 }
 
-                const result = await CoachingCourceModel.deleteOne({ _id: req.params.id })
+                const result = await CoachingCourseModel.deleteOne({ _id: req.params.id })
                 if (!result) {
-                    return resp.status(400).json({ message: "Coaching cource cannot be deleted", success: false })
+                    return resp.status(400).json({ message: "Coaching Course cannot be deleted", success: false })
                 }
-                let CourcePath = path.join(this.publicDir, `${FindCource.CourceName}-${FindCource.ProviderId}`)
-                let FileIsOrNot = await this.fileExists(CourcePath)
+                let CoursePath = path.join(this.publicDir, `${FindCourse.CourseName}-${FindCourse.ProviderId}`)
+                let FileIsOrNot = await this.fileExists(CoursePath)
                 if (FileIsOrNot) {
-                    await fs.unlink(CourcePath)
+                    await fs.unlink(CoursePath)
                 }
-                let PrivateCoursePath = path.join(this.privateDir, `${FindCource.CourceName}-${FindCource.ProviderId}`)
+                let PrivateCoursePath = path.join(this.privateDir, `${FindCourse.CourseName}-${FindCourse.ProviderId}`)
                 let PrivateFileIsOrNot = await this.fileExists(PrivateCoursePath)
                 if (PrivateFileIsOrNot) {
                     await fs.unlink(PrivateCoursePath)
                 }
 
 
-                return resp.status(200).json({ message: "Coaching cource deleted", success: true, data: result })
+                return resp.status(200).json({ message: "Coaching Course deleted", success: true, data: result })
             }
             else {
-                return resp.status(400).json({ message: "cource cannot found", success: false })
+                return resp.status(400).json({ message: "Course cannot found", success: false })
             }
 
         } catch (error) {
@@ -1698,10 +1698,10 @@ class CourseService {
             return resp.status(400).json({ error: error.message, success: false });
         }
     }
-    async UpdateCourceDetail(req, res) {
+    async UpdateCourseDetail(req, res) {
         let uploadedFiles = {};
         try {
-            let { CourseId, CourceName, Skills, SkillsId, ProviderId, ConnectedWith, HeadCourceCatId, SubCourceCatId, Price, TextAreas, Level, offerPercentage, CertificateConfig } = req.body;
+            let { CourseId, CourseName, Skills, SkillsId, ProviderId, ConnectedWith, HeadCourseCatId, SubCourseCatId, Price, TextAreas, Level, offerPercentage, CertificateConfig } = req.body;
             let companyId = req.query.companyId;
             if (Skills) {
                 Skills = JSON.parse(Skills)
@@ -1712,11 +1712,11 @@ class CourseService {
             if (ConnectedWith) {
                 ConnectedWith = JSON.parse(ConnectedWith)
             }
-            if (HeadCourceCatId) {
-                HeadCourceCatId = JSON.parse(HeadCourceCatId)
+            if (HeadCourseCatId) {
+                HeadCourseCatId = JSON.parse(HeadCourseCatId)
             }
-            if (SubCourceCatId) {
-                SubCourceCatId = JSON.parse(SubCourceCatId)
+            if (SubCourseCatId) {
+                SubCourseCatId = JSON.parse(SubCourseCatId)
             }
             if (TextAreas) {
                 TextAreas = JSON.parse(TextAreas)
@@ -1724,34 +1724,34 @@ class CourseService {
             const files = req.files;
 
             uploadedFiles = {
-                CourceThumbnail: files.CourceThumbnail && files.CourceThumbnail[0] ? files.CourceThumbnail[0].originalname : null,
+                CourseThumbnail: files.CourseThumbnail && files.CourseThumbnail[0] ? files.CourseThumbnail[0].originalname : null,
                 CertificateTemplate: files.CertificateTemplate && files.CertificateTemplate[0] ? files.CertificateTemplate[0].originalname : null
             };
             const filesToClean = [];
-            if (uploadedFiles.CourceThumbnail) filesToClean.push(uploadedFiles.CourceThumbnail);
+            if (uploadedFiles.CourseThumbnail) filesToClean.push(uploadedFiles.CourseThumbnail);
             if (uploadedFiles.CertificateTemplate) filesToClean.push(uploadedFiles.CertificateTemplate);
 
-            let FindCource = await CoachingCourceModel.findOne({ _id: CourseId })
-            if (!FindCource) {
+            let FindCourse = await CoachingCourseModel.findOne({ _id: CourseId })
+            if (!FindCourse) {
                 if (filesToClean.length !== 0) {
                     await this.cleanFiles(filesToClean);
                 }
-                return res.status(400).json({ message: 'Cource Not Found', success: false })
+                return res.status(400).json({ message: 'Course Not Found', success: false })
             }
-            await this.validateCourseDataForUpdateTheCourceDetails(req.body, filesToClean);
+            await this.validateCourseDataForUpdateTheCourseDetails(req.body, filesToClean);
             let courseDirName;
             let coursePath;
             let PrivateCoursePath;
-            if (!CourceName) {
-                courseDirName = `${FindCource.CourceName}-${FindCource.ProviderId}`;
+            if (!CourseName) {
+                courseDirName = `${FindCourse.CourseName}-${FindCourse.ProviderId}`;
                 coursePath = path.join(this.publicDir, courseDirName);
                 PrivateCoursePath = path.join(this.privateDir, courseDirName);
             }
             else {
-                courseDirName = `${CourceName}-${ProviderId}`;
+                courseDirName = `${CourseName}-${ProviderId}`;
                 coursePath = path.join(this.publicDir, courseDirName);
                 PrivateCoursePath = path.join(this.privateDir, courseDirName);
-                let existingpathname = `${FindCource.CourceName}-${FindCource.ProviderId}`;
+                let existingpathname = `${FindCourse.CourseName}-${FindCourse.ProviderId}`;
                 let existingPath = path.join(this.publicDir, existingpathname)
                 let FileIsOrNot = await this.fileExists(existingPath)
                 if (FileIsOrNot) {
@@ -1772,10 +1772,10 @@ class CourseService {
             }
 
             const courseDocument = {
-                CourceName: CourceName,
+                CourseName: CourseName,
                 ProviderId: ProviderId,
-                HeadCourceCatId: HeadCourceCatId,
-                SubCourceCatId: SubCourceCatId,
+                HeadCourseCatId: HeadCourseCatId,
+                SubCourseCatId: SubCourseCatId,
                 Skills: Skills,
                 SkillsId: SkillsId,
                 Price: Price,
@@ -1786,8 +1786,8 @@ class CourseService {
             };
             if (uploadedFiles.CertificateTemplate && CertificateConfig) {
                 const certDir = path.join(PrivateCoursePath, 'Certificate');
-                if (FindCource.Certificate) {
-                    let deleteCertificatePath = path.join(certDir, FindCource.Certificate)
+                if (FindCourse.Certificate) {
+                    let deleteCertificatePath = path.join(certDir, FindCourse.Certificate)
                     let FileIsOrNot = await this.fileExists(deleteCertificatePath)
                     if (FileIsOrNot) {
                         await fs.unlink(deleteCertificatePath)
@@ -1809,34 +1809,34 @@ class CourseService {
                 return res.status(400).json({ message: 'if you was selecting certificate template then provide configuration of certificate', success: false })
             }
 
-            if (uploadedFiles.CourceThumbnail) {
-                const thumbDir = path.join(coursePath, 'CourceThumbnail');
-                const PrivateThumbDir = path.join(PrivateCoursePath, 'CourceThumbnail');
-                if (FindCource.CourceThumbnail) {
-                    let deleteCourceThumbnailPath = path.join(thumbDir, FindCource.CourceThumbnail)
-                    let PrivateDeleteCourceThumbnailPath = path.join(PrivateThumbDir, FindCource.CourceThumbnail)
-                    let FileIsOrNot = await this.fileExists(deleteCourceThumbnailPath)
+            if (uploadedFiles.CourseThumbnail) {
+                const thumbDir = path.join(coursePath, 'CourseThumbnail');
+                const PrivateThumbDir = path.join(PrivateCoursePath, 'CourseThumbnail');
+                if (FindCourse.CourseThumbnail) {
+                    let deleteCourseThumbnailPath = path.join(thumbDir, FindCourse.CourseThumbnail)
+                    let PrivateDeleteCourseThumbnailPath = path.join(PrivateThumbDir, FindCourse.CourseThumbnail)
+                    let FileIsOrNot = await this.fileExists(deleteCourseThumbnailPath)
                     if (FileIsOrNot) {
-                        await fs.unlink(deleteCourceThumbnailPath)
+                        await fs.unlink(deleteCourseThumbnailPath)
                     }
-                    let PrivateFileIsOrNot = await this.fileExists(PrivateDeleteCourceThumbnailPath)
+                    let PrivateFileIsOrNot = await this.fileExists(PrivateDeleteCourseThumbnailPath)
                     if (PrivateFileIsOrNot) {
-                        await fs.unlink(PrivateDeleteCourceThumbnailPath)
+                        await fs.unlink(PrivateDeleteCourseThumbnailPath)
                     }
                 }
                 await fs.rename(
-                    path.join(this.tempDir, uploadedFiles.CourceThumbnail),
-                    path.join(thumbDir, uploadedFiles.CourceThumbnail)
+                    path.join(this.tempDir, uploadedFiles.CourseThumbnail),
+                    path.join(thumbDir, uploadedFiles.CourseThumbnail)
                 );
                 await fs.copyFile(
-                    path.join(thumbDir, uploadedFiles.CourceThumbnail),
-                    path.join(PrivateThumbDir, uploadedFiles.CourceThumbnail)
+                    path.join(thumbDir, uploadedFiles.CourseThumbnail),
+                    path.join(PrivateThumbDir, uploadedFiles.CourseThumbnail)
                 );
-                courseDocument.CourceThumbnail = uploadedFiles.CourceThumbnail
+                courseDocument.CourseThumbnail = uploadedFiles.CourseThumbnail
 
             }
 
-            const result = await CoachingCourceModel.findOneAndUpdate(
+            const result = await CoachingCourseModel.findOneAndUpdate(
                 { _id: CourseId, companyId: companyId },
                 { $set: courseDocument },
                 { new: true }
@@ -1853,7 +1853,7 @@ class CourseService {
             if (uploadedFiles) {
                 const filesToClean = [];
 
-                if (uploadedFiles.CourceThumbnail) filesToClean.push(uploadedFiles.CourceThumbnail);
+                if (uploadedFiles.CourseThumbnail) filesToClean.push(uploadedFiles.CourseThumbnail);
                 if (uploadedFiles.CertificateTemplate) filesToClean.push(uploadedFiles.CertificateTemplate);
 
                 if (filesToClean.length !== 0) {
@@ -1894,24 +1894,24 @@ class CourseService {
                 return res.status(400).json({ message: 'Missing CourseId or operation', success: false });
             }
 
-            const FindedCource = await CoachingCourceModel.findOne({ _id: CourseId });
-            if (!FindedCource) {
+            const FindedCourse = await CoachingCourseModel.findOne({ _id: CourseId });
+            if (!FindedCourse) {
                 if (filesToClean) {
                     await this.cleanFiles(filesToClean);
                 }
                 return res.status(400).json({ message: 'Course not found', success: false });
             }
 
-            const courseDirName = FindedCource.CourceName + '-' + FindedCource.ProviderId;
+            const courseDirName = FindedCourse.CourseName + '-' + FindedCourse.ProviderId;
             const PrivateCoursePath = path.join(this.privateDir, courseDirName);
             await fs.mkdir(PrivateCoursePath, { recursive: true });
 
-            courseData.HeadCourceCatId = FindedCource.HeadCourceCatId;
-            courseData.SubCourceCatId = FindedCource.SubCourceCatId;
-            courseData.ProviderId = FindedCource.ProviderId;
-            courseData.ProviderType = FindedCource.ProviderType;
-            courseData.companyId = FindedCource.companyId;
-            courseData.ConnectedWith = FindedCource.ConnectedWith;
+            courseData.HeadCourseCatId = FindedCourse.HeadCourseCatId;
+            courseData.SubCourseCatId = FindedCourse.SubCourseCatId;
+            courseData.ProviderId = FindedCourse.ProviderId;
+            courseData.ProviderType = FindedCourse.ProviderType;
+            courseData.companyId = FindedCourse.companyId;
+            courseData.ConnectedWith = FindedCourse.ConnectedWith;
             console.log(courseData, 'data')
             if (operation === 'delete') {
                 if (!PlayListId) {
@@ -1921,12 +1921,12 @@ class CourseService {
                     return res.status(400).json({ message: 'Please provide PlayListId', success: false });
                 }
 
-                console.log('playlist 1', FindedCource.CourceContent);
+                console.log('playlist 1', FindedCourse.CourseContent);
 
-                const playlist = FindedCource.CourceContent.find(c => c._id == PlayListId);
+                const playlist = FindedCourse.CourseContent.find(c => c._id == PlayListId);
                 console.log('playlist 2', playlist);
 
-                if (!playlist || !Array.isArray(playlist.CourceData)) {
+                if (!playlist || !Array.isArray(playlist.CourseData)) {
                     if (filesToClean && filesToClean.length) {
                         await this.cleanFiles(filesToClean);
                     }
@@ -1935,8 +1935,8 @@ class CourseService {
 
                 let videoDuration = 0;
 
-                for (let i = 0; i < playlist.CourceData.length; i++) {
-                    const videoId = playlist.CourceData[i];
+                for (let i = 0; i < playlist.CourseData.length; i++) {
+                    const videoId = playlist.CourseData[i];
                     const video = await CoachingVideoModel.findOne({ _id: videoId });
 
                     if (video) {
@@ -1959,11 +1959,11 @@ class CourseService {
                     await fs.rmdir(playlistDir, { recursive: true, force: true });
                 }
 
-                const updatedResult = await CoachingCourceModel.updateOne(
+                const updatedResult = await CoachingCourseModel.updateOne(
                     { _id: CourseId, companyId: companyId },
                     {
-                        $pull: { CourceContent: { _id: PlayListId } },
-                        $set: { CourceDuration: FindedCource.CourceDuration - videoDuration }
+                        $pull: { CourseContent: { _id: PlayListId } },
+                        $set: { CourseDuration: FindedCourse.CourseDuration - videoDuration }
                     }
                 );
 
@@ -1980,12 +1980,12 @@ class CourseService {
                     PrivateCoursePath,
                     uploadedFiles
                 );
-                const newDuration = FindedCource.CourceDuration + totalDuration;
-                const result = await CoachingCourceModel.updateOne(
+                const newDuration = FindedCourse.CourseDuration + totalDuration;
+                const result = await CoachingCourseModel.updateOne(
                     { _id: CourseId, companyId: companyId },
                     {
-                        $addToSet: { CourceContent: { $each: courseContentFinal } },
-                        $set: { CourceDuration: newDuration }
+                        $addToSet: { CourseContent: { $each: courseContentFinal } },
+                        $set: { CourseDuration: newDuration }
                     },
                     { new: true }
                 );
@@ -2038,26 +2038,26 @@ class CourseService {
                 .concat(uploadedFiles.VideoAudioLanguages || [])
                 .concat(uploadedFiles.VideoSubtitles || []);
 
-            let FindedCource = await CoachingCourceModel.findOne({ _id: CourseId })
+            let FindedCourse = await CoachingCourseModel.findOne({ _id: CourseId })
 
-            if (!FindedCource) {
+            if (!FindedCourse) {
                 if (filesToClean.length !== 0) {
                     await this.cleanFiles(filesToClean);
                 }
-                return res.status(400).json({ message: 'cource not found', success: false })
+                return res.status(400).json({ message: 'Course not found', success: false })
             }
-            const courseDirName = `${FindedCource.CourceName}-${FindedCource.ProviderId}`;
+            const courseDirName = `${FindedCourse.CourseName}-${FindedCourse.ProviderId}`;
             const coursePath = path.join(this.privateDir, courseDirName);
             await fs.mkdir(coursePath, { recursive: true });
-            let playList = FindedCource.CourceContent.find(c => c._id == PlayListId);
+            let playList = FindedCourse.CourseContent.find(c => c._id == PlayListId);
 
             if (operation == 'add') {
-                courseData.HeadCourceCatId = FindedCource.HeadCourceCatId;
-                courseData.SubCourceCatId = FindedCource.SubCourceCatId;
-                courseData.ProviderId = FindedCource.ProviderId;
-                courseData.ProviderType = FindedCource.ProviderType;
-                courseData.companyId = FindedCource.companyId;
-                courseData.ConnectedWith = FindedCource.ConnectedWith
+                courseData.HeadCourseCatId = FindedCourse.HeadCourseCatId;
+                courseData.SubCourseCatId = FindedCourse.SubCourseCatId;
+                courseData.ProviderId = FindedCourse.ProviderId;
+                courseData.ProviderType = FindedCourse.ProviderType;
+                courseData.companyId = FindedCourse.companyId;
+                courseData.ConnectedWith = FindedCourse.ConnectedWith
                 courseData.Heading = playList.Heading
 
                 if (courseData.ContainedData && courseData.ContainedData.length !== 0) {
@@ -2092,12 +2092,12 @@ class CourseService {
                     let quizIds;
                     quizIds = courseData.QuizData
                         ? await this.processQuizData(courseData.QuizData, {
-                            HeadCourceCatId: FindedCource.HeadCourceCatId,
-                            SubCourceCatId: FindedCource.SubCourceCatId,
-                            ProviderType: FindedCource.ProviderType,
-                            ProviderId: FindedCource.ProviderId,
-                            companyId: FindedCource.companyId,
-                            ConnectedWith: FindedCource.ConnectedWith
+                            HeadCourseCatId: FindedCourse.HeadCourseCatId,
+                            SubCourseCatId: FindedCourse.SubCourseCatId,
+                            ProviderType: FindedCourse.ProviderType,
+                            ProviderId: FindedCourse.ProviderId,
+                            companyId: FindedCourse.companyId,
+                            ConnectedWith: FindedCourse.ConnectedWith
                         })
                         : [];
 
@@ -2155,8 +2155,8 @@ class CourseService {
                 } else if (VideoId) {
                     if (findedVideo) {
                         let currentHeading, nextVideoId;
-                        FindedCource.CourceContent.forEach((content) => {
-                            content.CourceData.forEach((videoId, index) => {
+                        FindedCourse.CourseContent.forEach((content) => {
+                            content.CourseData.forEach((videoId, index) => {
                                 console.log(videoId, typeof videoId, VideoId, typeof VideoId)
                                 if (videoId === VideoId) {
                                     currentHeading = content.Heading;
@@ -2204,7 +2204,7 @@ class CourseService {
                             }));
                         }
 
-                        let videoDuration = FindedCource.CourceDuration - findedVideo.VideoDuration;
+                        let videoDuration = FindedCourse.CourseDuration - findedVideo.VideoDuration;
                         let deletedVideo = await CoachingVideoModel.findOneAndRemove({ _id: VideoId });
                         if (!deletedVideo) {
                             if (filesToClean.length !== 0) await this.cleanFiles(filesToClean);
@@ -2244,7 +2244,7 @@ class CourseService {
             });
         }
     }
-    async AccessCourceContent(req, res) {
+    async AccessCourseContent(req, res) {
         try {
             let { CourseName, ProviderId, PlayListName, VideoId } = req.body;
             let companyId = req.query.companyId

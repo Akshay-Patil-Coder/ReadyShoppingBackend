@@ -2,14 +2,14 @@
 const mongoose = require('mongoose');
 const { type } = require('os');
 
-const CoachingCourceOrderSchema = new mongoose.Schema({
+const CoachingCourseOrderSchema = new mongoose.Schema({
     UserId: {
         type: mongoose.Schema.Types.ObjectId,
     },
-    CourceId: {
+    CourseId: {
         type: mongoose.Schema.Types.ObjectId,
     },
-    CourceContent: [
+    CourseContent: [
         {
             Heading: {
                 type: String
@@ -45,7 +45,7 @@ const CoachingCourceOrderSchema = new mongoose.Schema({
             }
         }
     ],
-    CourceCompleted: {
+    CourseCompleted: {
         type: Boolean,
         default: false
     },
@@ -82,7 +82,7 @@ const CoachingCourceOrderSchema = new mongoose.Schema({
     Transaction: {
         type: mongoose.Schema.Types.ObjectId,
     },
-    TokenOfCource: {
+    TokenOfCourse: {
         type: String,
         required: true
     },
@@ -99,7 +99,7 @@ const CoachingCourceOrderSchema = new mongoose.Schema({
         timestamps: true,
     });
 
-module.exports = mongoose.model('CoachingCourceOrder', CoachingCourceOrderSchema);
+module.exports = mongoose.model('CoachingCourseOrder', CoachingCourseOrderSchema);
 
 const CoachingCertificateSchema = new mongoose.Schema({
    companyId:{

@@ -3,17 +3,17 @@ const {  ObjectId } = require('mongodb');
 const mongoose = require('mongoose')
 const path = require('path')
 const fs = require('fs')
-const { CoachingCourceModel } = require('../CoachingCource/CoachingCource.model')
+const { CoachingCourseModel } = require('../CoachingCourse/CoachingCourse.model')
 module.exports = {
 
     addbanner: async (req, resp) => {
         try {
-            let { companyId, BannerName, SubCourceCatId, HeadCourceCatId, AdvertiserId, AdvertiserType, Position, SkillId, CourcesId, OfferPercentage, BannerType } = req.body;
-            if (CourcesId) {
-                CourcesId = JSON.parse(CourcesId)
+            let { companyId, BannerName, SubCourseCatId, HeadCourseCatId, AdvertiserId, AdvertiserType, Position, SkillId, CoursesId, OfferPercentage, BannerType } = req.body;
+            if (CoursesId) {
+                CoursesId = JSON.parse(CoursesId)
             }
             if (BannerType == 'Skill') {
-                if (!companyId || !BannerName || !SubCourceCatId || !HeadCourceCatId || !SkillId) {
+                if (!companyId || !BannerName || !SubCourseCatId || !HeadCourseCatId || !SkillId) {
                     if(req.file?.filename){
                         const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
@@ -25,8 +25,8 @@ module.exports = {
                 const bannerData = {
                     companyId,
                     BannerName,
-                    SubCourceCatId,
-                    HeadCourceCatId,
+                    SubCourseCatId,
+                    HeadCourseCatId,
                     SkillId,
                     Position,
                     BannerType,
@@ -56,7 +56,7 @@ module.exports = {
                 return resp.status(200).json({ data: result, success: true });
             }
             else if (BannerType == 'Offer') {
-                if (!companyId || !BannerName || !SubCourceCatId || !HeadCourceCatId || !CourcesId || !OfferPercentage) {
+                if (!companyId || !BannerName || !SubCourseCatId || !HeadCourseCatId || !CoursesId || !OfferPercentage) {
                       if (req.file?.filename) {
                         const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
                         if (fs.existsSync(newImagePath)) {
@@ -68,9 +68,9 @@ module.exports = {
                 const bannerData = {
                     companyId,
                     BannerName,
-                    SubCourceCatId,
-                    HeadCourceCatId,
-                    CourcesId,
+                    SubCourseCatId,
+                    HeadCourseCatId,
+                    CoursesId,
                     OfferPercentage,
                     Position,
                     BannerType,
@@ -82,10 +82,10 @@ module.exports = {
                 else {
                     return resp.status(400).json({ message: 'please Upload The Image', success: false })
                 }
-                if (CourcesId && CourcesId.length !== 0) {
-                    for (let Cource_id of CourcesId) {
+                if (CoursesId && CoursesId.length !== 0) {
+                    for (let Course_id of CoursesId) {
                         console.log(OfferPercentage, 'Offepercentage')
-                        let newresult = await CoachingCourceModel.updateOne({ _id: Cource_id }, {
+                        let newresult = await CoachingCourseModel.updateOne({ _id: Course_id }, {
                             $set: {
                                 offerPercentage: OfferPercentage
                             }
@@ -108,7 +108,7 @@ module.exports = {
                 return resp.status(200).json({ data: result, success: true });
             }
             else if (BannerType == 'Advertiser') {
-                if (!companyId || !BannerName || !SubCourceCatId || !HeadCourceCatId || !AdvertiserId || !AdvertiserType) {
+                if (!companyId || !BannerName || !SubCourseCatId || !HeadCourseCatId || !AdvertiserId || !AdvertiserType) {
                       if (req.file?.filename) {
                         const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
                         if (fs.existsSync(newImagePath)) {
@@ -121,8 +121,8 @@ module.exports = {
                 const bannerData = {
                     companyId,
                     BannerName,
-                    SubCourceCatId,
-                    HeadCourceCatId,
+                    SubCourseCatId,
+                    HeadCourseCatId,
                     AdvertiserId,
                     AdvertiserType,
                     Position,
@@ -153,7 +153,7 @@ module.exports = {
                 return resp.status(200).json({ data: result, success: true });
             }
             else if (BannerType == 'Offer-Skill') {
-                if (!companyId || !BannerName || !SubCourceCatId || !HeadCourceCatId || !CourcesId || !OfferPercentage || !SkillId) {
+                if (!companyId || !BannerName || !SubCourseCatId || !HeadCourseCatId || !CoursesId || !OfferPercentage || !SkillId) {
                       if (req.file?.filename) {
                         const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
                         if (fs.existsSync(newImagePath)) {
@@ -165,9 +165,9 @@ module.exports = {
                 const bannerData = {
                     companyId,
                     BannerName,
-                    SubCourceCatId,
-                    HeadCourceCatId,
-                    CourcesId,
+                    SubCourseCatId,
+                    HeadCourseCatId,
+                    CoursesId,
                     OfferPercentage,
                     SkillId,
                     Position,
@@ -180,10 +180,10 @@ module.exports = {
                 else {
                     return resp.status(400).json({ message: 'please Upload The Image', success: false })
                 }
-                if (CourcesId && CourcesId.length !== 0) {
-                    for (let Cource_id of CourcesId) {
+                if (CoursesId && CoursesId.length !== 0) {
+                    for (let Course_id of CoursesId) {
                         console.log(OfferPercentage, 'Offepercentage')
-                        let newresult = await CoachingCourceModel.updateOne({ _id: Cource_id }, {
+                        let newresult = await CoachingCourseModel.updateOne({ _id: Course_id }, {
                             $set: {
                                 offerPercentage: OfferPercentage
                             }
@@ -206,7 +206,7 @@ module.exports = {
                 return resp.status(200).json({ data: result, success: true });
             }
             else if (BannerType == 'Offer-Advertiser') {
-                if (!companyId || !BannerName || !SubCourceCatId || !HeadCourceCatId || !CourcesId || !OfferPercentage || !AdvertiserId || !AdvertiserType) {
+                if (!companyId || !BannerName || !SubCourseCatId || !HeadCourseCatId || !CoursesId || !OfferPercentage || !AdvertiserId || !AdvertiserType) {
                      if (req.file?.filename) {
                         const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
                         if (fs.existsSync(newImagePath)) {
@@ -218,9 +218,9 @@ module.exports = {
                 const bannerData = {
                     companyId,
                     BannerName,
-                    SubCourceCatId,
-                    HeadCourceCatId,
-                    CourcesId,
+                    SubCourseCatId,
+                    HeadCourseCatId,
+                    CoursesId,
                     OfferPercentage,
                     AdvertiserId,
                     AdvertiserType,
@@ -234,10 +234,10 @@ module.exports = {
                 else {
                     return resp.status(400).json({ message: 'please Upload The Image', success: false })
                 }
-                if (CourcesId && CourcesId.length !== 0) {
-                    for (let Cource_id of CourcesId) {
+                if (CoursesId && CoursesId.length !== 0) {
+                    for (let Course_id of CoursesId) {
                         console.log(OfferPercentage, 'Offepercentage')
-                let newresult = await CoachingCourceModel.updateOne({ _id: CourcesId }, {
+                let newresult = await CoachingCourseModel.updateOne({ _id: CoursesId }, {
                     $set: {
                         offerPercentage: OfferPercentage
                     }
@@ -260,7 +260,7 @@ module.exports = {
                 return resp.status(200).json({ data: result, success: true });
             }
             else if (BannerType == 'Skill-Advertiser') {
-                if (!companyId || !BannerName || !SubCourceCatId || !HeadCourceCatId || !AdvertiserId || !AdvertiserType || !SkillId) {
+                if (!companyId || !BannerName || !SubCourseCatId || !HeadCourseCatId || !AdvertiserId || !AdvertiserType || !SkillId) {
                       if (req.file?.filename) {
                         const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
                         if (fs.existsSync(newImagePath)) {
@@ -273,8 +273,8 @@ module.exports = {
                 const bannerData = {
                     companyId,
                     BannerName,
-                    SubCourceCatId,
-                    HeadCourceCatId,
+                    SubCourseCatId,
+                    HeadCourseCatId,
                     AdvertiserId,
                     AdvertiserType,
                     SkillId,
@@ -306,7 +306,7 @@ module.exports = {
                 return resp.status(200).json({ data: result, success: true });
             }
             else if (BannerType == 'AllCombined') {
-                if (!companyId || !BannerName || !SubCourceCatId || !HeadCourceCatId || !CourcesId || !OfferPercentage || !AdvertiserId || !AdvertiserType || !SkillId) {
+                if (!companyId || !BannerName || !SubCourseCatId || !HeadCourseCatId || !CoursesId || !OfferPercentage || !AdvertiserId || !AdvertiserType || !SkillId) {
                       if (req.file?.filename) {
                         const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingBannerImage', req.file.filename);
                         if (fs.existsSync(newImagePath)) {
@@ -318,9 +318,9 @@ module.exports = {
                 const bannerData = {
                     companyId,
                     BannerName,
-                    SubCourceCatId,
-                    HeadCourceCatId,
-                    CourcesId,
+                    SubCourseCatId,
+                    HeadCourseCatId,
+                    CoursesId,
                     OfferPercentage,
                     AdvertiserId,
                     AdvertiserType,
@@ -335,10 +335,10 @@ module.exports = {
                 else {
                     return resp.status(400).json({ message: 'please Upload The Image', success: false })
                 }
-                if (CourcesId && CourcesId.length !== 0) {
-                    for (let Cource_id of CourcesId) {
+                if (CoursesId && CoursesId.length !== 0) {
+                    for (let Course_id of CoursesId) {
                         console.log(OfferPercentage, 'Offepercentage')
-                let newresult = await CoachingCourceModel.updateOne({ _id: CourcesId }, {
+                let newresult = await CoachingCourseModel.updateOne({ _id: CoursesId }, {
                     $set: {
                         offerPercentage: OfferPercentage
                     }
@@ -380,25 +380,25 @@ module.exports = {
             {
                 $lookup: {
                     from: "coachingcategories",
-                    localField: "HeadCourceCatId",
+                    localField: "HeadCourseCatId",
                     foreignField: "_id",
-                    as: "HeadCourceCategoryInfo",
+                    as: "HeadCourseCategoryInfo",
                 }
             },
             {
                 $lookup: {
                     from: "coachingcategories",
-                    localField: "SubCourceCatId",
+                    localField: "SubCourseCatId",
                     foreignField: "_id",
-                    as: "SubCourceCategoryInfo",
+                    as: "SubCourseCategoryInfo",
                 }
             },
             {
                 $lookup: {
-                    from: "coachingcources",
-                    localField: "CourcesId",
+                    from: "coachingCourses",
+                    localField: "CoursesId",
                     foreignField: "_id",
-                    as: "CourcesInfo",
+                    as: "CoursesInfo",
                 }
             },
             {
@@ -453,10 +453,10 @@ module.exports = {
                     ProviderInfo: {
                         $switch: {
                             branches: [
-                                { case: { $eq: ["$AdvertiserTypeValue.CourceProviderType", "Class"] }, then: "$ClassAdvertiserInfo" },
-                                { case: { $eq: ["$AdvertiserTypeValue.CourceProviderType", "Tutor"] }, then: "$TutorAdvertiserInfo" },
-                                { case: { $eq: ["$AdvertiserTypeValue.CourceProviderType", "University"] }, then: "$UniversityAdvertiserInfo" },
-                                { case: { $eq: ["$AdvertiserTypeValue.CourceProviderType", "Company"] }, then: "$CompanyAdvertiserInfo" }
+                                { case: { $eq: ["$AdvertiserTypeValue.CourseProviderType", "Class"] }, then: "$ClassAdvertiserInfo" },
+                                { case: { $eq: ["$AdvertiserTypeValue.CourseProviderType", "Tutor"] }, then: "$TutorAdvertiserInfo" },
+                                { case: { $eq: ["$AdvertiserTypeValue.CourseProviderType", "University"] }, then: "$UniversityAdvertiserInfo" },
+                                { case: { $eq: ["$AdvertiserTypeValue.CourseProviderType", "Company"] }, then: "$CompanyAdvertiserInfo" }
                             ],
                             default: []
                         }
@@ -485,22 +485,22 @@ module.exports = {
 
     },
     getBannersById: async (req, res) => {
-        const { Position, BannerType, companyId, HeadCourceCatId, SubCourceCatId, AdvertiserId, AdvertiserType, SkillId, BannerId } = req.query;
+        const { Position, BannerType, companyId, HeadCourseCatId, SubCourseCatId, AdvertiserId, AdvertiserType, SkillId, BannerId } = req.query;
 
         try {
             let matchCondition = { companyId: mongoose.Types.ObjectId(companyId) };
 
-            if (HeadCourceCatId) {
-                if (!mongoose.Types.ObjectId.isValid(HeadCourceCatId)) {
+            if (HeadCourseCatId) {
+                if (!mongoose.Types.ObjectId.isValid(HeadCourseCatId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.HeadCourceCatId = mongoose.Types.ObjectId(HeadCourceCatId);
+                matchCondition.HeadCourseCatId = mongoose.Types.ObjectId(HeadCourseCatId);
             }
-            if (SubCourceCatId) {
-                if (!mongoose.Types.ObjectId.isValid(SubCourceCatId)) {
+            if (SubCourseCatId) {
+                if (!mongoose.Types.ObjectId.isValid(SubCourseCatId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.SubCourceCatId = mongoose.Types.ObjectId(SubCourceCatId);
+                matchCondition.SubCourseCatId = mongoose.Types.ObjectId(SubCourseCatId);
             }
             if (BannerId) {
                 if (!mongoose.Types.ObjectId.isValid(BannerId)) {
@@ -560,11 +560,11 @@ module.exports = {
 
     updateProductsById: async (req, resp) => {
         try {
-            let { BannerId, CourcesId, BannerType } = req.body;
+            let { BannerId, CoursesId, BannerType } = req.body;
             const companyId = req.query.companyId;
             const operation = req.query.operation;
             BannerId = ObjectId(BannerId)
-            if (!BannerId || !CourcesId || CourcesId.length === 0) {
+            if (!BannerId || !CoursesId || CoursesId.length === 0) {
                 return resp.status(400).send('Please insert valid data');
             }
             if (BannerType !== 'Offer' && BannerType !== 'Offer-Skill' && BannerType !== 'Offer-Advertiser' && BannerType !== 'AllCombined') {
@@ -576,17 +576,17 @@ module.exports = {
                 if (operation === 'delete') {
                     let updatedResult = await bannersSchema.findOneAndUpdate(
                         { _id: BannerId, companyId: companyId, BannerType: BannerType },
-                        { $pull: { CourcesId: { $in: CourcesId } } },
+                        { $pull: { CoursesId: { $in: CoursesId } } },
                         { new: true }
                     );
-                    if (CourcesId && (updatedResult.BannerType === 'Offer' || updatedResult.BannerType === 'Offer-Skill' || updatedResult.BannerType === 'Offer-Advertiser' || updatedResult.BannerType === 'AllCombined')) {
+                    if (CoursesId && (updatedResult.BannerType === 'Offer' || updatedResult.BannerType === 'Offer-Skill' || updatedResult.BannerType === 'Offer-Advertiser' || updatedResult.BannerType === 'AllCombined')) {
                     let updateOperations;
-                        for (let EachCourceId of CourcesId) {
-                            let productdata = await CoachingCourceModel.findOne({ _id: EachCourceId });
+                        for (let EachCourseId of CoursesId) {
+                            let productdata = await CoachingCourseModel.findOne({ _id: EachCourseId });
                             if (productdata.offerPercentage == updatedResult.OfferPercentage) {
-                                 updateOperations = CourcesId.map(Cource_id => ({
+                                 updateOperations = CoursesId.map(Course_id => ({
                                     updateOne: {
-                                        filter: { _id: Cource_id },
+                                        filter: { _id: Course_id },
                                         update: { $set: { offerPercentage: null } }
                                     }
                                 }));
@@ -595,7 +595,7 @@ module.exports = {
                            
                         }
                         if (updateOperations.length > 0) {
-                            await CoachingCourceModel.bulkWrite(updateOperations);
+                            await CoachingCourseModel.bulkWrite(updateOperations);
                         }
                     }
 
@@ -604,19 +604,19 @@ module.exports = {
                 if (operation === 'add') {
                     let updatedResult = await bannersSchema.findOneAndUpdate(
                         { _id: BannerId, companyId: companyId, BannerType: BannerType },
-                        { $addToSet: { CourcesId: { $each: CourcesId } } },
+                        { $addToSet: { CoursesId: { $each: CoursesId } } },
                         { new: true }
                     );
-                    if (CourcesId && CourcesId.length !== 0 && (updatedResult.BannerType === 'Offer' || updatedResult.BannerType === 'Offer-Skill' || updatedResult.BannerType === 'Offer-Advertiser' || updatedResult.BannerType === 'AllCombined')) {
-                        const updateOperations = CourcesId.map(Cource_id => ({
+                    if (CoursesId && CoursesId.length !== 0 && (updatedResult.BannerType === 'Offer' || updatedResult.BannerType === 'Offer-Skill' || updatedResult.BannerType === 'Offer-Advertiser' || updatedResult.BannerType === 'AllCombined')) {
+                        const updateOperations = CoursesId.map(Course_id => ({
                             updateOne: {
-                                filter: { _id: Cource_id },
+                                filter: { _id: Course_id },
                                 update: { $set: { offerPercentage: updatedResult.OfferPercentage } }
                             }
                         }));
 
                         if (updateOperations.length > 0) {
-                            await CoachingCourceModel.bulkWrite(updateOperations);
+                            await CoachingCourseModel.bulkWrite(updateOperations);
                         }
                     }
                     return resp.status(200).json({ data: updatedResult, success: true });
@@ -647,10 +647,10 @@ module.exports = {
             }
             let bannerdatanew = await bannersSchema.findOne({ _id: _id, companyId: companyId })
             if (bannerdatanew && (bannerdatanew.BannerType === 'Offer' || bannerdatanew.BannerType === 'Offer-Skill' || bannerdatanew.BannerType === 'Offer-Advertiser' || bannerdatanew.BannerType === 'AllCombined')) {
-                for (Cource_id of bannerdatanew.CourcesId) {
-                    let productdata = await CoachingCourceModel.findOne({ _id: Cource_id });
+                for (Course_id of bannerdatanew.CoursesId) {
+                    let productdata = await CoachingCourseModel.findOne({ _id: Course_id });
                     if (productdata.offerPercentage == bannerdatanew.OfferPercentage) {
-                        const updateProduct = await CoachingCourceModel.updateOne({ _id: Cource_id }, { $set: { offerPercentage: null } })
+                        const updateProduct = await CoachingCourseModel.updateOne({ _id: Course_id }, { $set: { offerPercentage: null } })
                     }
                 }
             }

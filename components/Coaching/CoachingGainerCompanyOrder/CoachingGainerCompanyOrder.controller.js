@@ -3,15 +3,15 @@ const CoachingGainerCompanyOrder = require('./CoachingGainerCompanyOrder.model')
 const mongoose = require('mongoose');
 const path = require('path');
 const jwt = require('jsonwebtoken')
-const { CoachingCourceModel, CoachingVideoModel, QuizModel } = require('../CoachingCource/CoachingCource.model');
-const CoachingCourceController = require('../CoachingCource/CoachingCource.controller')
+const { CoachingCourseModel, CoachingVideoModel, QuizModel } = require('../CoachingCourse/CoachingCourse.model');
+const CoachingCourseController = require('../CoachingCourse/CoachingCourse.controller')
 const CompanyModel = require('../../CompanyBase/Company/Company.model')
 const fs = require('fs');
 const CoachingGainerCompaniesModel = require('../CoachingGainerCompnay/CoachingGainerCompnay.model')
 const nodemailer = require('nodemailer')
 const bcrypt = require('bcryptjs')
 const transaction_model_1 = require("../payment/transaction.model");
-const CoachingCourceOrder = require('../CoachingOrder/CoachingOrder.model');
+const CoachingCourseOrder = require('../CoachingOrder/CoachingOrder.model');
 const csvgenerator = require('csv-writer').createObjectCsvWriter
 const csvParser = require("csv-parser");
 
@@ -21,14 +21,14 @@ class CourseOrderService {
 
     async addCoachingGainerCompanyOrder(req, res) {
         try {
-            let { GainerCompanyId, ForHowManyLogins, CourceIds, companyId, TotalAmount } = req.body
-            if (!GainerCompanyId || !ForHowManyLogins || !CourceIds || !companyId || !TotalAmount) {
+            let { GainerCompanyId, ForHowManyLogins, CourseIds, companyId, TotalAmount } = req.body
+            if (!GainerCompanyId || !ForHowManyLogins || !CourseIds || !companyId || !TotalAmount) {
                 return res.status(400).json({ message: "please provide all data", success: false })
             }
             let CompanyGainerRequestData = {
                 companyId: companyId,
                 GainerCompanyId: GainerCompanyId,
-                CourceIds: CourceIds,
+                CourseIds: CourseIds,
                 TotalAmount: TotalAmount,
                 ForHowManyLogins: ForHowManyLogins,
             }
@@ -331,7 +331,7 @@ class CourseOrderService {
         try {
             let courseOrder = await CoachingGainerCompanyOrder.CoachingGainerCompnaiesOrder.findOneAndUpdate(
                 {
-                    CourceId: courseId,
+                    CourseId: courseId,
                     GainerCompanyId: gainerCompanyId
                 },
                 {
@@ -406,8 +406,8 @@ class CourseOrderService {
                 });
             }
 
-            const { TokenOfCource } = req.body;
-            const tokenData = jwt.verify(TokenOfCource, process.env.ACCESS_TOKEN_SECRET || 'secret-for-now');
+            const { TokenOfCourse } = req.body;
+            const tokenData = jwt.verify(TokenOfCourse, process.env.ACCESS_TOKEN_SECRET || 'secret-for-now');
 
             if (tokenData.Status !== 'Completed') {
                 return res.status(400).json({
@@ -467,7 +467,7 @@ class CourseOrderService {
             );
 
             const courseResults = [];
-            for (const courseId of tokenData.CourceIds) {
+            for (const courseId of tokenData.CourseIds) {
                 const result = await this.updateCourseOrders({
                     courseId,
                     gainerCompanyId: tokenData.GainerCompanyId,
@@ -483,7 +483,7 @@ class CourseOrderService {
                 companyId: tokenData.companyId,
                 gainerCompanyId: tokenData.GainerCompanyId,
                 orderId: order._id,
-                courseIds: tokenData.CourceIds,
+                courseIds: tokenData.CourseIds,
                 employeeIds: newEmployeeIds
             });
 
@@ -532,8 +532,8 @@ class CourseOrderService {
                 });
             }
 
-            const { TokenOfCource } = req.body;
-            const tokenData = jwt.verify(TokenOfCource, process.env.ACCESS_TOKEN_SECRET || 'secret-for-now');
+            const { TokenOfCourse } = req.body;
+            const tokenData = jwt.verify(TokenOfCourse, process.env.ACCESS_TOKEN_SECRET || 'secret-for-now');
 
             if (tokenData.Status !== 'Completed') {
                 return res.status(400).json({
@@ -593,7 +593,7 @@ class CourseOrderService {
             );
 
             const courseResults = [];
-            for (const courseId of tokenData.CourceIds) {
+            for (const courseId of tokenData.CourseIds) {
                 const result = await this.updateCourseOrders({
                     courseId,
                     gainerCompanyId: tokenData.GainerCompanyId,
@@ -609,7 +609,7 @@ class CourseOrderService {
                 companyId: tokenData.companyId,
                 gainerCompanyId: tokenData.GainerCompanyId,
                 orderId: order._id,
-                courseIds: tokenData.CourceIds,
+                courseIds: tokenData.CourseIds,
                 employeeIds: newEmployeeIds
             });
 
@@ -659,17 +659,17 @@ class CourseOrderService {
         const courseAccessRecords = [];
 
         for (const courseId of courseIds) {
-            const course = await CoachingCourceModel.findById(courseId);
+            const course = await CoachingCourseModel.findById(courseId);
             if (!course) continue;
             let PlayList = [];
-            for (let EachPlaylist of course.CourceContent) {
+            for (let EachPlaylist of course.CourseContent) {
                 let VideoIds = [];
                 let QuizData = [];
                 let PlayListData = {
                     Heading: EachPlaylist.Heading,
                     PlayListId: EachPlaylist._id
                 }
-                for (let EachVideoId of EachPlaylist.CourceData) {
+                for (let EachVideoId of EachPlaylist.CourseData) {
                     let VideoData = {
                         VideoId: EachVideoId
                     }
@@ -695,7 +695,7 @@ class CourseOrderService {
 
                 const token = jwt.sign(
                     {
-                        CourceId: courseId,
+                        CourseId: courseId,
                         GainerCompanyId: gainerCompanyId,
                         OrderId: orderId
                     },
@@ -707,9 +707,9 @@ class CourseOrderService {
                     EmployeeId: employeeId,
                     GainerCompanyId: gainerCompanyId,
                     OrderId: orderId,
-                    CourceId: courseId,
-                    CourceContent: PlayList,
-                    TokenOfCource: token,
+                    CourseId: courseId,
+                    CourseContent: PlayList,
+                    TokenOfCourse: token,
                     valid: true
                 });
             }
@@ -866,12 +866,12 @@ class CourseOrderService {
             resp.status(500).json({ message: 'Internal Server Error', success: false });
         }
     }
-    async getCoachingCourceData(matchCondition) {
+    async getCoachingCourseData(matchCondition) {
         let result = await CoachingGainerCompanyOrder.coachingGainerCompanyEmployees.aggregate([
             { $match: matchCondition },
-            { $unwind: { path: "$CourceContent", preserveNullAndEmptyArrays: true } },
-            { $unwind: { path: "$CourceContent.VideoData", preserveNullAndEmptyArrays: true } },
-            { $unwind: { path: "$CourceContent.VideoData.QuizData", preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: "$CourseContent", preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: "$CourseContent.VideoData", preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: "$CourseContent.VideoData.QuizData", preserveNullAndEmptyArrays: true } },
             {
                 $lookup: {
                     from: "coachingcompanygaineres",
@@ -891,18 +891,18 @@ class CourseOrderService {
             {
                 $lookup: {
                     from: "coachingvideos",
-                    localField: "CourceContent.VideoData.VideoId",
+                    localField: "CourseContent.VideoData.VideoId",
                     foreignField: "_id",
-                    as: "CourceContent.VideoData.VideoInfo"
+                    as: "CourseContent.VideoData.VideoInfo"
                 }
             },
 
             {
                 $lookup: {
-                    from: "courcequizes",
-                    localField: "CourceContent.VideoData.QuizData.QuizId",
+                    from: "Coursequizes",
+                    localField: "CourseContent.VideoData.QuizData.QuizId",
                     foreignField: "_id",
-                    as: "CourceContent.VideoData.QuizData.QuizInfo"
+                    as: "CourseContent.VideoData.QuizData.QuizInfo"
                 }
             },
 
@@ -910,12 +910,12 @@ class CourseOrderService {
                 $group: {
                     _id: {
                         orderId: "$_id",
-                        CourceHeading: "$CourceContent.Heading",
-                        VideoId: "$CourceContent.VideoData.VideoId"
+                        CourseHeading: "$CourseContent.Heading",
+                        VideoId: "$CourseContent.VideoData.VideoId"
                     },
-                    QuizData: { $push: "$CourceContent.VideoData.QuizData" },
-                    VideoCompleted: { $first: "$CourceContent.VideoData.VideoCompleted" },
-                    VideoInfo: { $first: "$CourceContent.VideoData.VideoInfo" },
+                    QuizData: { $push: "$CourseContent.VideoData.QuizData" },
+                    VideoCompleted: { $first: "$CourseContent.VideoData.VideoCompleted" },
+                    VideoInfo: { $first: "$CourseContent.VideoData.VideoInfo" },
                     baseDoc: { $first: "$$ROOT" }
                 }
             },
@@ -924,7 +924,7 @@ class CourseOrderService {
                 $group: {
                     _id: {
                         orderId: "$_id.orderId",
-                        CourceHeading: "$_id.CourceHeading"
+                        CourseHeading: "$_id.CourseHeading"
                     },
                     Videos: {
                         $push: {
@@ -941,9 +941,9 @@ class CourseOrderService {
             {
                 $group: {
                     _id: "$_id.orderId",
-                    CourceContent: {
+                    CourseContent: {
                         $push: {
-                            Heading: "$_id.CourceHeading",
+                            Heading: "$_id.CourseHeading",
                             VideoData: "$Videos"
                         }
                     },
@@ -954,22 +954,22 @@ class CourseOrderService {
             {
                 $replaceRoot: {
                     newRoot: {
-                        $mergeObjects: ["$baseDoc", { CourceContent: "$CourceContent" }]
+                        $mergeObjects: ["$baseDoc", { CourseContent: "$CourseContent" }]
                     }
                 }
             }
         ]);
 
         if (result) {
-            let CourceInfo = await Promise.all(result.map(async (EachResult) => {
-                let data = await CoachingCourceController.getCoachingCourceData({ _id: EachResult.CourceId });
+            let CourseInfo = await Promise.all(result.map(async (EachResult) => {
+                let data = await CoachingCourseController.getCoachingCourseData({ _id: EachResult.CourseId });
                 return data;
             }));
 
-            result = result.map((EachCource) => {
+            result = result.map((EachCourse) => {
                 return {
-                    ...EachCource,
-                    CourceInfo: CourceInfo.filter((EachData) => EachData._id.toString() === EachCource.CourceId.toString())
+                    ...EachCourse,
+                    CourseInfo: CourseInfo.filter((EachData) => EachData._id.toString() === EachCourse.CourseId.toString())
                 };
             });
 
@@ -978,7 +978,7 @@ class CourseOrderService {
     }
 
 
-    async getCoachingCource(req, res) {
+    async getCoachingCourse(req, res) {
         let { CourseId, EmployeeId, companyId, GainerCompanyId, OrderId } = req.query;
 
         try {
@@ -989,7 +989,7 @@ class CourseOrderService {
                 if (!mongoose.Types.ObjectId.isValid(CourseId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.CourceId = mongoose.Types.ObjectId(CourseId)
+                matchCondition.CourseId = mongoose.Types.ObjectId(CourseId)
             }
             if (EmployeeId) {
                 if (!mongoose.Types.ObjectId.isValid(EmployeeId)) {
@@ -1009,10 +1009,10 @@ class CourseOrderService {
                 }
                 matchCondition.OrderId = mongoose.Types.ObjectId(OrderId)
             }
-            const data = await this.getCoachingCourceData(matchCondition);
+            const data = await this.getCoachingCourseData(matchCondition);
 
             if (data.length === 0) {
-                return res.status(404).json({ message: 'No Cource Found', success: false });
+                return res.status(404).json({ message: 'No Course Found', success: false });
             }
 
             return res.status(200).json({ data: data, success: true });
@@ -1023,25 +1023,25 @@ class CourseOrderService {
             return res.status(400).json({ error: error.message, success: false });
         }
     }
-    async changeStateOfCourceContent(req, resp) {
+    async changeStateOfCourseContent(req, resp) {
         try {
-            let { QuizId, companyId, PlayListId, VideoId, EmployeeId, CourceId } = req.body;
-            if (!companyId || !EmployeeId || !CourceId) {
+            let { QuizId, companyId, PlayListId, VideoId, EmployeeId, CourseId } = req.body;
+            if (!companyId || !EmployeeId || !CourseId) {
                 return resp.status(400).json({ message: 'please provide valid data', success: false })
             }
-            let findedCource = await CoachingGainerCompanyOrder.coachingGainerCompanyEmployees.findOne({
-                companyId, EmployeeId, CourceId
+            let findedCourse = await CoachingGainerCompanyOrder.coachingGainerCompanyEmployees.findOne({
+                companyId, EmployeeId, CourseId
             })
-            if (!findedCource) {
+            if (!findedCourse) {
                 return resp.status(400), json({ message: "Course not found", success: false })
             }
             if (QuizId && PlayListId && VideoId) {
                 let updateResult = await CoachingGainerCompanyOrder.coachingGainerCompanyEmployees.findOneAndUpdate({
-                    companyId, EmployeeId, CourceId, 'CourceContent.PlayListId': PlayListId, 'CourceContent.VideoData.VideoId': VideoId, 'CourceContent.VideoData.QuizData.QuizId': QuizId
+                    companyId, EmployeeId, CourseId, 'CourseContent.PlayListId': PlayListId, 'CourseContent.VideoData.VideoId': VideoId, 'CourseContent.VideoData.QuizData.QuizId': QuizId
                 },
                     {
                         $set: {
-                            'CourceContent.$.[content].VideoData.$.[video].QuizData.$.[quiz].QuizCompleted': true
+                            'CourseContent.$.[content].VideoData.$.[video].QuizData.$.[quiz].QuizCompleted': true
                         },
                     },
                     {
@@ -1059,11 +1059,11 @@ class CourseOrderService {
             }
             else if (PlayListId && VideoId) {
                 let updateResult = await CoachingGainerCompanyOrder.coachingGainerCompanyEmployees.findOneAndUpdate({
-                    companyId, EmployeeId, CourceId, 'CourceContent.PlayListId': PlayListId, 'CourceContent.VideoData.VideoId': VideoId
+                    companyId, EmployeeId, CourseId, 'CourseContent.PlayListId': PlayListId, 'CourseContent.VideoData.VideoId': VideoId
                 },
                     {
                         $set: {
-                            'CourceContent.$.[content].VideoData.$.[video].VideoCompleted': true
+                            'CourseContent.$.[content].VideoData.$.[video].VideoCompleted': true
                         },
                     },
                     {
@@ -1080,11 +1080,11 @@ class CourseOrderService {
             }
             else if (PlayListId) {
                 let updateResult = await CoachingGainerCompanyOrder.coachingGainerCompanyEmployees.findOneAndUpdate({
-                    companyId, EmployeeId, CourceId, 'CourceContent.PlayListId': PlayListId
+                    companyId, EmployeeId, CourseId, 'CourseContent.PlayListId': PlayListId
                 },
                     {
                         $set: {
-                            'CourceContent.$.[content].PlayListCompleted': true
+                            'CourseContent.$.[content].PlayListCompleted': true
                         },
                     },
                     {
@@ -1106,30 +1106,30 @@ class CourseOrderService {
 
         }
     }
-    async changeStateOfCourceContent(req, resp) {
+    async changeStateOfCourseContent(req, resp) {
         try {
-            let { QuizId, companyId, PlayListId, VideoId, EmployeeId, CourceId } = req.body;
-            if (!companyId || !EmployeeId || !CourceId) {
+            let { QuizId, companyId, PlayListId, VideoId, EmployeeId, CourseId } = req.body;
+            if (!companyId || !EmployeeId || !CourseId) {
                 return resp.status(400).json({ message: 'please provide valid data', success: false })
             }
-            let findedCource = await CoachingGainerCompanyOrder.coachingGainerCompanyEmployees.findOne({
-                companyId, EmployeeId, CourceId
+            let findedCourse = await CoachingGainerCompanyOrder.coachingGainerCompanyEmployees.findOne({
+                companyId, EmployeeId, CourseId
             })
-            if (!findedCource) {
+            if (!findedCourse) {
                 return resp.status(400), json({ message: "Course not found", success: false })
             }
             if (QuizId && PlayListId && VideoId) {
                 let orderDoc = await CoachingGainerCompanyOrder.coachingGainerCompanyEmployees.findOne({
                     companyId,
                     EmployeeId,
-                    CourceId
+                    CourseId
                 });
 
                 if (!orderDoc) {
                     return resp.status(404).json({ message: 'order not found', success: false });
                 }
 
-                orderDoc.CourceContent.forEach((content) => {
+                orderDoc.CourseContent.forEach((content) => {
                     if (content.PlayListId == PlayListId) {
                         content.VideoData.forEach((video) => {
                             if (video.VideoId == VideoId) {
@@ -1152,14 +1152,14 @@ class CourseOrderService {
                 let orderDoc = await CoachingGainerCompanyOrder.coachingGainerCompanyEmployees.findOne({
                     companyId,
                     EmployeeId,
-                    CourceId
+                    CourseId
                 });
 
                 if (!orderDoc) {
                     return resp.status(404).json({ message: 'order not found', success: false });
                 }
 
-                orderDoc.CourceContent.forEach((content) => {
+                orderDoc.CourseContent.forEach((content) => {
                     if (content.PlayListId == PlayListId) {
                         content.VideoData.forEach((video) => {
                             if (video.VideoId == VideoId) {
@@ -1178,14 +1178,14 @@ class CourseOrderService {
                 let orderDoc = await CoachingGainerCompanyOrder.coachingGainerCompanyEmployees.findOne({
                     companyId,
                     EmployeeId,
-                    CourceId
+                    CourseId
                 });
 
                 if (!orderDoc) {
                     return resp.status(404).json({ message: 'order not found', success: false });
                 }
 
-                orderDoc.CourceContent.forEach((content) => {
+                orderDoc.CourseContent.forEach((content) => {
                     if (content.PlayListId == PlayListId) {
                         content.PlayListCompleted = true;
                     }
@@ -1204,19 +1204,19 @@ class CourseOrderService {
     }
     async generateCoachingCertificate(req, resp) {
         try {
-            const { EmployeeId, CourceId, companyId } = req.body;
-            if (!EmployeeId || !CourceId || !companyId) {
+            const { EmployeeId, CourseId, companyId } = req.body;
+            if (!EmployeeId || !CourseId || !companyId) {
                 return resp.status(400).json({ message: 'Please provide valid data', success: false });
             }
 
-            const courseOrder = await CoachingGainerCompanyOrder.coachingGainerCompanyEmployees.findOne({ EmployeeId, CourceId, companyId });
+            const courseOrder = await CoachingGainerCompanyOrder.coachingGainerCompanyEmployees.findOne({ EmployeeId, CourseId, companyId });
             if (!courseOrder) {
                 return resp.status(404).json({ message: 'Course order not found', success: false });
             }
-            if (!courseOrder.TokenOfCource) {
+            if (!courseOrder.TokenOfCourse) {
                 return resp.status(404).json({ message: 'Course Token Not Found', success: false });
             }
-            let TokenData = jwt.verify(courseOrder.TokenOfCource, process.env.ACCESS_TOKEN_SECRET)
+            let TokenData = jwt.verify(courseOrder.TokenOfCourse, process.env.ACCESS_TOKEN_SECRET)
             if (!TokenData) {
                 return resp.status(404).json({ message: 'Course Token Not Verified', success: false });
 
@@ -1240,30 +1240,30 @@ class CourseOrderService {
             }
 
             await CoachingGainerCompanyOrder.coachingGainerCompanyEmployees.findOneAndUpdate(
-                { EmployeeId, CourceId, companyId },
-                { $set: { CourceCompleted: true } },
+                { EmployeeId, CourseId, companyId },
+                { $set: { CourseCompleted: true } },
                 { new: true }
             );
 
-            const matchCondition = { companyId, _id: CourceId };
-            const OriginalCourceData = await CoachingCourceController.getCoachingCourceData(matchCondition);
+            const matchCondition = { companyId, _id: CourseId };
+            const OriginalCourseData = await CoachingCourseController.getCoachingCourseData(matchCondition);
             const findedCompanyGainer = await CoachingGainerCompaniesModel.findOne({ _id: TokenData.GainerCompanyId })
             const user = await findedCompanyGainer.Employees.find((EachEmployee) => {
                 EachEmployee._id == EmployeeId
             })
-            if (!OriginalCourceData || !user || !findedCompanyGainer) {
+            if (!OriginalCourseData || !user || !findedCompanyGainer) {
                 return resp.status(404).json({ message: 'Course or User not found', success: false });
             }
 
-            if (!OriginalCourceData.config) {
+            if (!OriginalCourseData.config) {
                 return resp.status(404).json({ message: 'Certificate template config not found', success: false });
             }
 
-            const config = OriginalCourceData.config;
-            const templatePath = path.join(__dirname, '..', '..', 'public', `${OriginalCourceData.CourceName}-${OriginalCourceData.ProviderId}`, 'Certificate', OriginalCourceData.Certificate);
+            const config = OriginalCourseData.config;
+            const templatePath = path.join(__dirname, '..', '..', 'public', `${OriginalCourseData.CourseName}-${OriginalCourseData.ProviderId}`, 'Certificate', OriginalCourseData.Certificate);
             const { width, height } = sizeOf(templatePath);
             const doc = new PDFDocument({ size: [width, height], margin: 0 });
-            const filePath = path.join(__dirname, '..', '..', 'public', 'MyCertificate', `${OriginalCourceData.CourceName}-${CourceId}-${UserId.replace(/\s+/g, '_')}.pdf`);
+            const filePath = path.join(__dirname, '..', '..', 'public', 'MyCertificate', `${OriginalCourseData.CourseName}-${CourseId}-${UserId.replace(/\s+/g, '_')}.pdf`);
             doc.pipe(fs.createWriteStream(filePath));
 
             doc.image(templatePath, 0, 0, { width, height }).fillColor('black');
@@ -1289,23 +1289,23 @@ class CourseOrderService {
                     }
                 } else if (key === 'Provider') {
 
-                    if (OriginalCourceData.ProviderInfo[0]) {
+                    if (OriginalCourseData.ProviderInfo[0]) {
                         let logoPath
-                        if (OriginalCourceData.ProviderTypeValue.CourceProviderType == 'Tutor') {
-                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingTutorImage', OriginalCourceData.ProviderInfo[0].TutorImage);
-                            doc.fontSize(pos.fontSize).text(OriginalCourceData.ProviderInfo[0].TutorName, pos.x, pos.y, { lineBreak: false });
+                        if (OriginalCourseData.ProviderTypeValue.CourseProviderType == 'Tutor') {
+                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingTutorImage', OriginalCourseData.ProviderInfo[0].TutorImage);
+                            doc.fontSize(pos.fontSize).text(OriginalCourseData.ProviderInfo[0].TutorName, pos.x, pos.y, { lineBreak: false });
                         }
-                        if (OriginalCourceData.ProviderTypeValue.CourceProviderType == 'Class') {
-                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingClassesImage', OriginalCourceData.ProviderTypeValue[0].ClassLogo);
-                            doc.fontSize(pos.fontSize).text(OriginalCourceData.ProviderInfo[0].ClassName, pos.x, pos.y, { lineBreak: false });
+                        if (OriginalCourseData.ProviderTypeValue.CourseProviderType == 'Class') {
+                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingClassesImage', OriginalCourseData.ProviderTypeValue[0].ClassLogo);
+                            doc.fontSize(pos.fontSize).text(OriginalCourseData.ProviderInfo[0].ClassName, pos.x, pos.y, { lineBreak: false });
                         }
-                        if (OriginalCourceData.ProviderTypeValue.CourceProviderType == 'Company') {
-                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingCompanyImage', OriginalCourceData.ProviderTypeValue[0].CourceCompanyLogo);
-                            doc.fontSize(pos.fontSize).text(OriginalCourceData.ProviderInfo[0].CourseCompanyName, pos.x, pos.y, { lineBreak: false });
+                        if (OriginalCourseData.ProviderTypeValue.CourseProviderType == 'Company') {
+                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingCompanyImage', OriginalCourseData.ProviderTypeValue[0].CourseCompanyLogo);
+                            doc.fontSize(pos.fontSize).text(OriginalCourseData.ProviderInfo[0].CourseCompanyName, pos.x, pos.y, { lineBreak: false });
                         }
-                        if (OriginalCourceData.ProviderTypeValue.CourceProviderType == 'University') {
-                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingUniversityImage', OriginalCourceData.ProviderTypeValue[0].UniversityLogo);
-                            doc.fontSize(pos.fontSize).text(OriginalCourceData.ProviderInfo[0].UniversityName, pos.x, pos.y, { lineBreak: false });
+                        if (OriginalCourseData.ProviderTypeValue.CourseProviderType == 'University') {
+                            logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingUniversityImage', OriginalCourseData.ProviderTypeValue[0].UniversityLogo);
+                            doc.fontSize(pos.fontSize).text(OriginalCourseData.ProviderInfo[0].UniversityName, pos.x, pos.y, { lineBreak: false });
 
                         }
 
@@ -1319,9 +1319,9 @@ class CourseOrderService {
 
             }
 
-            if (OriginalCourceData.ConnectedInfo) {
+            if (OriginalCourseData.ConnectedInfo) {
                 const logoDirArr = [];
-                OriginalCourceData.ConnectedInfo.forEach((conn) => {
+                OriginalCourseData.ConnectedInfo.forEach((conn) => {
                     let logoPath;
                     if (conn.TutorImage) {
                         logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingTutorImage', conn.TutorImage);
@@ -1329,8 +1329,8 @@ class CourseOrderService {
                         logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingClassesImage', conn.ClassLogo);
                     } else if (conn.UniversityLogo) {
                         logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingUniversityImage', conn.UniversityLogo);
-                    } else if (conn.CourceCompanyLogo) {
-                        logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingCompanyImage', conn.CourceCompanyLogo);
+                    } else if (conn.CourseCompanyLogo) {
+                        logoPath = path.join(__dirname, '..', '..', 'public', 'CoachingCompanyImage', conn.CourseCompanyLogo);
                     }
                     if (fs.existsSync(logoPath)) logoDirArr.push(logoPath);
                 });
@@ -1346,12 +1346,12 @@ class CourseOrderService {
                     });
                 }
             }
-            const token = jwt.sign({ CourceId: CourceId, UserId: EmployeeId, CourceName: OriginalCourceData.CourceName, UserName: user.EmployeeName, UserEmail: user.EmployeeEmail, UserPhone: user.EmployeeMobileNo });
+            const token = jwt.sign({ CourseId: CourseId, UserId: EmployeeId, CourseName: OriginalCourseData.CourseName, UserName: user.EmployeeName, UserEmail: user.EmployeeEmail, UserPhone: user.EmployeeMobileNo });
             let dataOfCertificate = {
                 companyId: companyId,
                 CertificateToken: token
             }
-            let savedToken = new CoachingCourceOrder.CertificateModel(dataOfCertificate)
+            let savedToken = new CoachingCourseOrder.CertificateModel(dataOfCertificate)
             savedToken = await savedToken.save();
             let CertificateConfig = config.fields.CertificateId
             doc.fontSize(CertificateConfig.fontSize).text(savedToken._id, CertificateConfig.x, CertificateConfig.y, { lineBreak: false });
@@ -1368,7 +1368,7 @@ class CourseOrderService {
             if (!companyId || !CertificateId) {
                 return resp.status(400).json({ message: 'please provide certificate id or compnay id', success: false })
             }
-            let FindCertificate = await CoachingCourceOrder.CertificateModel.findOne({ companyId: companyId, _id: CertificateId })
+            let FindCertificate = await CoachingCourseOrder.CertificateModel.findOne({ companyId: companyId, _id: CertificateId })
             if (!FindCertificate) {
                 return resp.status(400).json({ message: 'certificate not found', success: false })
             }
@@ -1386,9 +1386,9 @@ class CourseOrderService {
     }
     // async uploadEmployeesListCsvForPredifinedEmailAndPassword(req, resp) {
     //     try {
-    //         const { TokenOfCource } = req.body;
-    //         let TokenData = jwt.verify(TokenOfCource, 'secret-for-now')
-    //         let CourceIds = TokenData.CourceIds
+    //         const { TokenOfCourse } = req.body;
+    //         let TokenData = jwt.verify(TokenOfCourse, 'secret-for-now')
+    //         let CourseIds = TokenData.CourseIds
     //         if (TokenData.Status !== 'Completed') {
     //             return resp.status(400).json({ message: 'your payment is not completed', success: false })
     //         }
@@ -1406,14 +1406,14 @@ class CourseOrderService {
     //         let WrongEmployeeListData = [];
     //         let updatedEmployeeLoginsIds = [];
     //         let NotUpdatedEmployeeLoginsIds = [];
-    //          for (let EachCourceId of CourceIds) {
+    //          for (let EachCourseId of CourseIds) {
     //             let FindedCourseOrder = await CoachingGainerCompanyOrder.CompanyGainerRequestModel.findOne({
     //                 GainerCompanyId: TokenData.GainerCompanyId,
     //                 _id: findedTokenTransaction.orderId
     //             })
-    //             let FindedCource = await CoachingCourceModel.findOne({ _id: EachCourceId })
+    //             let FindedCourse = await CoachingCourseModel.findOne({ _id: EachCourseId })
     //             let FindedGainerCompany = await CoachingGainerCompaniesModel.findOne({ _id: TokenData.GainerCompanyId })
-    //             if (!FindedCourseOrder || !FindedCource || !FindedGainerCompany || !companyId || !findedTokenTransaction.orderId || !CourceIds || !TokenData.GainerCompanyId) {
+    //             if (!FindedCourseOrder || !FindedCourse || !FindedGainerCompany || !companyId || !findedTokenTransaction.orderId || !CourseIds || !TokenData.GainerCompanyId) {
     //                 this.cleanupUploadedFiles(uploadedImages)
     //                 return resp.status(400).json({ message: 'something wrong to find detail', success: false })
     //             }
@@ -1463,7 +1463,7 @@ class CourseOrderService {
 
     //                     let FilteredEmployeeList;
     //                     let addEmployeeListInCoachingGainerCompany;
-    //                     let EmployeesIdsOfCurrentCource;
+    //                     let EmployeesIdsOfCurrentCourse;
     //                     let FindedEmployeeList = await CoachingGainerCompaniesModel.findOne({ companyId: companyId, _id: GainerCompanyId })
     //                     if (FindedEmployeeList.Employees && FindedEmployeeList.Employees.length !== 0) {
     //                         for (let EachEmployee of FindedEmployeeList.Employees) {
@@ -1491,7 +1491,7 @@ class CourseOrderService {
 
     //                     if (addEmployeeListInCoachingGainerCompany) {
     //                         for (let EachOldEmployee of addEmployeeListInCoachingGainerCompany.Employees) {
-    //                             EmployeesIdsOfCurrentCource = EmployessList.map((EachCurrentEmployee) => {
+    //                             EmployeesIdsOfCurrentCourse = EmployessList.map((EachCurrentEmployee) => {
     //                                 if (EachCurrentEmployee.EmployeeEmail == EachOldEmployee.EmployeeEmail) {
     //                                     return EachOldEmployee._id
     //                                 }
@@ -1501,7 +1501,7 @@ class CourseOrderService {
     //                             _id: findedTokenTransaction.orderId
     //                         },
     //                             {
-    //                                 $addToSet: { EmployeeIds: { $each: EmployeesIdsOfCurrentCource } }
+    //                                 $addToSet: { EmployeeIds: { $each: EmployeesIdsOfCurrentCourse } }
     //                             },
     //                             {
     //                                 new: true
@@ -1510,11 +1510,11 @@ class CourseOrderService {
     //                     }
     //                     let CoachingCompanyGainerOrder = await CoachingGainerCompanyOrder.CompanyGainerRequestModel.findOne({ _id: findedTokenTransaction.orderId })
     //                     let AvailableLogins = CoachingCompanyGainerOrder.ForHowManyLogins;
-    //                     let CoachinOrderedCource = await CoachingGainerCompanyOrder.CoachingGainerCompnaiesOrder.findOne({ GainerCompanyId: TokenData.GainerCompanyId, CourceId: EachCourceId })
-    //                     if (CoachinOrderedCource) {
-    //                         if (CoachinOrderedCource.OrderId) {
+    //                     let CoachinOrderedCourse = await CoachingGainerCompanyOrder.CoachingGainerCompnaiesOrder.findOne({ GainerCompanyId: TokenData.GainerCompanyId, CourseId: EachCourseId })
+    //                     if (CoachinOrderedCourse) {
+    //                         if (CoachinOrderedCourse.OrderId) {
     //                             let MyNewTotalLogins;
-    //                             for (let EachOrderId of CoachinOrderedCource.OrderId) {
+    //                             for (let EachOrderId of CoachinOrderedCourse.OrderId) {
     //                                 let FindedCoachingGainerCompanyOrder = await CoachingGainerCompanyOrder.CompanyGainerRequestModel.findOne({
     //                                     _id: EachOrderId
     //                                 })
@@ -1522,17 +1522,17 @@ class CourseOrderService {
     //                                     MyNewTotalLogins = MyNewTotalLogins + FindedCoachingGainerCompanyOrder.ForHowManyLogins
     //                                 }
     //                             }
-    //                             if (!CoachinOrderedCource.OrderId.includes(CoachingCompanyGainerOrder._id)) {
+    //                             if (!CoachinOrderedCourse.OrderId.includes(CoachingCompanyGainerOrder._id)) {
     //                                 MyNewTotalLogins = MyNewTotalLogins + CoachingCompanyGainerOrder.ForHowManyLogins
-    //                                 CoachinOrderedCource.OrderId.push(CoachingCompanyGainerOrder._id)
+    //                                 CoachinOrderedCourse.OrderId.push(CoachingCompanyGainerOrder._id)
     //                             }
-    //                             let PendingLogins = MyNewTotalLogins - CoachinOrderedCource.EmployeeIds.length
+    //                             let PendingLogins = MyNewTotalLogins - CoachinOrderedCourse.EmployeeIds.length
     //                             let updatetheCoachingOrderLogins = await CoachingGainerCompanyOrder.CoachingGainerCompnaiesOrder.findOneAndUpdate({
-    //                                 GainerCompanyId: TokenData.GainerCompanyId, CourceId: EachCourceId,
+    //                                 GainerCompanyId: TokenData.GainerCompanyId, CourseId: EachCourseId,
     //                             }, {
     //                                 $set: {
     //                                     MyTotalLogins: MyNewTotalLogins,
-    //                                     OrderId: CoachinOrderedCource.OrderId,
+    //                                     OrderId: CoachinOrderedCourse.OrderId,
     //                                     PendingLogins: PendingLogins
     //                                 }
     //                             },
@@ -1540,25 +1540,25 @@ class CourseOrderService {
     //                                     new: true
     //                                 })
     //                             if (updatetheCoachingOrderLogins.MyTotalLogins) {
-    //                                 AvailableLogins = CoachinOrderedCource.MyTotalLogins - updatetheCoachingOrderLogins.PendingLogins
+    //                                 AvailableLogins = CoachinOrderedCourse.MyTotalLogins - updatetheCoachingOrderLogins.PendingLogins
     //                             }
 
 
     //                         }
     //                         else {
-    //                             if (CoachinOrderedCource.MyTotalLogins) {
+    //                             if (CoachinOrderedCourse.MyTotalLogins) {
     //                                 AvailableLogins = CoachingCompanyGainerOrder.ForHowManyLogins
     //                             }
 
     //                         }
     //                         let FilteredEmployeeData;
     //                         if (CoachingCompanyGainerOrder.status == 'Completed') {
-    //                             TokenOfCource = jwt.sign({ UserId: TokenData.GainerCompanyId, CourceId: EachCourceId, PaymentId: transaction._id, Status: 'Completed' }, 'secret-for-now')
+    //                             TokenOfCourse = jwt.sign({ UserId: TokenData.GainerCompanyId, CourseId: EachCourseId, PaymentId: transaction._id, Status: 'Completed' }, 'secret-for-now')
 
-    //                             if (CoachinOrderedCource.EmployeeIds || CoachinOrderedCource.EmployeeIds.length !== 0) {
+    //                             if (CoachinOrderedCourse.EmployeeIds || CoachinOrderedCourse.EmployeeIds.length !== 0) {
     //                                 for (let EachOrderedEmployee of EmployessList) {
 
-    //                                     FilteredEmployeeData = CoachinOrderedCource.EmployeeIds.map((EachCurrentEmployee) => {
+    //                                     FilteredEmployeeData = CoachinOrderedCourse.EmployeeIds.map((EachCurrentEmployee) => {
     //                                         if (EachCurrentEmployee.EmployeeId == EachOrderedEmployee) {
     //                                             return {
     //                                                 LoginsAccess: true,
@@ -1590,7 +1590,7 @@ class CourseOrderService {
     //                                 })
     //                             }
     //                             let updateEmployeeLogins = await CoachingGainerCompanyOrder.CoachingGainerCompnaiesOrder.findOneAndUpdate({
-    //                                 GainerCompanyId: TokenData.GainerCompanyId, CourceId: EachCourceId
+    //                                 GainerCompanyId: TokenData.GainerCompanyId, CourseId: EachCourseId
     //                             },
     //                                 {
     //                                     $addToSet: { OrderId: { $each: findedTokenTransaction.orderId } }
@@ -1605,7 +1605,7 @@ class CourseOrderService {
     //                                 {
     //                                     $set: {
     //                                         EmployeeIds: FilteredEmployeeData,
-    //                                         MyTotalLogins: CoachinOrderedCource.MyTotalLogins + CoachingCompanyGainerOrder.ForHowManyLogins,
+    //                                         MyTotalLogins: CoachinOrderedCourse.MyTotalLogins + CoachingCompanyGainerOrder.ForHowManyLogins,
     //                                     }
     //                                 },
     //                                 { new: true }
@@ -1616,11 +1616,11 @@ class CourseOrderService {
 
     //                         let FilteredEmployeeData;
     //                         if (CoachingCompanyGainerOrder.status == 'Completed') {
-    //                             TokenOfCource = jwt.sign({ UserId: TokenData.GainerCompanyId, CourceId: EachCourceId, PaymentId: transaction._id, Status: 'PendingAmount' }, 'secret-for-now')
+    //                             TokenOfCourse = jwt.sign({ UserId: TokenData.GainerCompanyId, CourseId: EachCourseId, PaymentId: transaction._id, Status: 'PendingAmount' }, 'secret-for-now')
 
-    //                             let TokenOfCource = jwt.sign({ UserId: TokenData.GainerCompanyId, })
+    //                             let TokenOfCourse = jwt.sign({ UserId: TokenData.GainerCompanyId, })
     //                             for (let EachOrderedEmployee of EmployessList) {
-    //                                 FilteredEmployeeData = CoachinOrderedCource.EmployeeIds.map((EachCurrentEmployee) => {
+    //                                 FilteredEmployeeData = CoachinOrderedCourse.EmployeeIds.map((EachCurrentEmployee) => {
     //                                     if (EachCurrentEmployee.EmployeeId == EachOrderedEmployee) {
     //                                         return {
     //                                             LoginsAccess: true,
@@ -1643,7 +1643,7 @@ class CourseOrderService {
     //                                 })
     //                             }
     //                             let updateEmployeeLogins = await CoachingGainerCompanyOrder.CoachingGainerCompnaiesOrder.findOneAndUpdate({
-    //                                 GainerCompanyId: TokenData.GainerCompanyId, CourceId: EachCourceId
+    //                                 GainerCompanyId: TokenData.GainerCompanyId, CourseId: EachCourseId
     //                             },
     //                                 {
     //                                     $addToSet: { OrderId: { $each: findedTokenTransaction.orderId } }
@@ -1664,7 +1664,7 @@ class CourseOrderService {
     //                             )
     //                             if (updateEmployeeLogins) {
     //                                 let updateLogins = await CoachingGainerCompanyOrder.CoachingGainerCompnaiesOrder.findOneAndUpdate({
-    //                                     GainerCompanyId: TokenData.GainerCompanyId, CourceId: EachCourceId
+    //                                     GainerCompanyId: TokenData.GainerCompanyId, CourseId: EachCourseId
     //                                 }, {
     //                                     $set: {
     //                                         MyTotalLogins: updateEmployeeLogins.MyTotalLogins + CoachingCompanyGainerOrder.ForHowManyLogins,
@@ -1674,7 +1674,7 @@ class CourseOrderService {
     //                                 updatedEmployeeLoginsIds.push(updateEmployeeLogins._id)
     //                             }
     //                             else {
-    //                                 NotUpdatedEmployeeLoginsIds.push(EachCourceId)
+    //                                 NotUpdatedEmployeeLoginsIds.push(EachCourseId)
     //                             }
     //                         }
     //                     }
@@ -1698,20 +1698,20 @@ class CourseOrderService {
     //                     _id: EachOrder
     //                 })
     //                 if (FindedOrder) {
-    //                     let existingCource = await CoachingCourceController.getCoachingCourceData({ _id: FindedOrder.CourceId })
-    //                     if (existingCource) {
-    //                         if (existingCource.CourceContent || existingCource.CourceContent.length !== 0 || existingCource.CourceContent[0].CourceData.length !== 0) {
+    //                     let existingCourse = await CoachingCourseController.getCoachingCourseData({ _id: FindedOrder.CourseId })
+    //                     if (existingCourse) {
+    //                         if (existingCourse.CourseContent || existingCourse.CourseContent.length !== 0 || existingCourse.CourseContent[0].CourseData.length !== 0) {
     //                             let PlayList = [];
     //                             let UpdateEmployees = [];
     //                             let NotUpdatedEmployees = [];
-    //                             for (let EachPlaylist of existingCource.CourceContent) {
+    //                             for (let EachPlaylist of existingCourse.CourseContent) {
     //                                 let VideoIds = [];
     //                                 let QuizData = [];
     //                                 let PlayListData = {
     //                                     Heading: EachPlaylist.Heading,
     //                                     PlayListId: EachPlaylist._id
     //                                 }
-    //                                 for (let EachVideoId of EachPlaylist.CourceData) {
+    //                                 for (let EachVideoId of EachPlaylist.CourseData) {
     //                                     let VideoData = {
     //                                         VideoId: EachVideoId
     //                                     }
@@ -1730,14 +1730,14 @@ class CourseOrderService {
     //                                 PlayListData.VideoData = VideoIds
     //                                 PlayList.push(PlayListData)
     //                             }
-    //                             let token = jwt.sign({ CourceId: EachCourceId, GainerCompanyId: GainerCompanyId, OrderId: transactionDetails.orderId }, 'secret-for-now')
+    //                             let token = jwt.sign({ CourseId: EachCourseId, GainerCompanyId: GainerCompanyId, OrderId: transactionDetails.orderId }, 'secret-for-now')
     //                             let TotalLoginsSaved = 0;
     //                             for (let EachEmployee of FindedOrder.EmployeeIds) {
     //                                 let findedEmployeeData = await CoachingGainerCompanyOrder.coachingGainerCompanyEmployees.findOne({
     //                                     EmployeeId: EachEmployee,
     //                                     GainerCompanyId: TokenData.GainerCompanyId,
     //                                     OrderId: transactionDetails.orderId,
-    //                                     CourceId: EachCourceId
+    //                                     CourseId: EachCourseId
     //                                 })
     //                                 if (!findedEmployeeData) {
     //                                     continue;
@@ -1748,9 +1748,9 @@ class CourseOrderService {
     //                                     EmployeeId: EachEmployee,
     //                                     GainerCompanyId: TokenData.GainerCompanyId,
     //                                     OrderId: transactionDetails.OrderId,
-    //                                     CourceId: EachCourceId,
-    //                                     CourceContent: PlayList,
-    //                                     TokenOfCource: token,
+    //                                     CourseId: EachCourseId,
+    //                                     CourseContent: PlayList,
+    //                                     TokenOfCourse: token,
     //                                     valid: true
     //                                 }
     //                                 let result = new CoachingGainerCompanyOrder.coachingGainerCompanyEmployees(EmployeeData)
@@ -1775,7 +1775,7 @@ class CourseOrderService {
     //                             }
     //                             if (NotUpdatedEmployeeLoginsIds || NotUpdatedEmployeeLoginsIds.length !== 0) {
     //                                 let upddateLogins = await CoachingGainerCompanyOrder.findOneAndUpdate({
-    //                                     GainerCompanyId: TokenData.GainerCompanyId, CourceId: EachCourceId
+    //                                     GainerCompanyId: TokenData.GainerCompanyId, CourseId: EachCourseId
     //                                 },
     //                                     {
     //                                         $set: {
@@ -1824,7 +1824,7 @@ class CourseOrderService {
     //                                         }
     //                                     ],
     //                                     html: `<p>Hello,</p>
-    //                                                  <p>The following employess is not added in ${existingCource.CourceName}</p>
+    //                                                  <p>The following employess is not added in ${existingCourse.CourseName}</p>
     //                                                  <p>And Please ensure All Data Are Correctlty Filled</p>`
     //                                 };
     //                                 transporter.sendMail(mailOptions, (error, info) => {
@@ -1838,7 +1838,7 @@ class CourseOrderService {
     //                             }
     //                             if (UpdateEmployees || UpdateEmployees.length !== 0) {
     //                                 let upddateLogins = await CoachingGainerCompanyOrder.findOneAndUpdate({
-    //                                     GainerCompanyId: TokenData.GainerCompanyId, CourceId: EachCourceId
+    //                                     GainerCompanyId: TokenData.GainerCompanyId, CourseId: EachCourseId
     //                                 },
     //                                     {
     //                                         $set: {
@@ -1855,7 +1855,7 @@ class CourseOrderService {
     //                                         pass: '12345678'
     //                                     }
     //                                 });
-    //                                 const filepath = path.join(publicdirPath, `addedEmployeeData-${EachCourceId}-${TokenData.GainerCompanyId}.csv`)
+    //                                 const filepath = path.join(publicdirPath, `addedEmployeeData-${EachCourseId}-${TokenData.GainerCompanyId}.csv`)
     //                                 if (fs.existsSync(filepath)) {
     //                                     fs.unlinkSync(filepath)
     //                                 }
@@ -1886,7 +1886,7 @@ class CourseOrderService {
     //                                         }
     //                                     ],
     //                                     html: `<p>Hello,</p>
-    //                                                  <p>The following employess is not added in ${existingCource.CourceName}</p>
+    //                                                  <p>The following employess is not added in ${existingCourse.CourseName}</p>
     //                                                  <p>And Please ensure All Data Are Correctlty Filled</p>`
     //                                 };
     //                                 transporter.sendMail(mailOptions, (error, info) => {
@@ -1957,7 +1957,7 @@ class CourseOrderService {
 
     //                         }
     //                     }
-    //                     if (FindedOrder && FindedOrder.EmployeeIds && FindedOrder.EmployeeIds.length !== 0 && existingCource) {
+    //                     if (FindedOrder && FindedOrder.EmployeeIds && FindedOrder.EmployeeIds.length !== 0 && existingCourse) {
     //                         for (let EachEployee of FindedOrder.EmployeeIds) {
 
     //                             this.cleanupUnusedImages(uploadedImages, csvListedImages);
@@ -1978,7 +1978,7 @@ class CourseOrderService {
     // }
     // async uploadEmployeesListCsvForAutomaticPassword(req, resp) {
     //     try {
-    //         const { GainerCompanyId, CourceIds, companyId, OrderId } = req.body;
+    //         const { GainerCompanyId, CourseIds, companyId, OrderId } = req.body;
     //         if (!req.files || !req.files.csvFile) {
     //             return resp.status(400).json({ message: 'Please upload a CSV file', success: false });
     //         }
@@ -1990,14 +1990,14 @@ class CourseOrderService {
     //         const stream = fs.createReadStream(csvFilePath).pipe(csvParser());
     //         let EmployessList = [];
     //         let WrongEmployeeListData = [];
-    //         for (let EachCourceId of CourceIds) {
+    //         for (let EachCourseId of CourseIds) {
     //             let FindedCourseOrder = await CoachingGainerCompanyOrder.findOne({
     //                 GainerCompanyId: GainerCompanyId,
-    //                 CourseId: EachCourceId
+    //                 CourseId: EachCourseId
     //             })
-    //             let FindedCource = await CoachingCourceModel.findOne({ _id: EachCourceId })
+    //             let FindedCourse = await CoachingCourseModel.findOne({ _id: EachCourseId })
     //             let FindedGainerCompany = await CoachingGainerCompaniesModel.findOne({ _id: GainerCompanyId })
-    //             if (!FindedCourseOrder || !FindedCource || !FindedGainerCompany || !companyId || !OrderId || !CourceIds || !GainerCompanyId) {
+    //             if (!FindedCourseOrder || !FindedCourse || !FindedGainerCompany || !companyId || !OrderId || !CourseIds || !GainerCompanyId) {
     //                 this.cleanupUploadedFiles(uploadedImages)
     //                 return resp.status(400).json({ message: 'something wrong to find detail', success: false })
     //             }
@@ -2062,9 +2062,9 @@ class CourseOrderService {
     //                         { new: true }
     //                     )
     //                     if (addEmployeeListInCoachingGainerCompany) {
-    //                         let EmployeesIdsOfCurrentCource;
+    //                         let EmployeesIdsOfCurrentCourse;
     //                         for (let EachOldEmployee of addEmployeeListInCoachingGainerCompany.Employees) {
-    //                             EmployeesIdsOfCurrentCource = EmployessList.map((EachCurrentEmployee) => {
+    //                             EmployeesIdsOfCurrentCourse = EmployessList.map((EachCurrentEmployee) => {
     //                                 if (EachCurrentEmployee.EmployeeEmail == EachOldEmployee.EmployeeEmail) {
     //                                     return EachOldEmployee._id
     //                                 }
@@ -2074,29 +2074,29 @@ class CourseOrderService {
     //                             _id: OrderId, companyId: companyId
     //                         },
     //                             {
-    //                                 $addToSet: { EmployeeIds: { $each: EmployeesIdsOfCurrentCource } }
+    //                                 $addToSet: { EmployeeIds: { $each: EmployeesIdsOfCurrentCourse } }
     //                             },
     //                             {
     //                                 new: true
     //                             }
     //                         )
     //                     }
-    //                     for (let EachCourceId of CourceIds) {
-    //                         let existingCource = await CoachingCourceModel.findOne({ _id: EachCourceId })
+    //                     for (let EachCourseId of CourseIds) {
+    //                         let existingCourse = await CoachingCourseModel.findOne({ _id: EachCourseId })
     //                         let CoachingCompanyGainerOrder = await CoachingGainerCompanyOrder.findOne({ _id: OrderId })
     //                         let AvailableLogins = CoachingCompanyGainerOrder.MyTotalLogins - PendingLogins
-    //                         if (existingCource && CoachingCompanyGainerOrder) {
+    //                         if (existingCourse && CoachingCompanyGainerOrder) {
 
-    //                             if (existingCource.CourceContent || existingCource.CourceContent.length !== 0 || existingCource.CourceContent[0].CourceData.length !== 0) {
+    //                             if (existingCourse.CourseContent || existingCourse.CourseContent.length !== 0 || existingCourse.CourseContent[0].CourseData.length !== 0) {
     //                                 let PlayList = [];
-    //                                 for (let EachPlaylist of existingCource.CourceContent) {
+    //                                 for (let EachPlaylist of existingCourse.CourseContent) {
     //                                     let VideoIds = [];
     //                                     let QuizData = [];
     //                                     let PlayListData = {
     //                                         Heading: EachPlaylist.Heading,
     //                                         PlayListId: EachPlaylist._id
     //                                     }
-    //                                     for (let EachVideoId of EachPlaylist.CourceData) {
+    //                                     for (let EachVideoId of EachPlaylist.CourseData) {
     //                                         let VideoData = {
     //                                             VideoId: EachVideoId
     //                                         }
@@ -2115,8 +2115,8 @@ class CourseOrderService {
     //                                     PlayListData.VideoData = VideoIds
     //                                     PlayList.push(PlayListData)
     //                                 }
-    //                                 let token = jwt.sign({ CourceId: EachCourceId, GainerCompanyId: GainerCompanyId }, 'secret-for-now')
-    //                                 CourceData.TokenOfCource = token
+    //                                 let token = jwt.sign({ CourseId: EachCourseId, GainerCompanyId: GainerCompanyId }, 'secret-for-now')
+    //                                 CourseData.TokenOfCourse = token
     //                                 let TotalLoginsSaved = 0;
     //                                 for (let EachEmployee of EmployeeIds) {
     //                                     if (AvailableLogins <= 0) {
@@ -2127,15 +2127,15 @@ class CourseOrderService {
     //                                         EmployeeId: EachEmployee,
     //                                         GainerCompanyId: GainerCompanyId,
     //                                         OrderId: OrderId,
-    //                                         CourceId: EachCourceId,
-    //                                         CourceContent: PlayList,
-    //                                         TokenOfCource: CoachingCompanyGainerOrder.TokenOfCource,
+    //                                         CourseId: EachCourseId,
+    //                                         CourseContent: PlayList,
+    //                                         TokenOfCourse: CoachingCompanyGainerOrder.TokenOfCourse,
     //                                     }
     //                                     if (CoachingCompanyGainerOrder.PaymentStatus == 'Completed') {
-    //                                         EmployeeData.CourceCompleted = true
+    //                                         EmployeeData.CourseCompleted = true
     //                                     }
     //                                     else {
-    //                                         EmployeeData.CourceCompleted = false
+    //                                         EmployeeData.CourseCompleted = false
     //                                     }
     //                                     let result = new CoachingGainerCompanyOrder.coachingGainerCompanyEmployees(EmployeeData)
     //                                     result = await result.save();

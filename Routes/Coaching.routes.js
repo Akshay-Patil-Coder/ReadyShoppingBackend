@@ -5,12 +5,12 @@ const CoachingClassesRoutes = require('../components/Coaching/CoachingClasses/Co
 const CoachingCompanyRoutes = require('../components/Coaching/CoachingCompanies/CoachingCompanies.routes')
 const CoachingUniversityRoutes = require('../components/Coaching/CoachingUniversity/CoachingUniversity.routes')
 const CoachingTutorsRoutes = require('../components/Coaching/CoachingTutors/CoachingTutors.routes')
-// const CoachingCourceRoutes = require('../components/Coaching/CoachingCource/CoachingCource.routes')
+// const CoachingCourseRoutes = require('../components/Coaching/CoachingCourse/CoachingCourse.routes')
 // // const CoachingOrderRoutes = require('../components/Coaching/CoachingOrder/CoachingOrder.routes')
 // const CoachingGainerCompanyRoutes = require('../components/Coaching/CoachingGainerCompnay/CoachingGainerCompnay.routes')
 // const CoachingCompanyGainerChatBoxRoutes = require('../components/Coaching/CoachingChatBoxForGainerCompany/CoachingChatBoxForGainerCompany.routes')
 // const CoachingGainerCompanyOrderRoutes = require('../components/Coaching/CoachingGainerCompanyOrder/CoachingGainerCompanyOrder.routes')
-// // const CoachingTrendingProductRoutes = require('../components/Coaching/CoachingTrendingCource/CoachingTrendingCource.routes')
+// // const CoachingTrendingProductRoutes = require('../components/Coaching/CoachingTrendingCourse/CoachingTrendingCourse.routes')
 // const CoachingBannersRoutes = require('../components/Coaching/CoachingBanners/CoachingBanners.routes')
 
 const apiString = `/api/${process.env.API_VERSION}`;
@@ -22,11 +22,11 @@ const coachingUniversityString = apiString + '/coachingUniversity'
 const coachingCompanyString = apiString + '/coachingCompany'
 const coachingTutorString = apiString + '/coachingTutor'
 // const CoachingOrderString = apiString + '/coachingOrder'
-// const coachingCourceString = apiString + '/coachingCource'
+// const coachingCourseString = apiString + '/coachingCourse'
 // const CoachingGainerCompanyString = apiString + '/coachingGainerCompany'
 // const CoachingCompanyGainerChatBoxString = apiString + '/coachingChatBox'
 // const CoachingGainerCompanyOrderString = apiString + '/coachingGainerCompanyOrder'
-// // const CoachingTrendingProductString = apiString + '/coachingTrendingCource'
+// // const CoachingTrendingProductString = apiString + '/coachingTrendingCourse'
 // const CoachingBannersString = apiString + '/coachingBanner'
 
 exports.default = (app) => {
@@ -37,7 +37,7 @@ exports.default = (app) => {
     app.use(coachingUniversityString, CoachingUniversityRoutes)
     app.use(coachingCompanyString, CoachingCompanyRoutes)
     app.use(coachingTutorString, CoachingTutorsRoutes)
-    // app.use(coachingCourceString, CoachingCourceRoutes)
+    // app.use(coachingCourseString, CoachingCourseRoutes)
     // app.use(CoachingBannersString, CoachingBannersRoutes)
     // app.use(CoachingGainerCompanyOrderString, CoachingGainerCompanyOrderRoutes)
     // app.use(CoachingCompanyGainerChatBoxString, CoachingCompanyGainerChatBoxRoutes)

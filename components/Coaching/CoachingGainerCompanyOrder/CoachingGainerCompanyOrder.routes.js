@@ -56,16 +56,16 @@ router.post('/employeeLogin', (req, res) => {
     // res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 
 });
-router.get('/getCoachingCource',(req, res) => {
+router.get('/getCoachingCourse',(req, res) => {
     // if (req.user.role === 'Admin' || req.user.role === 'Company' || req.user.role === 'Service Provider') {
-        return CoachingGainerCompanyOrderController.getCoachingCource(req, res)
+        return CoachingGainerCompanyOrderController.getCoachingCourse(req, res)
     // }
     // res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 
 });
-router.put('/changeStateOfCourceContent',(req, res) => {
+router.put('/changeStateOfCourseContent',(req, res) => {
     // if (req.user.role === 'Admin' || req.user.role === 'Company' || req.user.role === 'Service Provider') {
-        return CoachingGainerCompanyOrderController.changeStateOfCourceContent(req, res)
+        return CoachingGainerCompanyOrderController.changeStateOfCourseContent(req, res)
     // }
     // res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 

@@ -13,9 +13,9 @@ router.post('/addCoachingCourseOrder', (req, res) => {
     // res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 
 });
-router.get('/getCoachingCourceOrder', (req, res) => {
+router.get('/getCoachingCourseOrder', (req, res) => {
     // if (req.user.role === 'Admin' || req.user.role === 'Company' || req.user.role === 'Service Provider') {
-    return CoachingOrderController.getCoachingCourceOrder(req, res)
+    return CoachingOrderController.getCoachingCourseOrder(req, res)
     // }
     // res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 
@@ -28,16 +28,16 @@ router.put('/updateCoachingPaymentStatus', (req, res) => {
     // res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 
 });
-router.put('/getTokenOfCource', (req, res) => {
+router.put('/getTokenOfCourse', (req, res) => {
     // if (req.user.role === 'Admin' || req.user.role === 'Company' || req.user.role === 'Service Provider') {
-    return CoachingOrderController.getTokenOfCource(req, res)
+    return CoachingOrderController.getTokenOfCourse(req, res)
     // }
     // res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 
 });
-router.put('/changeStateOfCourceContent', (req, res) => {
+router.put('/changeStateOfCourseContent', (req, res) => {
     // if (req.user.role === 'Admin' || req.user.role === 'Company' || req.user.role === 'Service Provider') {
-    return CoachingOrderController.changeStateOfCourceContent(req, res)
+    return CoachingOrderController.changeStateOfCourseContent(req, res)
     // }
     // res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 

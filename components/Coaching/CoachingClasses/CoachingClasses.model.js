@@ -11,11 +11,11 @@ const coachingClassesSchema = new mongoose.Schema({
             type: String,
         }
     ],
-    HeadCourceCatId: [{
+    HeadCourseCatId: [{
         type: mongoose.Schema.Types.ObjectId,
         required: true
     }],
-    SubCourceCatId: [{
+    SubCourseCatId: [{
         type: mongoose.Schema.Types.ObjectId,
         required: true
     }],

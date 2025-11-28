@@ -8,7 +8,7 @@ const { authentication } = require('../../Middleware/Middleware.controller')
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages');
+        const uploadDir = path.join(__dirname, '..', '..', 'public', 'CourseProviderTypeImages');
 
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
@@ -18,7 +18,7 @@ const storage = multer.diskStorage({
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'courceProviderTypeImage-' + uniqueSuffix + path.basename(file.originalname, path.extname(file.originalname)) + path.extname(file.originalname));
+        cb(null, 'CourseProviderTypeImage-' + uniqueSuffix + path.basename(file.originalname, path.extname(file.originalname)) + path.extname(file.originalname));
     }
 });
 
@@ -36,7 +36,7 @@ const upload = multer({
 });
 
 
-router.post('/addcoachingProviderType',upload.single('CourceProviderTypeImage'), (req, res) => {
+router.post('/addcoachingProviderType',upload.single('CourseProviderTypeImage'), (req, res) => {
     //  if (req.user.role === 'Admin') {
         return CoachingProviderTypeController.addcoachingProviderType(req, res);
     //   }
@@ -46,7 +46,7 @@ router.post('/addcoachingProviderType',upload.single('CourceProviderTypeImage'),
 router.get('/getCoachingProviderType', (req, res) => {
     return CoachingProviderTypeController.getCoachingProviderType(req, res);
 });
-router.put('/updateCoachingProviderTypeDetails/:id',authentication,upload.single('CourceProviderTypeImage'), (req, res) => {
+router.put('/updateCoachingProviderTypeDetails/:id',authentication,upload.single('CourseProviderTypeImage'), (req, res) => {
     if (req.user.role === 'Admin') {
         return CoachingProviderTypeController.updateCoachingProviderTypeDetails(req, res);
       }

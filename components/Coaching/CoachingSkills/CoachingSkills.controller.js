@@ -7,19 +7,19 @@ module.exports = {
 
     addCoachingSkills: async (req, res) => {
         try {
-            const { SkillName, HeadCourceCatId,SubCourceCatId,companyId} = req.body;
+            const { SkillName, HeadCourseCatId,SubCourseCatId,companyId} = req.body;
             console.log(req.body,'body')
-            if (!SkillName || !HeadCourceCatId || !SubCourceCatId || !companyId) {
+            if (!SkillName || !HeadCourseCatId || !SubCourseCatId || !companyId) {
                 res.status(400).json({ message: 'please filled all fields', success: false })
             }
-            const CourceSkillData = {
+            const CourseSkillData = {
                 SkillName,
-                HeadCourceCatId,
-                SubCourceCatId,
+                HeadCourseCatId,
+                SubCourseCatId,
                 companyId
             }
            
-            const newCoachingSkills = new CoachingSkillsModel(CourceSkillData);
+            const newCoachingSkills = new CoachingSkillsModel(CourseSkillData);
 
             const savedCoachingSkills = await newCoachingSkills.save();
 
@@ -44,7 +44,7 @@ module.exports = {
              {
                  $lookup: {
                      from: "coachingcategories",
-                     localField: "HeadCourceCatId",
+                     localField: "HeadCourseCatId",
                      foreignField: "_id",
                      as: "HeadCoachingCategories",
                  }
@@ -52,7 +52,7 @@ module.exports = {
              {
                  $lookup: {
                      from: "coachingcategories",
-                     localField: "SubCourceCatId",
+                     localField: "SubCourseCatId",
                      foreignField: "_id",
                      as: "SubCoachingCategories",
                  }
@@ -61,23 +61,23 @@ module.exports = {
      },
  
      getCoachingSkillByData: async (req, res) => {
-         const { HeadCourceCatId, SubCourceCatId, companyId, SkillId } = req.query;
+         const { HeadCourseCatId, SubCourseCatId, companyId, SkillId } = req.query;
  
          try {
              let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
  
-             if (HeadCourceCatId) {
-                 if (!mongoose.Types.ObjectId.isValid(HeadCourceCatId)) {
+             if (HeadCourseCatId) {
+                 if (!mongoose.Types.ObjectId.isValid(HeadCourseCatId)) {
                      return res.status(400).json({ message: 'Invalid ID format', success: false });
                  }
-                 matchCondition.HeadCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(HeadCourceCatId)] };
+                 matchCondition.HeadCourseCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(HeadCourseCatId)] };
              }
             
-             if (SubCourceCatId) {
-                 if (!mongoose.Types.ObjectId.isValid(SubCourceCatId)) {
+             if (SubCourseCatId) {
+                 if (!mongoose.Types.ObjectId.isValid(SubCourseCatId)) {
                      return res.status(400).json({ message: 'Invalid ID format', success: false });
                  }
-                 matchCondition.SubCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubCourceCatId)] };
+                 matchCondition.SubCourseCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubCourseCatId)] };
              }
             
              if (SkillId) {

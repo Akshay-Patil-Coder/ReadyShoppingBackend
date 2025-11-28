@@ -2,12 +2,12 @@ const mongoose = require("mongoose");
 const { ObjectId } = require("mongodb")
 
 const coachingProviderSchema = new mongoose.Schema({
-    CourceProviderType: {
+    CourseProviderType: {
         type: String,
         required: true,
         unique:true
     },
-    CourceProviderTypeImage: {
+    CourseProviderTypeImage: {
         type: String,
         required: true
     },

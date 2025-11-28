@@ -15,12 +15,12 @@ module.exports = {
 
         try {
 
-            let { Skills, ClassName, ClassOwnerName, companyId, HeadCourceCatId, SubCourceCatId, Street, City, State, Country, PostalCode, Email, Phone, PanCardNo, GstNo, googleLocation, Password, ProviderType } = req.body;
-            if (HeadCourceCatId) {
-                HeadCourceCatId = JSON.parse(HeadCourceCatId);
+            let { Skills, ClassName, ClassOwnerName, companyId, HeadCourseCatId, SubCourseCatId, Street, City, State, Country, PostalCode, Email, Phone, PanCardNo, GstNo, googleLocation, Password, ProviderType } = req.body;
+            if (HeadCourseCatId) {
+                HeadCourseCatId = JSON.parse(HeadCourseCatId);
             }
-            if (SubCourceCatId) {
-                SubCourceCatId = JSON.parse(SubCourceCatId);
+            if (SubCourseCatId) {
+                SubCourseCatId = JSON.parse(SubCourseCatId);
             }
             if (ClassOwnerName) {
                 ClassOwnerName = JSON.parse(ClassOwnerName);
@@ -28,7 +28,7 @@ module.exports = {
             if (Skills) {
                 Skills = JSON.parse(Skills);
             }
-            if (!ClassName || !ClassOwnerName || !companyId || !HeadCourceCatId || !SubCourceCatId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation || !Password || !ProviderType) {
+            if (!ClassName || !ClassOwnerName || !companyId || !HeadCourseCatId || !SubCourseCatId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation || !Password || !ProviderType) {
                 if (req.file?.filename) {
                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingClassesImage', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
@@ -46,8 +46,8 @@ module.exports = {
                 ClassName,
                 ClassOwnerName,
                 companyId,
-                HeadCourceCatId,
-                SubCourceCatId,
+                HeadCourseCatId,
+                SubCourseCatId,
                 Street,
                 City,
                 State,
@@ -102,7 +102,7 @@ module.exports = {
             {
                 $lookup: {
                     from: "coachingcategories",
-                    localField: "HeadCourceCatId",
+                    localField: "HeadCourseCatId",
                     foreignField: "_id",
                     as: "HeadCoachingCategories",
                 }
@@ -110,7 +110,7 @@ module.exports = {
             {
                 $lookup: {
                     from: "coachingcategories",
-                    localField: "SubCourceCatId",
+                    localField: "SubCourseCatId",
                     foreignField: "_id",
                     as: "SubCoachingCategories",
                 }
@@ -135,16 +135,16 @@ module.exports = {
     },
 
     getCoachingClassesByData: async (req, res) => {
-        const { SkillId, HeadCourceCatId, SubCourceCatId, companyId, ClassId, googleLocation } = req.query;
+        const { SkillId, HeadCourseCatId, SubCourseCatId, companyId, ClassId, googleLocation } = req.query;
 
         try {
             let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
-            if (HeadCourceCatId) {
-                if (!mongoose.Types.ObjectId.isValid(HeadCourceCatId)) {
+            if (HeadCourseCatId) {
+                if (!mongoose.Types.ObjectId.isValid(HeadCourseCatId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.HeadCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(HeadCourceCatId)] };
+                matchCondition.HeadCourseCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(HeadCourseCatId)] };
             }
             if (SkillId) {
                 if (!mongoose.Types.ObjectId.isValid(SkillId)) {
@@ -155,11 +155,11 @@ module.exports = {
             if (googleLocation) {
                 matchCondition.googleLocation = String(googleLocation);
             }
-            if (SubCourceCatId) {
-                if (!mongoose.Types.ObjectId.isValid(SubCourceCatId)) {
+            if (SubCourseCatId) {
+                if (!mongoose.Types.ObjectId.isValid(SubCourseCatId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.SubCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubCourceCatId)] };
+                matchCondition.SubCourseCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubCourseCatId)] };
             }
             if (ClassId) {
                 if (!mongoose.Types.ObjectId.isValid(ClassId)) {
@@ -181,12 +181,12 @@ module.exports = {
         }
     },
 
-    updateSubCourceCategoryList: async (req, resp) => {
+    updateSubCourseCategoryList: async (req, resp) => {
         try {
-            let { ClassId, SubCourceCatId } = req.body;
+            let { ClassId, SubCourseCatId } = req.body;
             const companyId = req.query.companyId;
             const operation = req.query.operation;
-            if (!ClassId || !SubCourceCatId || SubCourceCatId.length === 0) {
+            if (!ClassId || !SubCourseCatId || SubCourseCatId.length === 0) {
                 return resp.status(400).send({message:'Please insert valid data',success:false});
             }
 
@@ -195,7 +195,7 @@ module.exports = {
                 if (operation === 'delete') {
                     let updatedResult = await CoachingClassesModel.findOneAndUpdate(
                         { _id: ClassId, companyId: companyId },
-                        { $pull: { SubCourceCatId: { $in: SubCourceCatId } } },
+                        { $pull: { SubCourseCatId: { $in: SubCourseCatId } } },
                         { new: true }
                     );
 
@@ -204,7 +204,7 @@ module.exports = {
                 if (operation === 'add') {
                     let updatedResult = await CoachingClassesModel.findOneAndUpdate(
                         { _id: ClassId, companyId: companyId },
-                        { $addToSet: { SubCourceCatId: { $each: SubCourceCatId } } },
+                        { $addToSet: { SubCourseCatId: { $each: SubCourseCatId } } },
                         { new: true }
                     );
 
@@ -218,12 +218,12 @@ module.exports = {
         }
 
     },
-    updateHeadCourceCategoryList: async (req, resp) => {
+    updateHeadCourseCategoryList: async (req, resp) => {
         try {
-            let { ClassId, HeadCourceCatId } = req.body;
+            let { ClassId, HeadCourseCatId } = req.body;
             const companyId = req.query.companyId;
             const operation = req.query.operation;
-            if (!ClassId || !HeadCourceCatId || HeadCourceCatId.length === 0) {
+            if (!ClassId || !HeadCourseCatId || HeadCourseCatId.length === 0) {
                 return resp.status(400).send({message:'Please insert valid data',success:false});
             }
 
@@ -232,7 +232,7 @@ module.exports = {
                 if (operation === 'delete') {
                     let updatedResult = await CoachingClassesModel.findOneAndUpdate(
                         { _id: ClassId, companyId: companyId },
-                        { $pull: { HeadCourceCatId: { $in: HeadCourceCatId } } },
+                        { $pull: { HeadCourseCatId: { $in: HeadCourseCatId } } },
                         { new: true }
                     );
 
@@ -241,7 +241,7 @@ module.exports = {
                 if (operation === 'add') {
                     let updatedResult = await CoachingClassesModel.findOneAndUpdate(
                         { _id: ClassId, companyId: companyId },
-                        { $addToSet: { HeadCourceCatId: { $each: HeadCourceCatId } } },
+                        { $addToSet: { HeadCourseCatId: { $each: HeadCourseCatId } } },
                         { new: true }
                     );
 
@@ -309,15 +309,15 @@ module.exports = {
                 PanCardNo,
                 GstNo,
                 googleLocation,
-                HeadCourceCatId,
-                SubCourceCatId,
+                HeadCourseCatId,
+                SubCourseCatId,
                 Skills
             } = req.body;
-            if (HeadCourceCatId) {
-                HeadCourceCatId = JSON.parse(HeadCourceCatId)
+            if (HeadCourseCatId) {
+                HeadCourseCatId = JSON.parse(HeadCourseCatId)
             }
-            if (SubCourceCatId) {
-                SubCourceCatId = JSON.parse(SubCourceCatId)
+            if (SubCourseCatId) {
+                SubCourseCatId = JSON.parse(SubCourseCatId)
             }
             if (ClassOwnerName) {
                 ClassOwnerName = JSON.parse(ClassOwnerName)
@@ -328,7 +328,7 @@ module.exports = {
             const companyId = req.query.companyId;
             console.log(req.body, 'new testing');
 
-            if (!ClassId || !HeadCourceCatId || !SubCourceCatId || !ClassName || !ClassOwnerName || !companyId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation) {
+            if (!ClassId || !HeadCourseCatId || !SubCourseCatId || !ClassName || !ClassOwnerName || !companyId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation) {
                 if (req.file?.filename) {
                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingClassesImage', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
@@ -355,8 +355,8 @@ module.exports = {
                     PanCardNo,
                     GstNo,
                     googleLocation,
-                    HeadCourceCatId,
-                    SubCourceCatId
+                    HeadCourseCatId,
+                    SubCourseCatId
                 }
                 if (req.file?.filename) {
                     const existingCoachingClass = await CoachingClassesModel.findOne({ _id: ClassId, companyId: companyId })

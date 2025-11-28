@@ -15,12 +15,12 @@ module.exports = {
 
         try {
 
-            let { Skills, UniversityName, Contact_person_name, companyId, HeadCourceCatId, SubCourceCatId, Street, City, State, Country, PostalCode, Email, Phone, PanCardNo, GstNo, googleLocation, Password, ConnectedWith, ProviderType } = req.body;
-            if (HeadCourceCatId) {
-                HeadCourceCatId = JSON.parse(HeadCourceCatId);
+            let { Skills, UniversityName, Contact_person_name, companyId, HeadCourseCatId, SubCourseCatId, Street, City, State, Country, PostalCode, Email, Phone, PanCardNo, GstNo, googleLocation, Password, ConnectedWith, ProviderType } = req.body;
+            if (HeadCourseCatId) {
+                HeadCourseCatId = JSON.parse(HeadCourseCatId);
             }
-            if (SubCourceCatId) {
-                SubCourceCatId = JSON.parse(SubCourceCatId);
+            if (SubCourseCatId) {
+                SubCourseCatId = JSON.parse(SubCourseCatId);
             }
             if (Skills) {
                 Skills = JSON.parse(Skills);
@@ -28,7 +28,7 @@ module.exports = {
             if (ConnectedWith) {
                 ConnectedWith = JSON.parse(ConnectedWith);
             }
-            if (!UniversityName || !companyId || !HeadCourceCatId || !SubCourceCatId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation || !Password || !ProviderType) {
+            if (!UniversityName || !companyId || !HeadCourseCatId || !SubCourseCatId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation || !Password || !ProviderType) {
                   if (req.file?.filename) {
                                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingUniversityImage', req.file.filename);
                                     if (fs.existsSync(newImagePath)) {
@@ -74,8 +74,8 @@ module.exports = {
             let CoachingUniversityData = {
                 UniversityName,
                 companyId,
-                HeadCourceCatId,
-                SubCourceCatId,
+                HeadCourseCatId,
+                SubCourseCatId,
                 Street,
                 City,
                 State,
@@ -136,7 +136,7 @@ module.exports = {
     //         {
     //             $lookup: {
     //                 from: "coachingcategories",
-    //                 localField: "HeadCourceCatId",
+    //                 localField: "HeadCourseCatId",
     //                 foreignField: "_id",
     //                 as: "HeadCoachingCategories",
     //             }
@@ -144,7 +144,7 @@ module.exports = {
     //         {
     //             $lookup: {
     //                 from: "coachingcategories",
-    //                 localField: "SubCourceCatId",
+    //                 localField: "SubCourseCatId",
     //                 foreignField: "_id",
     //                 as: "SubCoachingCategories",
     //             }
@@ -205,19 +205,19 @@ module.exports = {
     //                     $switch: {
     //                         branches: [
     //                             {
-    //                                 case: { $eq: [{ $arrayElemAt: ["$ConnectedTypeInfo.CourceProviderType", 0] }, "Class"] },
+    //                                 case: { $eq: [{ $arrayElemAt: ["$ConnectedTypeInfo.CourseProviderType", 0] }, "Class"] },
     //                                 then: "$ClassConnectedInfo"
     //                             },
     //                             {
-    //                                 case: { $eq: [{ $arrayElemAt: ["$ConnectedTypeInfo.CourceProviderType", 0] }, "Tutor"] },
+    //                                 case: { $eq: [{ $arrayElemAt: ["$ConnectedTypeInfo.CourseProviderType", 0] }, "Tutor"] },
     //                                 then: "$TutorConnectedInfo"
     //                             },
     //                             {
-    //                                 case: { $eq: [{ $arrayElemAt: ["$ConnectedTypeInfo.CourceProviderType", 0] }, "University"] },
+    //                                 case: { $eq: [{ $arrayElemAt: ["$ConnectedTypeInfo.CourseProviderType", 0] }, "University"] },
     //                                 then: "$UniversityConnectedInfo"
     //                             },
     //                             {
-    //                                 case: { $eq: [{ $arrayElemAt: ["$ConnectedTypeInfo.CourceProviderType", 0] }, "Company"] },
+    //                                 case: { $eq: [{ $arrayElemAt: ["$ConnectedTypeInfo.CourseProviderType", 0] }, "Company"] },
     //                                 then: "$CompanyConnectedInfo"
     //                             }
     //                         ],
@@ -252,7 +252,7 @@ module.exports = {
             {
                 $lookup: {
                     from: "coachingcategories",
-                    localField: "HeadCourceCatId",
+                    localField: "HeadCourseCatId",
                     foreignField: "_id",
                     as: "HeadCoachingCategories"
                 }
@@ -260,7 +260,7 @@ module.exports = {
             {
                 $lookup: {
                     from: "coachingcategories",
-                    localField: "SubCourceCatId",
+                    localField: "SubCourseCatId",
                     foreignField: "_id",
                     as: "SubCoachingCategories"
                 }
@@ -333,19 +333,19 @@ module.exports = {
                         $switch: {
                             branches: [
                                 {
-                                    case: { $eq: ["$ConnectedTypeInfo.CourceProviderType", "Class"] },
+                                    case: { $eq: ["$ConnectedTypeInfo.CourseProviderType", "Class"] },
                                     then: "$ClassConnectedInfo"
                                 },
                                 {
-                                    case: { $eq: ["$ConnectedTypeInfo.CourceProviderType", "Tutor"] },
+                                    case: { $eq: ["$ConnectedTypeInfo.CourseProviderType", "Tutor"] },
                                     then: "$TutorConnectedInfo"
                                 },
                                 {
-                                    case: { $eq: ["$ConnectedTypeInfo.CourceProviderType", "University"] },
+                                    case: { $eq: ["$ConnectedTypeInfo.CourseProviderType", "University"] },
                                     then: "$UniversityConnectedInfo"
                                 },
                                 {
-                                    case: { $eq: ["$ConnectedTypeInfo.CourceProviderType", "Company"] },
+                                    case: { $eq: ["$ConnectedTypeInfo.CourseProviderType", "Company"] },
                                     then: "$CompanyConnectedInfo"
                                 }
                             ],
@@ -391,16 +391,16 @@ module.exports = {
     },
 
     getCoachingUniversityByData: async (req, res) => {
-        const { SkillId, HeadCourceCatId, SubCourceCatId, CoachingUniversityId, companyId, ConnecterId, googleLocation } = req.query;
+        const { SkillId, HeadCourseCatId, SubCourseCatId, CoachingUniversityId, companyId, ConnecterId, googleLocation } = req.query;
 
         try {
             let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
-            if (HeadCourceCatId) {
-                if (!mongoose.Types.ObjectId.isValid(HeadCourceCatId)) {
+            if (HeadCourseCatId) {
+                if (!mongoose.Types.ObjectId.isValid(HeadCourseCatId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.HeadCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(HeadCourceCatId)] };
+                matchCondition.HeadCourseCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(HeadCourseCatId)] };
             }
             if (SkillId) {
                 if (!mongoose.Types.ObjectId.isValid(SkillId)) {
@@ -411,11 +411,11 @@ module.exports = {
             if (googleLocation) {
                 matchCondition.googleLocation = String(googleLocation);
             }
-            if (SubCourceCatId) {
-                if (!mongoose.Types.ObjectId.isValid(SubCourceCatId)) {
+            if (SubCourseCatId) {
+                if (!mongoose.Types.ObjectId.isValid(SubCourseCatId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
-                matchCondition.SubCourceCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubCourceCatId)] };
+                matchCondition.SubCourseCatId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubCourseCatId)] };
             }
             if (ConnecterId) {
                 if (!mongoose.Types.ObjectId.isValid(ConnecterId)) {
@@ -443,12 +443,12 @@ module.exports = {
         }
     },
 
-    updateSubCourceCategoryList: async (req, resp) => {
+    updateSubCourseCategoryList: async (req, resp) => {
         try {
-            let { CoachingUniversityId, SubCourceCatId } = req.body;
+            let { CoachingUniversityId, SubCourseCatId } = req.body;
             const companyId = req.query.companyId;
             const operation = req.query.operation;
-            if (!CoachingUniversityId || !SubCourceCatId || SubCourceCatId.length === 0) {
+            if (!CoachingUniversityId || !SubCourseCatId || SubCourseCatId.length === 0) {
                 return resp.status(400).send({message:'Please insert valid data',success:false});
             }
 
@@ -457,7 +457,7 @@ module.exports = {
                 if (operation === 'delete') {
                     let updatedResult = await CoachingUniversityModel.findOneAndUpdate(
                         { _id: CoachingUniversityId, companyId: companyId },
-                        { $pull: { SubCourceCatId: { $in: SubCourceCatId } } },
+                        { $pull: { SubCourseCatId: { $in: SubCourseCatId } } },
                         { new: true }
                     );
 
@@ -466,7 +466,7 @@ module.exports = {
                 if (operation === 'add') {
                     let updatedResult = await CoachingUniversityModel.findOneAndUpdate(
                         { _id: CoachingUniversityId, companyId: companyId },
-                        { $addToSet: { SubCourceCatId: { $each: SubCourceCatId } } },
+                        { $addToSet: { SubCourseCatId: { $each: SubCourseCatId } } },
                         { new: true }
                     );
 
@@ -480,12 +480,12 @@ module.exports = {
         }
 
     },
-    updateHeadCourceCategoryList: async (req, resp) => {
+    updateHeadCourseCategoryList: async (req, resp) => {
         try {
-            let { CoachingUniversityId, HeadCourceCatId } = req.body;
+            let { CoachingUniversityId, HeadCourseCatId } = req.body;
             const companyId = req.query.companyId;
             const operation = req.query.operation;
-            if (!CoachingUniversityId || !HeadCourceCatId || HeadCourceCatId.length === 0) {
+            if (!CoachingUniversityId || !HeadCourseCatId || HeadCourseCatId.length === 0) {
                 return resp.status(400).send({message:'Please insert valid data',success:false});
             }
 
@@ -494,7 +494,7 @@ module.exports = {
                 if (operation === 'delete') {
                     let updatedResult = await CoachingUniversityModel.findOneAndUpdate(
                         { _id: CoachingUniversityId, companyId: companyId },
-                        { $pull: { HeadCourceCatId: { $in: HeadCourceCatId } } },
+                        { $pull: { HeadCourseCatId: { $in: HeadCourseCatId } } },
                         { new: true }
                     );
 
@@ -503,7 +503,7 @@ module.exports = {
                 if (operation === 'add') {
                     let updatedResult = await CoachingUniversityModel.findOneAndUpdate(
                         { _id: CoachingUniversityId, companyId: companyId },
-                        { $addToSet: { HeadCourceCatId: { $each: HeadCourceCatId } } },
+                        { $addToSet: { HeadCourseCatId: { $each: HeadCourseCatId } } },
                         { new: true }
                     );
 
@@ -532,16 +532,16 @@ module.exports = {
                 PanCardNo,
                 GstNo,
                 googleLocation,
-                HeadCourceCatId,
-                SubCourceCatId,
+                HeadCourseCatId,
+                SubCourseCatId,
                 ConnectedWith,
                 Skills
             } = req.body;
-            if (HeadCourceCatId) {
-                HeadCourceCatId = JSON.parse(HeadCourceCatId)
+            if (HeadCourseCatId) {
+                HeadCourseCatId = JSON.parse(HeadCourseCatId)
             }
-            if (SubCourceCatId) {
-                SubCourceCatId = JSON.parse(SubCourceCatId)
+            if (SubCourseCatId) {
+                SubCourseCatId = JSON.parse(SubCourseCatId)
             }
             if (Skills) {
                 Skills = JSON.parse(Skills)
@@ -581,7 +581,7 @@ module.exports = {
                 ConnectedWith = ConnectedWithNew;
 
             }
-            if (!CoachingUniversityId || !HeadCourceCatId || !SubCourceCatId || !UniversityName || !companyId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation) {
+            if (!CoachingUniversityId || !HeadCourseCatId || !SubCourseCatId || !UniversityName || !companyId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation) {
                  if (req.file?.filename) {
                                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'CoachingUniversityImage', req.file.filename);
                                     if (fs.existsSync(newImagePath)) {
@@ -607,8 +607,8 @@ module.exports = {
                     PanCardNo,
                     GstNo,
                     googleLocation,
-                    HeadCourceCatId,
-                    SubCourceCatId
+                    HeadCourseCatId,
+                    SubCourseCatId
                 }
 
                 if (ConnectedWith) {

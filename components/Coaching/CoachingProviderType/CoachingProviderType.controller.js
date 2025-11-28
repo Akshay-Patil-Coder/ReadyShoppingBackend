@@ -6,10 +6,10 @@ module.exports = {
 
     addcoachingProviderType: async (req, res) => {
         try {
-            const { CourceProviderType } = req.body;
-            if (!CourceProviderType) {
+            const { CourseProviderType } = req.body;
+            if (!CourseProviderType) {
                 if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', req.file.filename);
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourseProviderTypeImages', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }
@@ -17,20 +17,20 @@ module.exports = {
 
                 res.status(400).json({ message: 'please filled all fields', success: false })
             }
-            const CourceProviderTypeData = {
-                CourceProviderType
+            const CourseProviderTypeData = {
+                CourseProviderType
             }
             if (req.file) {
-                CourceProviderTypeData.CourceProviderTypeImage = req.file.filename;
+                CourseProviderTypeData.CourseProviderTypeImage = req.file.filename;
             }
 
-            const newCoachingProviderType = new CoachingProviderTypeModel(CourceProviderTypeData);
+            const newCoachingProviderType = new CoachingProviderTypeModel(CourseProviderTypeData);
 
             const savedCoachingProviderType = await newCoachingProviderType.save();
 
             if (!savedCoachingProviderType) {
                 if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', req.file.filename);
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourseProviderTypeImages', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }
@@ -74,11 +74,11 @@ module.exports = {
             const existingUser = await CoachingProviderTypeModel.findById(id);
 
             if (!existingUser) {
-                return res.status(404).json({ success: false, message: "cource provider type not found" });
+                return res.status(404).json({ success: false, message: "Course provider type not found" });
             }
-            if (!req.body.CourceProviderType || !id) {
+            if (!req.body.CourseProviderType || !id) {
                 if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', req.file.filename);
+                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourseProviderTypeImages', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }
@@ -86,16 +86,16 @@ module.exports = {
                 return res.status(400).json({ message: "please filled all data", success: false })
             }
 
-            let updatedData = { CourceProviderType: req.body.CourceProviderType };
+            let updatedData = { CourseProviderType: req.body.CourseProviderType };
 
             if (req.file?.filename) {
 
-                const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', existingUser.CourceProviderTypeImage);
-                if (existingUser.CourceProviderTypeImage && fs.existsSync(oldImagePath)) {
+                const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CourseProviderTypeImages', existingUser.CourseProviderTypeImage);
+                if (existingUser.CourseProviderTypeImage && fs.existsSync(oldImagePath)) {
                     fs.unlinkSync(oldImagePath);
                 }
 
-                updatedData.CourceProviderTypeImage = req.file.filename;
+                updatedData.CourseProviderTypeImage = req.file.filename;
             }
 
             const updatedUser = await CoachingProviderTypeModel.findByIdAndUpdate(id, updatedData, { new: true });
@@ -108,7 +108,7 @@ module.exports = {
 
         } catch (error) {
             if (req.file?.filename) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourceProviderTypeImages', req.file.filename);
+                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CourseProviderTypeImages', req.file.filename);
                 if (fs.existsSync(newImagePath)) {
                     fs.unlinkSync(newImagePath);
                 }

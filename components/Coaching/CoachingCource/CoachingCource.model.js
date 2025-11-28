@@ -22,11 +22,11 @@ const QuizSchema = new mongoose.Schema({
             default: null,
         }]
     }],
-    HeadCourceCatId: [{
+    HeadCourseCatId: [{
         type: mongoose.Schema.Types.ObjectId,
         required: true
     }],
-    SubCourceCatId: [{
+    SubCourseCatId: [{
         type: mongoose.Schema.Types.ObjectId,
         required: true
     }],
@@ -73,12 +73,12 @@ const QuizSchema = new mongoose.Schema({
     timestamps: true
 })
 
-let QuizModel = mongoose.model("CourceQuize", QuizSchema);
+let QuizModel = mongoose.model("CourseQuize", QuizSchema);
 
 module.exports.QuizModel = QuizModel
 
 
-const CourceVideoSchema = new mongoose.Schema({
+const CourseVideoSchema = new mongoose.Schema({
     videoFile: {
         type: String,
         required: true
@@ -118,11 +118,11 @@ const CourceVideoSchema = new mongoose.Schema({
             default: null,
         }]
     }],
-    HeadCourceCatId: [{
+    HeadCourseCatId: [{
         type: mongoose.Schema.Types.ObjectId,
         required: true
     }],
-    SubCourceCatId: [{
+    SubCourseCatId: [{
         type: mongoose.Schema.Types.ObjectId,
         required: true
     }],
@@ -158,12 +158,12 @@ const CourceVideoSchema = new mongoose.Schema({
     timestamps: true
 })
 
-let CoachingVideoModel = mongoose.model("CoachingVideo", CourceVideoSchema);
+let CoachingVideoModel = mongoose.model("CoachingVideo", CourseVideoSchema);
 
 module.exports.CoachingVideoModel = CoachingVideoModel
 
-const coachingCourceSchema = new mongoose.Schema({
-    CourceName: {
+const coachingCourseSchema = new mongoose.Schema({
+    CourseName: {
         type: String,
         required: true
     },
@@ -196,11 +196,11 @@ const coachingCourceSchema = new mongoose.Schema({
             default: null,
         }]
     }],
-    HeadCourceCatId: [{
+    HeadCourseCatId: [{
         type: mongoose.Schema.Types.ObjectId,
         required: true
     }],
-    SubCourceCatId: [{
+    SubCourseCatId: [{
         type: mongoose.Schema.Types.ObjectId,
         required: true
     }],
@@ -208,7 +208,7 @@ const coachingCourceSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         required: true
     },
-    CourceDuration: {
+    CourseDuration: {
         type: Number,
         required: true
     },
@@ -217,7 +217,7 @@ const coachingCourceSchema = new mongoose.Schema({
         default: true,
         required: true,
     },
-    CourceThumbnail: {
+    CourseThumbnail: {
         type: String,
         required: true
     },
@@ -230,11 +230,11 @@ const coachingCourceSchema = new mongoose.Schema({
     //   ProviderLogo:{},
     //   CompanyLogo:{}
     },
-    CourceContent: [{
+    CourseContent: [{
         Heading: {
             type: String
         },
-        CourceData: [{
+        CourseData: [{
             type: mongoose.Schema.Types.ObjectId,
         }]
     }],
@@ -270,9 +270,9 @@ const coachingCourceSchema = new mongoose.Schema({
 }, {
     timestamps: true
 });
-let CoachingCourceModel = mongoose.model("CoachingCource", coachingCourceSchema);
+let CoachingCourseModel = mongoose.model("CoachingCourse", coachingCourseSchema);
 
-module.exports.CoachingCourceModel = CoachingCourceModel
+module.exports.CoachingCourseModel = CoachingCourseModel
 
 
 

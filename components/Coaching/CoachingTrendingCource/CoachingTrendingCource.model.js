@@ -8,11 +8,11 @@ const coachingTrendingProductSchema = mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             required: true
         },
-        HeadCourceCatId: {
+        HeadCourseCatId: {
             type: mongoose.Schema.Types.ObjectId,
             required: true
         },
-        SubCourceCatId: {
+        SubCourseCatId: {
             type: mongoose.Schema.Types.ObjectId,
             required: true
         },

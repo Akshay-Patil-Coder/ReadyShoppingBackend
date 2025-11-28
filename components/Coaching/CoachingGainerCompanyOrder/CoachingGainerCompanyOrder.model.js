@@ -6,7 +6,7 @@ const CoachingOrderRequestSchema = new mongoose.Schema({
     companyId: {
         type: mongoose.Schema.Types.ObjectId
     },
-    CourceIds: [{
+    CourseIds: [{
       type:mongoose.Schema.Types.ObjectId
     }],
     EmployeeIds: [{
@@ -52,7 +52,7 @@ const CoachingOrderRequestSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
-    TokenOfCource: {
+    TokenOfCourse: {
         type: String,
     },
 },
@@ -64,7 +64,7 @@ let CompanyGainerRequestModel = mongoose.model('CoachingGainerCompanyOrderReques
 module.exports.CompanyGainerRequestModel = CompanyGainerRequestModel
 
 const CoachingGainerCompanyOrderSchema = new mongoose.Schema({
-    CourceId: {
+    CourseId: {
         type: mongoose.Schema.Types.ObjectId,
     },
     OrderId:[{
@@ -98,7 +98,7 @@ const CoachingGainerCompanyOrderSchema = new mongoose.Schema({
     PaymentIds: [{
         type: mongoose.Schema.Types.ObjectId
     }],
-    TokenOfCource: {
+    TokenOfCourse: {
         type: String,
         required: true
     },
@@ -122,10 +122,10 @@ const coachingGainerCompanyEmployeeScehma = mongoose.Schema({
     GainerCompanyId: {
         type: mongoose.Schema.Types.ObjectId
     },
-    CourceId: {
+    CourseId: {
         type: mongoose.Schema.Types.ObjectId
     },
-    CourceContent: [
+    CourseContent: [
         {
             Heading: {
                 type: String
@@ -161,10 +161,10 @@ const coachingGainerCompanyEmployeeScehma = mongoose.Schema({
             }
         }
     ],
-    TokenOfCource: {
+    TokenOfCourse: {
         type: String
     },
-    CourceCompleted: {
+    CourseCompleted: {
         type: Boolean,
         default: false
     },
