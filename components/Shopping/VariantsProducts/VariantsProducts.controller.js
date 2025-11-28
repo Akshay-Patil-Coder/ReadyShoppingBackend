@@ -508,7 +508,7 @@ module.exports = {
             Operation,
             ImageName,
         } = req.body;
-            if (req.user.companyId) companyId = req.user.companyId
+        if (req.user.companyId) companyId = req.user.companyId
 
         const uploadedImages = req.files?.length ? req.files.map(f => f.filename) : [];
 
@@ -724,7 +724,7 @@ module.exports = {
 
     UpdateProductDetail: async (req, res) => {
         let { ProductId, companyId, ProductName, CommonDescription, ProductServices } = req.body;
-            if (req.user.companyId) companyId = req.user.companyId
+        if (req.user.companyId) companyId = req.user.companyId
 
         try {
             if (!ProductId || !companyId) {
@@ -1055,7 +1055,7 @@ module.exports = {
     },
     DeleteProductWithVariant: async (req, res) => {
         let { ProductId, companyId } = req.body;
-            if (req.user.companyId) companyId = req.user.companyId
+        if (req.user.companyId) companyId = req.user.companyId
 
         const clearFiles = async (files) => {
             if (!Array.isArray(files) || files.length === 0) return;
@@ -1607,7 +1607,29 @@ module.exports = {
             if (SubCategoryId) matchCondition.SubCategoryId = validateObjectId(SubCategoryId, 'SubCategoryId');
             if (ProductId) matchCondition._id = validateObjectId(ProductId, 'ProductId');
             if (VariantProductId) matchCondition.VariantProductIds = { $in: [validateObjectId(VariantProductId, 'VariantProductId')] };
-            if (BrandId) matchCondition.BrandId = validateObjectId(BrandId, 'BrandId')
+
+            if (BrandId) {
+                let BrandIdArray = [];
+
+                if (Array.isArray(BrandId)) {
+                    BrandIdArray = BrandId;
+                } else if (typeof BrandId === "string" && BrandId.includes(",")) {
+                    BrandIdArray = BrandId.split(",");
+                } else {
+                    BrandIdArray = [BrandId];
+                }
+
+                let BrandIds = [];
+
+                for (let id of BrandIdArray) {
+                    const validId = validateObjectId(id, 'BrandId');
+                    if (validId) BrandIds.push(validId);
+                }
+
+                matchCondition.BrandId = { $in: BrandIds };
+            }
+
+
             const data = await module.exports.getProductData(matchCondition);
             if (!data || data.length === 0) {
                 return res.status(404).json({ message: 'No Products found for this criteria', success: false });

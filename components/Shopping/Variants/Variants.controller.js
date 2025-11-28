@@ -422,13 +422,10 @@ module.exports = {
             let SubCatArray = [];
 
             if (Array.isArray(SubCategoryId)) {
-                // Case: SubCategoryId[]=id1&id[]=id2
                 SubCatArray = SubCategoryId;
             } else if (typeof SubCategoryId === "string" && SubCategoryId.includes(",")) {
-                // Case: SubCategoryId=id1,id2,id3
                 SubCatArray = SubCategoryId.split(",");
             } else {
-                // Case: single id
                 SubCatArray = [SubCategoryId];
             }
 
@@ -439,7 +436,7 @@ module.exports = {
                 }
             }
 
-            const SubCategoryIds = SubCatArray.map(id => new mongoose.Types.ObjectId(id));
+            const SubCategoryIds = SubCatArray.map(id => new mongoose.Types.ObjectId(String(id)));
 
             // MATCH CONDITION
             let matchCondition = {
