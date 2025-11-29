@@ -1643,7 +1643,7 @@ module.exports = {
                 let SubIds = [];
 
                 for (let id of SubIdArray) {
-                    const validId = validateObjectId(id, 'BrandId');
+                    const validId = validateObjectId(id, 'SubCategoryId');
                     if (validId) SubIds.push(validId);
                 }
 
