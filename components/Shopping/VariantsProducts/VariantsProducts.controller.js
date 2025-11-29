@@ -1644,7 +1644,7 @@ module.exports = {
                 for (let id of SubIdArray) {
                     const validId = validateObjectId(id, 'SubCategoryId');
                     if (validId) {
-                        SubIds.push(validId);  
+                        SubIds.push(validId);
                     }
                 }
 
@@ -1683,17 +1683,21 @@ module.exports = {
                     };
                 });
 
-                filteredData = filteredData.map(product => {
-                    const matchedVariants = product.VariantProducts.filter(vp =>
-                        variantPairs.every(pair =>
-                            vp.VariantFields.some(
-                                vf => vf.VariantId.equals(pair.VariantId) && pair.VariantValue.test(vf.VariantValue)
+                filteredData = filteredData
+                    .map(product => {
+                        const matchedVariants = product.VariantProducts.filter(vp =>
+                            variantPairs.some(pair =>   
+                                vp.VariantFields.some(
+                                    vf => vf.VariantId.equals(pair.VariantId) &&
+                                        pair.VariantValue.test(vf.VariantValue)
+                                )
                             )
-                        )
-                    );
+                        );
 
-                    return { ...product, VariantProducts: matchedVariants };
-                }).filter(p => p.VariantProducts.length > 0);
+                        return { ...product, VariantProducts: matchedVariants };
+                    })
+                    .filter(p => p.VariantProducts.length > 0);
+
             }
             if (BatchIds) {
                 const batchIdsArray = Array.isArray(BatchIds) ? BatchIds : [BatchIds];
