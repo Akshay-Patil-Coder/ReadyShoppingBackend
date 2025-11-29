@@ -1604,7 +1604,6 @@ module.exports = {
                 VariantProductIsActive = true;
             }
             if (HeadCategoryId) matchCondition.HeadCategoryId = validateObjectId(HeadCategoryId, 'HeadCategoryId');
-            if (SubCategoryId) matchCondition.SubCategoryId = validateObjectId(SubCategoryId, 'SubCategoryId');
             if (ProductId) matchCondition._id = validateObjectId(ProductId, 'ProductId');
             if (VariantProductId) matchCondition.VariantProductIds = { $in: [validateObjectId(VariantProductId, 'VariantProductId')] };
 
@@ -1613,7 +1612,7 @@ module.exports = {
 
                 if (Array.isArray(BrandId)) {
                     BrandIdArray = BrandId;
-                } else if (typeof BrandId === "string" && BrandId.includes(",")) {
+                } else if (typeof BrandId == "string" && BrandId.includes(",")) {
                     BrandIdArray = BrandId.split(",");
                 } else {
                     BrandIdArray = [BrandId];
@@ -1634,7 +1633,7 @@ module.exports = {
 
                 if (Array.isArray(SubCategoryId)) {
                     SubIdArray = SubCategoryId;
-                } else if (typeof SubCategoryId === "string" && SubCategoryId.includes(",")) {
+                } else if (typeof SubCategoryId == "string" && SubCategoryId.includes(",")) {
                     SubIdArray = SubCategoryId.split(",");
                 } else {
                     SubIdArray = [SubCategoryId];
