@@ -5,8 +5,14 @@ const fs = require('fs');
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcryptjs')
 const nodemailer = require('nodemailer');
-const axios = require("axios");
-
+const AccessModel = require('../AccessManagment/AccessManagment.model')
+const CategoryModel = require('../../Shopping/ProductCategories/ProductCategories.model')
+const { brandmodel } = require('../../Shopping/ProductsBrand/ProductsBrand.model')
+const { ProductService } = require('../../Shopping/ProductServices/ProductServices.model')
+const BannerModel = require('../../Shopping/ShoppingBanners/ShoppingBanners.model')
+const { Variant } = require('../../Shopping/Variants/Variants.model')
+const { VariantProduct, Product, Batch } = require('../../Shopping/VariantsProducts/VariantsProducts.model')
+const axios = require('axios')
 module.exports = {
     addcompanies: async (req, res) => {
         let { CompanyName, CompanyDomain, PredifinedDomain, Latitude, Longitude, Street, City, State, Country, PostalCode, Email, Phone, PanCardNo, GstNo, Contact_person_name, Password } = req.body;
@@ -578,6 +584,181 @@ module.exports = {
             });
         }
     },
+    previewDeleteCompany: async (req, res) => {
+        try {
+            const { companyId } = req.query;
+
+            if (!companyId) {
+                return res.status(400).json({ message: 'Company Not Found', success: false });
+            }
+
+            if (!mongoose.Types.ObjectId.isValid(companyId)) {
+                return res.status(400).json({ message: 'Invalid Company ID', success: false });
+            }
+
+            const FoundCompany = await Company.findById(companyId);
+            if (!FoundCompany) {
+                return res.status(404).json({ message: 'Company Not Found', success: false });
+            }
+
+            let AllData = {
+                access: [],
+                shopping: {}
+            };
+
+            const FoundAccess = await AccessModel.aggregate([
+                {
+                    $match: {
+                        companyId: new mongoose.Types.ObjectId(companyId)
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'masterusers',
+                        localField: 'assignvalues',
+                        foreignField: '_id',
+                        as: 'assignValues'
+                    }
+                }
+            ]);
+            function cleanCategory(cat) {
+                return {
+                    categoryName: cat.categoryName,
+                    categoryLevel: cat.categoryLevel,
+                    Description: cat.Description,
+                    imageName: cat.imageName,
+                    subcategories: (cat.subcategories || []).map(sub => cleanCategory(sub))
+                };
+            }
+
+            AllData.access = FoundAccess;
+
+            const AssignValues = FoundAccess[0]?.assignValues || [];
+
+            for (let EachAccess of AssignValues) {
+                if (EachAccess.FunctionallityName === 'shopping') {
+
+                    try {
+                        let categoryRes = await axios.get(
+                            `${process.env.BASE_URL}dynamicCategories/getCategoryTree?companyId=${companyId}`
+                        );
+
+                        let rawCategories = categoryRes.data.data;
+                        rawCategories = Array.isArray(rawCategories) ? rawCategories : [rawCategories]
+
+                        AllData.shopping.categories = rawCategories.map(cat => cleanCategory(cat));
+
+                    } catch (error) {
+                        console.error("Error fetching categories:", error.message);
+                    }
+
+                    try {
+                        let brandres = await axios.get(
+                            `${process.env.BASE_URL}brands/getBrandsById?companyId=${companyId}`
+                        );
+
+                        AllData.shopping.brands = brandres.data.data.map((EachBrand) => {
+                            return {
+                                BrandName: EachBrand.BrandName,
+                                BrandImage: EachBrand.BrandImage,
+                            }
+                        });
+                    } catch (error) {
+                        console.error("Error fetching brands:", error.message);
+                    }
+                    try {
+                        let bannerres = await axios.get(
+                            `${process.env.BASE_URL}masterbanners/getBannersById?companyId=${companyId}`
+                        );
+
+                        AllData.shopping.banners = bannerres.data.data.map((EachBanner)=>{
+                            return{
+                                BannerName:EachBanner.BannerName,
+                                Position:EachBanner.Position,
+                                BannerImage:EachBanner.BannerImage,
+                                OfferPercentage:EachBanner.OfferPercentage,
+                                BannerType:EachBanner.BannerType,
+                                
+                            }
+                        });
+                    } catch (error) {
+                        console.error("Error fetching banners:", error.message);
+                    }
+                    try {
+                        let variantres = await axios.get(
+                            `${process.env.BASE_URL}variants/getVariantsById?companyId=${companyId}`
+                        );
+
+                        AllData.shopping.variants = variantres.data.data.map((EachVariant) => {
+                            return {
+                                VariantName: EachVariant.VariantName,
+                                VariantType: EachVariant.VariantType
+                            }
+                        })
+                    } catch (error) {
+                        console.error("Error fetching variantres:", error.message);
+                    }
+                    try {
+                        let productserviceres = await axios.get(
+                            `${process.env.BASE_URL}productservices/getProductServicesById?companyId=${companyId}`
+                        );
+
+                        AllData.shopping.productservices = productserviceres.data.data.map((EachService) => {
+                            return {
+                                ServiceName: EachService.ServiceName,
+                                ServiceImages: EachService.ServiceImages,
+                                Description: EachService.Description,
+                            }
+                        });
+                    } catch (error) {
+                        console.error("Error fetching productservices:", error.message);
+                    }
+                    try {
+                        let productsres = await axios.post(
+                            `${process.env.BASE_URL}products/getProductsById?companyId=${companyId}`, { '': '' }
+                        );
+
+                        AllData.shopping.products = productsres.data.data.map((EachProduct) => {
+                            return {
+                                ProductName: EachProduct.ProductName,
+                                CommonImages: EachProduct.CommonImages,
+                                CommonVideos: EachProduct.CommonVideos,
+                                CommonDescription: EachProduct.CommonDescription,
+                                VariantProducts: EachProduct.VariantProducts.map((EachVariantProduct)=>{
+                                    return {
+                                        VariantProductName:EachVariantProduct.VariantProductName,
+                                        Price:EachVariantProduct.Price,
+                                        VariantProductImage:EachVariantProduct.VariantProductImage,
+                                        OfferPercentage:EachVariantProduct.OfferPercentage,
+                                        AboutProduct:EachVariantProduct.AboutProduct,
+                                        Specification:EachVariantProduct.Specification,
+                                        VariantFields:EachVariantProduct.VariantFields
+                                    }
+                                })
+                            }
+                        });
+                    } catch (error) {
+                        console.error("Error fetching products:", error.message);
+                    }
+
+
+                }
+            }
+
+            return res.status(200).json({
+                success: true,
+                data: AllData
+            });
+
+        } catch (error) {
+            console.error("Error previewDeleteCompany:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Internal Server Error"
+            });
+        }
+    },
+
 
 
     loginCompnay: async (req, resp) => {

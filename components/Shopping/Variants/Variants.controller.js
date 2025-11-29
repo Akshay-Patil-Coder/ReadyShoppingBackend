@@ -19,7 +19,7 @@ module.exports = {
                 });
             }
 
-            const allowedTypes = ["String", "Number", "Date"];
+            let allowedTypes = ["String", "Number", "Date"];
             if (!allowedTypes.includes(VariantType)) {
                 return res.status(400).json({
                     success: false,
@@ -27,7 +27,7 @@ module.exports = {
                 });
             }
 
-            const VariantData = {
+            let VariantData = {
                 companyId,
                 HeadCategoryId,
                 SubCategoryId,
@@ -42,7 +42,7 @@ module.exports = {
                 if (VariantValues.length > 0) {
                     VariantData.VariantValues = VariantValues;
                 }
-                for (const v of VariantValues) {
+                for (let v of VariantValues) {
                     let val = v.Value;
 
                     if (VariantType === "Number" && isNaN(Number(val))) {
@@ -118,7 +118,7 @@ module.exports = {
 
     getVariantsById: async (req, res) => {
         try {
-            const { HeadCategoryId, SubCategoryId, companyId, VariantId, VariantName, VariantType, Extension, VariantValue } = req.query;
+            let { HeadCategoryId, SubCategoryId, companyId, VariantId, VariantName, VariantType, Extension, VariantValue } = req.query;
 
             if (!companyId) {
                 return res.status(400).json({ message: 'companyId is required', success: false });
@@ -152,7 +152,7 @@ module.exports = {
             if (Extension) matchCondition.Extension = { $regex: Extension, $options: 'i' };
             if (VariantValue) matchCondition['VariantValues.Value'] = VariantValue
 
-            const data = await module.exports.getVariantData(matchCondition);
+            let data = await module.exports.getVariantData(matchCondition);
 
             if (!data || data.length === 0) {
                 return res.status(404).json({ message: 'No Variants found for this criteria', success: false });
@@ -167,7 +167,7 @@ module.exports = {
     },
     updateVariantDetails: async (req, res) => {
         try {
-            const { VariantId, VariantName, VariantValues, Extension } = req.body;
+            let { VariantId, VariantName, VariantValues, Extension } = req.body;
             let companyId = req.query.companyId;
             if (req.user.companyId) companyId = req.user.companyId
 
@@ -175,7 +175,7 @@ module.exports = {
                 return res.status(400).json({ message: 'Please insert valid data', success: false });
             }
 
-            const FoundVariant = await Variant.findOne({ _id: VariantId, companyId });
+            let FoundVariant = await Variant.findOne({ _id: VariantId, companyId });
             if (!FoundVariant) {
                 return res.status(404).json({ message: 'Variant not found', success: false });
             }
@@ -208,14 +208,14 @@ module.exports = {
                         });
                     }
                 }
-                const updatedVariantValues = VariantValues.map(newVar => {
-                    const oldVar = existing.find(v => v.Value === newVar.Value);
+                let updatedVariantValues = VariantValues.map(newVar => {
+                    let oldVar = existing.find(v => v.Value === newVar.Value);
                     return oldVar
                         ? { ...oldVar, ...newVar }
                         : { ...newVar, Count: newVar.Count ?? 0 };
                 });
 
-                const remainingOld = existing.filter(oldVar =>
+                let remainingOld = existing.filter(oldVar =>
                     !VariantValues.some(newVar => newVar.Value === oldVar.Value)
                 );
 
@@ -436,7 +436,7 @@ module.exports = {
                 }
             }
 
-            const SubCategoryIds = SubCatArray.map(id => new mongoose.Types.ObjectId(String(id)));
+            let SubCategoryIds = SubCatArray.map(id => new mongoose.Types.ObjectId(String(id)));
 
             // MATCH CONDITION
             let matchCondition = {
@@ -482,9 +482,9 @@ module.exports = {
                     .select("_id BrandName BrandImage");
 
                 if (BrandData?.length) {
-                    const ValidBrands = await Promise.all(
+                    let ValidBrands = await Promise.all(
                         BrandData.map(async brand => {
-                            const exists = await Product.exists({
+                            let exists = await Product.exists({
                                 BrandId: brand._id,
                                 companyId: companyObj,
                                 SubCategoryId: { $in: SubCategoryIds }
@@ -493,7 +493,7 @@ module.exports = {
                         })
                     );
 
-                    const Filtered = ValidBrands.filter(b => b);
+                    let Filtered = ValidBrands.filter(b => b);
                     if (Filtered.length)
                         Filter.BrandFilter = Filtered;
                 }
@@ -503,13 +503,13 @@ module.exports = {
 
             // --------------------- BADGE FILTER ---------------------
             try {
-                const BadgesData = await Batch.find({ isActive: true })
+                let BadgesData = await Batch.find({ isActive: true })
                     .select("_id BatchName BatchLogo");
 
                 if (BadgesData?.length) {
-                    const ValidBadges = await Promise.all(
+                    let ValidBadges = await Promise.all(
                         BadgesData.map(async badge => {
-                            const exists = await VariantProduct.exists({
+                            let exists = await VariantProduct.exists({
                                 BatchIds: badge._id,
                                 companyId: companyObj,
                                 SubCategoryId: { $in: SubCategoryIds }
@@ -518,7 +518,7 @@ module.exports = {
                         })
                     );
 
-                    const Filtered = ValidBadges.filter(b => b);
+                    let Filtered = ValidBadges.filter(b => b);
                     if (Filtered.length)
                         Filter.BadgeFilter = Filtered;
                 }
@@ -528,7 +528,7 @@ module.exports = {
 
             // --------------------- PRICE FILTER ---------------------
             try {
-                const PriceRange = await VariantProduct.aggregate([
+                let PriceRange = await VariantProduct.aggregate([
                     {
                         $match: {
                             companyId: companyObj,
@@ -561,7 +561,7 @@ module.exports = {
 
             // --------------------- SORT BY ARRIVALS ---------------------
             try {
-                const hasProducts = await VariantProduct.exists({
+                let hasProducts = await VariantProduct.exists({
                     companyId: companyObj,
                     SubCategoryId: { $in: SubCategoryIds }
                 });

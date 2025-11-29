@@ -87,7 +87,7 @@ module.exports = {
                 }
             }
 
-            const categoryData = {
+            let categoryData = {
                 companyId,
                 categoryName,
                 Description,
@@ -131,9 +131,9 @@ module.exports = {
 
     getCategory: async (req, res) => {
         try {
-            const { parentCategoryId, companyId, categoryName } = req.query;
+            let { parentCategoryId, companyId, categoryName } = req.query;
 
-            const query = { isActive: true };
+            let query = { isActive: true };
 
             if (companyId && mongoose.isValidObjectId(companyId)) {
                 query.companyId = new mongoose.Types.ObjectId(String(companyId));
@@ -151,7 +151,7 @@ module.exports = {
                 query.categoryName = { $regex: categoryName, $options: "i" };
             }
 
-            const categories = await dynamicCategoriesModel.find(query).sort({ createdAt: -1 });
+            let categories = await dynamicCategoriesModel.find(query).sort({ createdAt: -1 });
 
             return res.status(200).json({
                 success: true,
@@ -191,7 +191,7 @@ module.exports = {
                 categories = await dynamicCategoriesModel.find({ companyId, parentCategoryId: null, isActive: true });
             }
 
-            const buildCategoryTree = async (categories) => {
+            let buildCategoryTree = async (categories) => {
                 return Promise.all(
                     categories.map(async (category) => ({
                         ...category._doc,
@@ -200,7 +200,7 @@ module.exports = {
                 );
             };
 
-            const getCategoryTreeRecursive = async (companyId, parentCategoryId) => {
+            let getCategoryTreeRecursive = async (companyId, parentCategoryId) => {
                 const subCategories = await dynamicCategoriesModel.find({ companyId, parentCategoryId, isActive: true });
                 if (!subCategories || subCategories.length === 0) {
                     return [];
@@ -208,7 +208,7 @@ module.exports = {
                 return buildCategoryTree(subCategories);
             };
 
-            const categoryTree = await buildCategoryTree(categories);
+            let categoryTree = await buildCategoryTree(categories);
 
             return res.status(200).send({
                 success: true,
@@ -226,7 +226,7 @@ module.exports = {
     },
     getCategoryWithLeafNodes: async (req, res) => {
         try {
-            const { companyId, HeadCategoryId, selectedCategoryIds } = req.query;
+            let { companyId, HeadCategoryId, selectedCategoryIds } = req.query;
 
             if (!companyId) {
                 return res.status(400).send({
@@ -235,22 +235,22 @@ module.exports = {
                 });
             }
 
-            const categories = await dynamicCategoriesModel.find({ companyId, isActive: true });
+            let categories = await dynamicCategoriesModel.find({ companyId, isActive: true });
 
-            const parentMap = {};
+            let parentMap = {};
             categories.forEach(cat => {
-                const parentId = cat.parentCategoryId ? cat.parentCategoryId.toString() : null;
+                let parentId = cat.parentCategoryId ? cat.parentCategoryId.toString() : null;
                 if (!parentMap[parentId]) parentMap[parentId] = [];
                 parentMap[parentId].push(cat);
             });
 
-            const getLeafNodes = (categoryId) => {
-                const children = parentMap[categoryId] || [];
+            let getLeafNodes = (categoryId) => {
+                let children = parentMap[categoryId] || [];
                 if (children.length === 0) return [];
 
                 let leaves = [];
-                for (const child of children) {
-                    const subLeaves = getLeafNodes(child._id.toString());
+                for (let child of children) {
+                    let subLeaves = getLeafNodes(child._id.toString());
                     if (subLeaves.length === 0) {
                         leaves.push(child);
                     } else {
@@ -265,16 +265,16 @@ module.exports = {
             if (HeadCategoryId) {
                 headCategories = categories.filter(cat => cat._id.toString() === HeadCategoryId);
             } else {
-                const rootCategories = categories.filter(cat => !cat.parentCategoryId);
+                let rootCategories = categories.filter(cat => !cat.parentCategoryId);
                 let secondLevel = [];
-                for (const root of rootCategories) {
-                    const children = parentMap[root._id.toString()] || [];
+                for (let root of rootCategories) {
+                    let children = parentMap[root._id.toString()] || [];
                     secondLevel = secondLevel.concat(children);
                 }
                 headCategories = secondLevel;
             }
 
-            const result = headCategories.map(head => ({
+            let result = headCategories.map(head => ({
                 _id: head._id,
                 categoryName: head.categoryName,
                 Description: head.Description,
@@ -294,13 +294,13 @@ module.exports = {
             let selectedCategories = [];
 
             result.forEach(cat => {
-                const matched = cat.leafCategories.filter(leaf =>
+                let matched = cat.leafCategories.filter(leaf =>
                     selectedIds.includes(leaf._id.toString())
                 );
                 selectedCategories = selectedCategories.concat(matched);
             });
 
-            const filteredResult = result.map(head => ({
+            let filteredResult = result.map(head => ({
                 ...head,
                 leafCategories: head.leafCategories.filter(
                     leaf => !selectedIds.includes(leaf._id.toString())
@@ -325,7 +325,7 @@ module.exports = {
 
     getCategoryWithHeadAndLeafParentNodes: async (req, res) => {
         try {
-            const { companyId, HeadCategoryId } = req.query;
+            let { companyId, HeadCategoryId } = req.query;
 
             if (!companyId) {
                 return res.status(400).send({
@@ -334,22 +334,22 @@ module.exports = {
                 });
             }
 
-            const categories = await dynamicCategoriesModel.find({ companyId, isActive: true });
+            let categories = await dynamicCategoriesModel.find({ companyId, isActive: true });
 
-            const parentMap = {};
+            let parentMap = {};
             categories.forEach(cat => {
-                const parentId = cat.parentCategoryId ? cat.parentCategoryId.toString() : null;
+                let parentId = cat.parentCategoryId ? cat.parentCategoryId.toString() : null;
                 if (!parentMap[parentId]) parentMap[parentId] = [];
                 parentMap[parentId].push(cat);
             });
 
-            const getLeafNodesWithParents = (categoryId) => {
-                const children = parentMap[categoryId] || [];
+            let getLeafNodesWithParents = (categoryId) => {
+                let children = parentMap[categoryId] || [];
                 if (children.length === 0) return [];
 
                 let leaves = [];
-                for (const child of children) {
-                    const subLeaves = getLeafNodesWithParents(child._id.toString());
+                for (let child of children) {
+                    let subLeaves = getLeafNodesWithParents(child._id.toString());
                     if (subLeaves.length === 0) {
                         leaves.push(child);
                     } else {
@@ -366,16 +366,16 @@ module.exports = {
                 roots = categories.filter(cat => !cat.parentCategoryId);
             }
 
-            const result = [];
+            let result = [];
 
-            for (const root of roots) {
-                const leafData = getLeafNodesWithParents(root._id.toString());
-                const parentCategoryMap = {};
+            for (let root of roots) {
+                let leafData = getLeafNodesWithParents(root._id.toString());
+                let parentCategoryMap = {};
 
                 leafData.forEach(leaf => {
-                    const parentCategoryId = leaf.parentCategoryId.toString();
+                    let parentCategoryId = leaf.parentCategoryId.toString();
                     if (!parentCategoryMap[parentCategoryId]) {
-                        const parentCategory = categories.find(c => c._id.toString() === parentCategoryId);
+                        let parentCategory = categories.find(c => c._id.toString() === parentCategoryId);
                         parentCategoryMap[parentCategoryId] = {
                             parentCategory: parentCategory,
                             leafCategories: []
@@ -439,7 +439,7 @@ module.exports = {
             if(!companyId){
                 return res.status(400).json({message:'Company Not Found',success:false})
             }
-            const category = await dynamicCategoriesModel.findOne({
+            let category = await dynamicCategoriesModel.findOne({
                 _id: req.params.id, companyId
             });
 
@@ -464,7 +464,7 @@ module.exports = {
                 updatedData.imageName = req.file.filename;
             }
 
-            const updatedCategory = await dynamicCategoriesModel.findOneAndUpdate(
+            let updatedCategory = await dynamicCategoriesModel.findOneAndUpdate(
                 { _id: category._id },
                 { $set: updatedData },
                 { new: true }
@@ -495,8 +495,8 @@ module.exports = {
     toggleCategoriesStatus: async (req, res) => {
         try {
             let id = req.body.id;
-            const details = await dynamicCategoriesModel.findById(id);
-            const data = await dynamicCategoriesModel.findByIdAndUpdate(id, {
+            let details = await dynamicCategoriesModel.findById(id);
+            let data = await dynamicCategoriesModel.findByIdAndUpdate(id, {
                 $set: {
                     isActive: !details.isActive
                 }
@@ -523,7 +523,7 @@ module.exports = {
             let { _id, companyId } = req.query;
             if (req.user.companyId) companyId = req.user.companyId
 
-            const category = await dynamicCategoriesModel.findOne({ _id, companyId });
+            let category = await dynamicCategoriesModel.findOne({ _id, companyId });
             if (!category) {
                 return res.status(404).json({ success: false, message: "Category not found" });
             }
@@ -531,9 +531,9 @@ module.exports = {
                 return res.status(404).json({ success: false, message: "Category Level 0 Not Deleteable" });
             }
 
-            const deleteFiles = async (files, folder) => {
-                for (const file of files) {
-                    const filePath = path.join(__dirname, "..", "..", "public", folder, file);
+            let deleteFiles = async (files, folder) => {
+                for (let file of files) {
+                    let filePath = path.join(__dirname, "..", "..", "public", folder, file);
                     try {
                         await fs.promises.unlink(filePath);
                     } catch (err) {
@@ -542,10 +542,10 @@ module.exports = {
                 }
             };
 
-            const deleteCategoryRecursive = async (categoryId) => {
+            let deleteCategoryRecursive = async (categoryId) => {
                 try {
-                    const subCategories = await dynamicCategoriesModel.find({ parentCategoryId: categoryId });
-                    for (const sub of subCategories) {
+                    let subCategories = await dynamicCategoriesModel.find({ parentCategoryId: categoryId });
+                    for (let sub of subCategories) {
                         await deleteCategoryRecursive(sub._id);
                     }
                 } catch (err) {
@@ -564,7 +564,7 @@ module.exports = {
                     console.error(`Error fetching products for category ${categoryId}:`, err.message);
                 }
 
-                for (const product of products) {
+                for (let product of products) {
                     try {
                         if (Array.isArray(product.CommonImages) && product.CommonImages.length) {
                             await deleteFiles(product.CommonImages, "ProductImage");
@@ -577,15 +577,15 @@ module.exports = {
                     }
 
                     if (Array.isArray(product.VariantProductIds) && product.VariantProductIds.length) {
-                        for (const variantId of product.VariantProductIds) {
+                        for (let variantId of product.VariantProductIds) {
                             try {
-                                const variant = await VariantProduct.findById(variantId);
+                                let variant = await VariantProduct.findById(variantId);
                                 if (variant) {
                                     if (Array.isArray(variant.VariantProductImage) && variant.VariantProductImage.length) {
                                         await deleteFiles(variant.VariantProductImage, "ProductImage");
                                     }
                                     if (Array.isArray(variant.VariantFields)) {
-                                        for (const EachVariant of variant.VariantFields) {
+                                        for (let EachVariant of variant.VariantFields) {
                                             try {
                                                 await Variant.findOneAndUpdate(
                                                     {
@@ -610,9 +610,9 @@ module.exports = {
                     }
 
                     if (Array.isArray(product.RatingIds) && product.RatingIds.length) {
-                        for (const reviewId of product.RatingIds) {
+                        for (let reviewId of product.RatingIds) {
                             try {
-                                const review = await ProductRating.findById(reviewId);
+                                let review = await ProductRating.findById(reviewId);
                                 if (review) {
                                     if (Array.isArray(review.ReviewImages) && review.ReviewImages.length) {
                                         await deleteFiles(review.ReviewImages, "ProductSRatingImage");
@@ -651,13 +651,13 @@ module.exports = {
                         }
                     }
 
-                    const brandsToDelete = await brandmodel.find({ HeadCategoryId: categoryId });
-                    for (const brand of brandsToDelete) {
+                    let brandsToDelete = await brandmodel.find({ HeadCategoryId: categoryId });
+                    for (let brand of brandsToDelete) {
                         try {
                             if (brand?.BrandImage) await deleteFiles([brand.BrandImage], "BrandImage");
 
-                            const brandBanners = await BannerModel.find({ BrandId: brand._id });
-                            for (const banner of brandBanners) {
+                            let brandBanners = await BannerModel.find({ BrandId: brand._id });
+                            for (let banner of brandBanners) {
                                 try {
                                     if (banner.BannerImage) await deleteFiles([banner.BannerImage], "BannerImage");
                                     await BannerModel.deleteOne({ _id: banner._id });
@@ -676,7 +676,7 @@ module.exports = {
                 }
 
                 try {
-                    const currentCategory = await dynamicCategoriesModel.findById(categoryId);
+                    let currentCategory = await dynamicCategoriesModel.findById(categoryId);
                     if (currentCategory?.imageName) {
                         await deleteFiles([currentCategory.imageName], "ProductCategories");
                     }
@@ -709,13 +709,13 @@ module.exports = {
     },
     previewDeleteCategory: async (req, res) => {
         try {
-            const { _id, companyId } = req.query;
-            const category = await dynamicCategoriesModel.findOne({ _id, companyId });
+            let { _id, companyId } = req.query;
+            let category = await dynamicCategoriesModel.findOne({ _id, companyId });
             if (!category) return res.status(404).json({ success: false, message: "Category not found" });
             if (category.categoryLevel == 0) {
                 return res.status(404).json({ success: false, message: "Category Level 0 Not Deleteable" });
             }
-            const preview = {
+            let preview = {
                 categories: [],
                 products: [],
                 variantProducts: [],
@@ -726,7 +726,7 @@ module.exports = {
                 files: []
             };
 
-            const gatherCategoryRecursive = async (categoryId) => {
+            let gatherCategoryRecursive = async (categoryId) => {
                 const currentCategory = await dynamicCategoriesModel.findById(categoryId);
                 if (!currentCategory) return;
 
@@ -738,12 +738,12 @@ module.exports = {
                 if (currentCategory.imageName) preview.files.push({ folder: "ProductCategories", file: currentCategory.imageName });
 
                 const subCategories = await dynamicCategoriesModel.find({ parentCategoryId: categoryId });
-                for (const sub of subCategories) {
+                for (let sub of subCategories) {
                     await gatherCategoryRecursive(sub._id);
                 }
 
-                const products = await Product.find({ $or: [{ HeadCategoryId: categoryId }, { SubCategoryId: categoryId }] });
-                for (const product of products) {
+                let products = await Product.find({ $or: [{ HeadCategoryId: categoryId }, { SubCategoryId: categoryId }] });
+                for (let product of products) {
                     preview.products.push({
                         _id: product._id,
                         ProductName: product.ProductName,
@@ -755,8 +755,8 @@ module.exports = {
                     if (Array.isArray(product.CommonVideos)) product.CommonVideos.forEach(v => preview.files.push({ folder: "ProductVideo", file: v }));
 
                     if (Array.isArray(product.VariantProductIds)) {
-                        for (const variantId of product.VariantProductIds) {
-                            const variant = await VariantProduct.findById(variantId);
+                        for (let variantId of product.VariantProductIds) {
+                            let variant = await VariantProduct.findById(variantId);
                             if (!variant) continue;
                             preview.variantProducts.push({
                                 _id: variant._id,
@@ -768,8 +768,8 @@ module.exports = {
                     }
 
                     if (Array.isArray(product.RatingIds)) {
-                        for (const reviewId of product.RatingIds) {
-                            const review = await ProductRating.findById(reviewId);
+                        for (let reviewId of product.RatingIds) {
+                            let review = await ProductRating.findById(reviewId);
                             if (!review) continue;
                             preview.reviews.push({
                                 _id: review._id,
@@ -779,8 +779,8 @@ module.exports = {
                             if (Array.isArray(review.ReviewImages)) review.ReviewImages.forEach(img => preview.files.push({ folder: "ProductSRatingImage", file: img }));
 
                             if (Array.isArray(review.ResponseOnReview)) {
-                                const responses = await ProductReviewResponse.find({ _id: { $in: review.ResponseOnReview } });
-                                for (const resp of responses) {
+                                let responses = await ProductReviewResponse.find({ _id: { $in: review.ResponseOnReview } });
+                                for (let resp of responses) {
                                     preview.reviewResponses.push({
                                         _id: resp._id,
                                         LikeOrDislike: resp.LikeOrDislike,

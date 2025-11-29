@@ -43,10 +43,10 @@ router.get('/getcompanies', (req, res) => {
 });
 
 router.put('/updatecompanies', authentication, upload.single('CompanyLogo'), (req, res) => {
-  if (req.user.role == 'Company' ||req.user.role == 'Admin') {
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return companiesController.updatecompanies(req, res);
   }
- 
+
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 });
@@ -59,15 +59,15 @@ router.delete('/deletecompanies/:_id', authentication, (req, res) => {
 
 });
 router.put('/addBankDetailOfCompany', authentication, (req, res) => {
-  if (req.user.role == 'Company'|| req.user.role == 'Admin') {
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return companiesController.addBankDetailOfCompany(req, res);
   }
- 
+
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 });
 router.delete('/deleteBankDetailOfCompany', authentication, (req, res) => {
-  if (req.user.role == 'Company'|| req.user.role == 'Admin') {
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return companiesController.deleteBankDetailOfCompany(req, res);
   }
 
@@ -79,5 +79,8 @@ router.post('/logincompany', (req, res) => {
 });
 router.post('/verifyToken', (req, res) => {
   companiesController.verifyToken(req, res);
+})
+router.get('/previewDeleteCompany', (req, res) => {
+  companiesController.previewDeleteCompany(req, res)
 })
 module.exports = router;

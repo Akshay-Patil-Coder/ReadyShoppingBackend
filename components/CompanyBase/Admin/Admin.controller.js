@@ -15,9 +15,11 @@ const getAdminList = async (req, res) => {
 };
 
 const adminLogin = async (req, res) => {
-    if (!req.body.username || !req.body.password) {
+    if (!req.body.Email || !req.body.Password) {
         return res.status(400).send({ success: false, message: "arguments missing" });
     }
+    req.body.username = req.body.Email
+    req.body.password = req.body.Password
 
     try {
         const admin = await Admin.findOne(
