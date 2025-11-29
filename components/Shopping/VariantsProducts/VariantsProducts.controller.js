@@ -1633,7 +1633,7 @@ module.exports = {
 
                 if (Array.isArray(SubCategoryId)) {
                     SubIdArray = SubCategoryId;
-                } else if (typeof SubCategoryId == "string" && SubCategoryId.includes(",")) {
+                } else if (typeof SubCategoryId === "string" && SubCategoryId.includes(",")) {
                     SubIdArray = SubCategoryId.split(",");
                 } else {
                     SubIdArray = [SubCategoryId];
@@ -1643,11 +1643,16 @@ module.exports = {
 
                 for (let id of SubIdArray) {
                     const validId = validateObjectId(id, 'SubCategoryId');
-                    if (validId) SubIds.push(validId);
+                    if (validId) {
+                        SubIds.push(validId);  
+                    }
                 }
 
-                matchCondition.SubCategoryId = { $in: SubIds };
+                if (SubIds.length > 0) {
+                    matchCondition.SubCategoryId = { $in: SubIds };
+                }
             }
+
 
             const data = await module.exports.getProductData(matchCondition);
             if (!data || data.length === 0) {
