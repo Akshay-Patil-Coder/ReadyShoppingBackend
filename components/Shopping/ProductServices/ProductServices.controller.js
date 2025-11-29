@@ -6,7 +6,7 @@ const path = require('path');
 
 module.exports = {
     addProductService: async (req, res) => {
-        const cleanupFiles = (files) => {
+        let cleanupFiles = (files) => {
             if (!files) return;
             files.forEach(file => {
                 const filePath = path.join(__dirname, '..', '..', 'public', 'ProductServiceImage', file.filename);
@@ -31,7 +31,7 @@ module.exports = {
                 ServiceImages = req.files.map(file => file.filename);
             }
 
-            const ProductServiceData = {
+            let ProductServiceData = {
                 companyId,
                 HeadCategoryId,
                 SubCategoryId,
@@ -93,7 +93,7 @@ module.exports = {
 
     getProductServicesById: async (req, res) => {
         try {
-            const { HeadCategoryId, SubCategoryId, companyId, ProductServiceId, ServiceName } = req.query;
+            let { HeadCategoryId, SubCategoryId, companyId, ProductServiceId, ServiceName } = req.query;
 
             if (!companyId) {
                 return res.status(400).json({ message: 'companyId is required', success: false });
@@ -147,7 +147,7 @@ module.exports = {
         };
 
         try {
-            const { ServiceName, Description, ServiceProductId } = req.body;
+            let { ServiceName, Description, ServiceProductId } = req.body;
             let { companyId } = req.query;
             if (req.user.companyId) companyId = req.user.companyId
 
@@ -186,7 +186,7 @@ module.exports = {
     deleteProductServiceImage: async (req, res) => {
         try {
             let { ServiceImages, companyId } = req.body;
-            const { id } = req.params;
+            let { id } = req.params;
             if (req.user.companyId) companyId = req.user.companyId
 
             if (!companyId) {

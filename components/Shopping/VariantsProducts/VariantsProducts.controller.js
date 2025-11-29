@@ -60,8 +60,8 @@ module.exports = {
         }
 
         try {
-            const jsonFields = ['ProductServices', 'CommonDescription', 'CommonImages', 'VariantProductDatas'];
-            for (const key of jsonFields) {
+            let jsonFields = ['ProductServices', 'CommonDescription', 'CommonImages', 'VariantProductDatas'];
+            for (let key of jsonFields) {
                 if (req.body[key]) {
                     try {
                         req.body[key] = JSON.parse(req.body[key]);
@@ -105,21 +105,21 @@ module.exports = {
                 ProductData.CommonVideos = AllProductVideos;
             }
 
-            const cd = req.body.CommonDescription;
+            let cd = req.body.CommonDescription;
             if (cd && (cd.Head || (Array.isArray(cd.Points) && cd.Points.length) || cd.TextDescription)) {
                 ProductData.CommonDescription = cd;
             }
 
-            const AddProduct = await new Product(ProductData).save();
+            let AddProduct = await new Product(ProductData).save();
             if (!AddProduct) {
                 clearFiles(AllProductImages);
                 clearVideo(AllProductVideos);
                 return res.status(400).json({ success: false, message: 'Product not added. Validation failed.' });
             }
 
-            const VariantIds = [];
+            let VariantIds = [];
             if (Array.isArray(req.body.VariantProductDatas) && req.body.VariantProductDatas.length > 0) {
-                for (const EachVariantProduct of req.body.VariantProductDatas) {
+                for (let EachVariantProduct of req.body.VariantProductDatas) {
                     if (!EachVariantProduct?.Price) continue;
 
                     if (EachVariantProduct?.VariantProductImage && !Array.isArray(EachVariantProduct.VariantProductImage)) {
@@ -150,7 +150,7 @@ module.exports = {
                             ? EachVariantProduct.BatchIds
                             : [EachVariantProduct.BatchIds];
                     } if (EachVariantProduct?.BatchIds?.length > 0) {
-                        const FoundBatches = await Batch.find(
+                        let FoundBatches = await Batch.find(
                             { _id: { $in: EachVariantProduct.BatchIds } },
                             { _id: 1 }
                         );
@@ -171,16 +171,16 @@ module.exports = {
                     };
 
                     if (Array.isArray(EachVariantProduct.Specification)) {
-                        const validSpecs = EachVariantProduct.Specification.filter(
+                        let validSpecs = EachVariantProduct.Specification.filter(
                             (s) => s.SpecificationKey && s.SpecificationValue
                         );
                         if (validSpecs.length) VariantData.Specification = validSpecs;
                     }
 
                     if (Array.isArray(EachVariantProduct.VariantFields)) {
-                        const validVariantFields = [];
-                        for (const EachVariant of EachVariantProduct.VariantFields) {
-                            const FoundVariant = await Variant.findById(EachVariant?.VariantId);
+                        let validVariantFields = [];
+                        for (let EachVariant of EachVariantProduct.VariantFields) {
+                            let FoundVariant = await Variant.findById(EachVariant?.VariantId);
                             if (FoundVariant && EachVariant?.VariantValue) {
                                 validVariantFields.push({
                                     VariantId: EachVariant.VariantId,
@@ -191,19 +191,19 @@ module.exports = {
                         if (validVariantFields.length) VariantData.VariantFields = validVariantFields;
                     }
 
-                    const ap = EachVariantProduct?.AboutProduct;
+                    let ap = EachVariantProduct?.AboutProduct;
                     if (ap && (ap.Head || (Array.isArray(ap.Points) && ap.Points.length) || ap.TextDescription)) {
                         VariantData.AboutProduct = ap;
                     }
 
-                    const AddVariantProduct = await new VariantProduct(VariantData).save();
+                    let AddVariantProduct = await new VariantProduct(VariantData).save();
                     if (AddVariantProduct) {
                         VariantIds.push(AddVariantProduct._id);
 
                         if (Array.isArray(EachVariantProduct.VariantFields)) {
                             await Promise.all(
                                 EachVariantProduct.VariantFields.map(async (EachVariant) => {
-                                    const findVariant = await Variant.findOne({
+                                    let findVariant = await Variant.findOne({
                                         _id: EachVariant?.VariantId,
                                         'VariantValues.Value': EachVariant?.VariantValue
                                     });
@@ -227,7 +227,7 @@ module.exports = {
             }
 
             if (VariantIds.length > 0) {
-                const UpdatedProduct = await Product.findByIdAndUpdate(
+                let UpdatedProduct = await Product.findByIdAndUpdate(
                     AddProduct._id,
                     { $set: { VariantProductIds: VariantIds } },
                     { new: true }
@@ -261,19 +261,19 @@ module.exports = {
         }
     },
     addVariantProductCSV: async (req, res) => {
-        const csvFilePath = req.files?.CSVFile?.[0]?.path;
+        let csvFilePath = req.files?.CSVFile?.[0]?.path;
         if (req.user.companyId) companyId = req.user.companyId
 
         if (!csvFilePath) {
             return res.status(400).json({ success: false, message: 'CSV file is required.' });
         }
-        const uploadedImages = req.files?.ProductImages?.map(f => f.filename) || [];
-        const uploadedVideos = req.files?.ProductVideos?.map(f => f.filename) || [];
-        const usedImages = [];
-        const usedVideos = [];
+        let uploadedImages = req.files?.ProductImages?.map(f => f.filename) || [];
+        let uploadedVideos = req.files?.ProductVideos?.map(f => f.filename) || [];
+        let usedImages = [];
+        let usedVideos = [];
 
         let lastProductRow = {};
-        const groupedProducts = {};
+        let groupedProducts = {};
 
         try {
             await new Promise((resolve, reject) => {
@@ -303,7 +303,7 @@ module.exports = {
 
                         let variantFieldsArray = [];
                         if (row.VariantFields) {
-                            const vfObj = JSON.parse(row.VariantFields);
+                            let vfObj = JSON.parse(row.VariantFields);
                             for (const [VariantId, VariantValue] of Object.entries(vfObj)) {
                                 if (!VariantId || !VariantValue) continue;
                                 const FoundVariant = await Variant.findById(VariantId);
@@ -313,7 +313,7 @@ module.exports = {
 
                         let specArray = [];
                         if (row.Specification) {
-                            const specObj = JSON.parse(row.Specification);
+                            let specObj = JSON.parse(row.Specification);
                             specArray = Object.entries(specObj).map(([key, value]) => ({
                                 SpecificationKey: key,
                                 SpecificationValue: value
@@ -352,16 +352,16 @@ module.exports = {
                     .on('error', (err) => reject(err));
             });
 
-            const savedProducts = [];
+            let savedProducts = [];
 
-            for (const productName in groupedProducts) {
-                const p = groupedProducts[productName];
+            for (let productName in groupedProducts) {
+                let p = groupedProducts[productName];
                 let ProductData = { ProductName: p.ProductName };
 
                 if (Array.isArray(p.ProductServices) && p.ProductServices.length > 0) {
-                    const ProductServicesData = [];
-                    for (const EachService of p.ProductServices) {
-                        const FoundService = await ProductService.findById(EachService?.ProductServiceId);
+                    let ProductServicesData = [];
+                    for (let EachService of p.ProductServices) {
+                        let FoundService = await ProductService.findById(EachService?.ProductServiceId);
                         if (FoundService) ProductServicesData.push(EachService);
                     }
                     if (ProductServicesData.length > 0) ProductData.ProductServices = ProductServicesData;
@@ -373,12 +373,12 @@ module.exports = {
                     ProductData.CommonDescription = p.CommonDescription;
                 }
 
-                const AddProduct = await new Product(ProductData).save();
+                let AddProduct = await new Product(ProductData).save();
                 if (!AddProduct) continue;
 
-                const VariantIds = [];
+                let VariantIds = [];
 
-                for (const EachVariantProduct of p.VariantProductDatas) {
+                for (let EachVariantProduct of p.VariantProductDatas) {
                     if (!EachVariantProduct?.Price) continue;
                     if (p.CommonImages.length == 0 && EachVariantProduct.VariantProductImage.lengh == 0) continue;
                     let VariantData = { ProductId: AddProduct._id };
@@ -392,14 +392,14 @@ module.exports = {
                     VariantData.VariantFields = EachVariantProduct.VariantFields || [];
                     VariantData.AboutProduct = EachVariantProduct.AboutProduct || {};
 
-                    const AddVariantProduct = await new VariantProduct(VariantData).save();
+                    let AddVariantProduct = await new VariantProduct(VariantData).save();
                     if (AddVariantProduct) {
                         VariantIds.push(AddVariantProduct._id);
 
                         if (Array.isArray(EachVariantProduct.VariantFields)) {
                             await Promise.all(
                                 EachVariantProduct.VariantFields.map(async (EachVariant) => {
-                                    const findVariant = await Variant.findOne({
+                                    let findVariant = await Variant.findOne({
                                         _id: EachVariant?.VariantId,
                                         'VariantValues.Value': EachVariant?.VariantValue
                                     });
@@ -453,7 +453,7 @@ module.exports = {
     },
     getVariantProductCsv: async (req, res) => {
         try {
-            const csvFilePath = path.join(__dirname, "..", "..", "public", "ProductCsv", 'products_template.csv');
+            let csvFilePath = path.join(__dirname, "..", "..", "public", "ProductCsv", 'products_template.csv');
 
             if (fs.existsSync(csvFilePath)) {
                 fs.unlinkSync(csvFilePath);
@@ -510,9 +510,9 @@ module.exports = {
         } = req.body;
         if (req.user.companyId) companyId = req.user.companyId
 
-        const uploadedImages = req.files?.length ? req.files.map(f => f.filename) : [];
+        let uploadedImages = req.files?.length ? req.files.map(f => f.filename) : [];
 
-        const cleanupFiles = async (files, ProductId, companyId, VariantProductId = null) => {
+        let cleanupFiles = async (files, ProductId, companyId, VariantProductId = null) => {
             if (!Array.isArray(files) || files.length === 0) return;
             for (const file of files) {
                 try {
@@ -553,7 +553,7 @@ module.exports = {
 
         try {
             const jsonFields = ['InventoryBaseStock', 'Specification', 'AboutProduct', 'VariantFields'];
-            for (const key of jsonFields) {
+            for (let key of jsonFields) {
                 if (req.body[key]) {
                     try {
                         req.body[key] = typeof req.body[key] === 'string' ? JSON.parse(req.body[key]) : req.body[key];
@@ -576,13 +576,13 @@ module.exports = {
                 return res.status(400).json({ message: "Missing required fields", success: false });
             }
 
-            const product = await Product.findOne({ _id: ProductId, companyId });
+            let product = await Product.findOne({ _id: ProductId, companyId });
             if (!product) {
                 await cleanupFiles(uploadedImages, ProductId, companyId);
                 return res.status(404).json({ message: "Product not found", success: false });
             }
 
-            const VariantProductData = {
+            let VariantProductData = {
                 ProductId,
                 companyId,
                 VariantProductName: VariantProductName || product.ProductName,
@@ -604,7 +604,7 @@ module.exports = {
             VariantProductData.HeadCategoryId = product.HeadCategoryId;
             VariantProductData.SubCategoryId = product.SubCategoryId;
 
-            const updateVariantCounts = async (fields, increment = true) => {
+            let updateVariantCounts = async (fields, increment = true) => {
                 if (!Array.isArray(fields)) return;
                 for (const f of fields) {
                     try {
@@ -635,7 +635,7 @@ module.exports = {
 
             if (Operation === 'add') {
                 if (VariantProductId) {
-                    const existing = await VariantProduct.findOne({ _id: VariantProductId, companyId });
+                    let existing = await VariantProduct.findOne({ _id: VariantProductId, companyId });
                     if (!existing) {
                         await cleanupFiles(uploadedImages, ProductId, companyId);
                         return res.status(404).json({ message: "Variant product not found", success: false });
@@ -648,7 +648,7 @@ module.exports = {
                         VariantProductData.VariantProductImage = [...(existing?.VariantProductImage || []), ...uploadedImages];
                     }
 
-                    const updated = await VariantProduct.findOneAndUpdate(
+                    let updated = await VariantProduct.findOneAndUpdate(
                         { _id: VariantProductId, companyId },
                         { $set: VariantProductData },
                         { new: true }
@@ -746,7 +746,7 @@ module.exports = {
             if (Array.isArray(ProductServices) && ProductServices.length > 0) {
                 const ValidServices = [];
                 for (const EachService of ProductServices) {
-                    const FoundService = await ProductService.findById(EachService?.ProductServiceId);
+                    let FoundService = await ProductService.findById(EachService?.ProductServiceId);
                     if (FoundService) ValidServices.push(EachService);
                 }
                 if (ValidServices.length > 0) ProductData.ProductServices = ValidServices;
@@ -1179,7 +1179,7 @@ module.exports = {
     },
 
     HideAndShowVariantProduct: async (req, res) => {
-        const { ProductId, VariantIds, companyId, isActive } = req.body;
+        let { ProductId, VariantIds, companyId, isActive } = req.body;
 
         try {
             if (!ProductId || !companyId || typeof isActive === 'undefined') {

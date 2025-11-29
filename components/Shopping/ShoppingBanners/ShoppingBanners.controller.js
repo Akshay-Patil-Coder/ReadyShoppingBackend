@@ -65,7 +65,7 @@ module.exports = {
                 return res.status(400).json({ message: 'Please upload the banner image', success: false });
             }
 
-            const bannerData = {
+            let bannerData = {
                 companyId,
                 BannerName,
                 SubCategoryId,
@@ -368,7 +368,7 @@ module.exports = {
 
 
     getBannersById: async (req, res) => {
-        const { Position, BannerType, companyId, BrandId, SubCategoryId, HeadCategoryId, BannerId } = req.query;
+        let { Position, BannerType, companyId, BrandId, SubCategoryId, HeadCategoryId, BannerId } = req.query;
 
         try {
             if (!mongoose.Types.ObjectId.isValid(companyId)) {
@@ -565,7 +565,7 @@ module.exports = {
 
     updateBannerDetails: async (req, resp) => {
         try {
-            const { BannerId, BannerName } = req.body;
+            let { BannerId, BannerName } = req.body;
             let { companyId } = req.query;
             if (req.user.companyId) companyId = req.user.companyId
 

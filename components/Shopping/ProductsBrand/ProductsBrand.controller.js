@@ -36,7 +36,7 @@ module.exports = {
         return resp.status(400).json({ message: 'Please fill in all required fields', success: false });
       }
 
-      const brandData = { BrandName, companyId, HeadCategoryId, SubCategoryId };
+      let brandData = { BrandName, companyId, HeadCategoryId, SubCategoryId };
       if (req.file?.filename) brandData.BrandImage = req.file.filename;
 
       const newBrand = new brandmodel.brandmodel(brandData);
@@ -83,7 +83,7 @@ module.exports = {
   },
 
   getBrandsById: async (req, res) => {
-    const { HeadCategoryId, SubCategoryId, companyId, BrandId, BrandName } = req.query;
+    let { HeadCategoryId, SubCategoryId, companyId, BrandId, BrandName } = req.query;
 
     try {
       let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
@@ -156,7 +156,7 @@ module.exports = {
 
   updateBrandDetails: async (req, resp) => {
     try {
-      const { BrandId, BrandName, SubCategoryId } = req.body;
+      let { BrandId, BrandName, SubCategoryId } = req.body;
       let companyId = req.query.companyId;
       if (req.user.companyId) companyId = req.user.companyId
       if (!BrandId || !BrandName) {
@@ -167,7 +167,7 @@ module.exports = {
         return resp.status(400).send({ message: 'Please insert valid data', success: false });
       }
 
-      const brandData = { BrandName };
+      let brandData = { BrandName };
       if (SubCategoryId) {
         try {
           if (typeof SubCategoryId === "string") {
