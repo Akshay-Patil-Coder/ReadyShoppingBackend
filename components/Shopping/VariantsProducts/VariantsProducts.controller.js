@@ -1629,6 +1629,26 @@ module.exports = {
                 matchCondition.BrandId = { $in: BrandIds };
             }
 
+            if (SubCategoryId) {
+                let SubIdArray = [];
+
+                if (Array.isArray(SubCategoryId)) {
+                    SubIdArray = SubCategoryId;
+                } else if (typeof SubCategoryId === "string" && SubCategoryId.includes(",")) {
+                    SubIdArray = SubCategoryId.split(",");
+                } else {
+                    SubIdArray = [SubCategoryId];
+                }
+
+                let SubIds = [];
+
+                for (let id of SubIdArray) {
+                    const validId = validateObjectId(id, 'BrandId');
+                    if (validId) SubIds.push(validId);
+                }
+
+                matchCondition.SubCategoryId = { $in: SubIds };
+            }
 
             const data = await module.exports.getProductData(matchCondition);
             if (!data || data.length === 0) {
