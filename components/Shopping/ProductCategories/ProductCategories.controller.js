@@ -17,7 +17,7 @@ module.exports = {
 
             if (!companyId || !categoryName || !Description) {
                 if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
+                    let newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }
@@ -32,14 +32,14 @@ module.exports = {
             let categoryLevel = 0;
 
             if (parentCategoryId) {
-                const parentCategory = await dynamicCategoriesModel.findOne({
+                let parentCategory = await dynamicCategoriesModel.findOne({
                     _id: parentCategoryId,
                     companyId
                 });
 
                 if (!parentCategory) {
                     if (req.file?.filename) {
-                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
+                        let newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
                         if (fs.existsSync(newImagePath)) {
                             fs.unlinkSync(newImagePath);
                         }
@@ -53,7 +53,7 @@ module.exports = {
                 let FoundProduct = await VariantProduct.findOne({ companyId, SubCategoryId: parentCategoryId })
                 if (FoundProduct) {
                     if (req.file?.filename) {
-                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
+                        let newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
                         if (fs.existsSync(newImagePath)) {
                             fs.unlinkSync(newImagePath);
                         }
@@ -67,14 +67,14 @@ module.exports = {
 
                 categoryLevel = parentCategory.categoryLevel + 1;
             } else {
-                const existingRoot = await dynamicCategoriesModel.findOne({
+                let existingRoot = await dynamicCategoriesModel.findOne({
                     companyId,
                     categoryLevel: 0
                 });
 
                 if (existingRoot) {
                     if (req.file?.filename) {
-                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
+                        let newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
                         if (fs.existsSync(newImagePath)) {
                             fs.unlinkSync(newImagePath);
                         }
@@ -102,8 +102,8 @@ module.exports = {
                 categoryData.imageName = req.file.filename;
             }
 
-            const newCategory = new dynamicCategoriesModel(categoryData);
-            const savedCategory = await newCategory.save();
+            let newCategory = new dynamicCategoriesModel(categoryData);
+            let savedCategory = await newCategory.save();
 
             return res.status(200).json({
                 success: true,
@@ -113,7 +113,7 @@ module.exports = {
 
         } catch (error) {
             if (req.file?.filename) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
+                let newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
                 if (fs.existsSync(newImagePath)) {
                     fs.unlinkSync(newImagePath);
                 }
@@ -201,7 +201,7 @@ module.exports = {
             };
 
             let getCategoryTreeRecursive = async (companyId, parentCategoryId) => {
-                const subCategories = await dynamicCategoriesModel.find({ companyId, parentCategoryId, isActive: true });
+                let subCategories = await dynamicCategoriesModel.find({ companyId, parentCategoryId, isActive: true });
                 if (!subCategories || subCategories.length === 0) {
                     return [];
                 }
@@ -445,7 +445,7 @@ module.exports = {
 
             if (!category) {
                 if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
+                    let newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }
@@ -456,7 +456,7 @@ module.exports = {
 
             if (req.file?.filename) {
                 if (category?.imageName) {
-                    const oldFilePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', category?.imageName);
+                    let oldFilePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', category?.imageName);
                     if (fs.existsSync(oldFilePath)) {
                         fs.unlinkSync(oldFilePath)
                     }
@@ -478,7 +478,7 @@ module.exports = {
 
         } catch (error) {
             if (req.file?.filename) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
+                let newImagePath = path.join(__dirname, '..', '..', 'public', 'ProductCategories', req.file.filename);
                 if (fs.existsSync(newImagePath)) {
                     fs.unlinkSync(newImagePath);
                 }
@@ -632,13 +632,13 @@ module.exports = {
                     }
                 }
                 try {
-                    const brandsWithSub = await brandmodel.find({ SubCategoryId: categoryId });
-                    for (const brand of brandsWithSub) {
+                    let brandsWithSub = await brandmodel.find({ SubCategoryId: categoryId });
+                    for (let brand of brandsWithSub) {
                         try {
                             await brandmodel.updateOne({ _id: brand._id }, { $pull: { SubCategoryId: categoryId } });
 
-                            const banners = await BannerModel.find({ BrandId: brand._id, SubCategoryId: categoryId });
-                            for (const banner of banners) {
+                            let banners = await BannerModel.find({ BrandId: brand._id, SubCategoryId: categoryId });
+                            for (let banner of banners) {
                                 try {
                                     if (banner.BannerImage) await deleteFiles([banner.BannerImage], "BannerImage");
                                     await BannerModel.deleteOne({ _id: banner._id });
@@ -727,7 +727,7 @@ module.exports = {
             };
 
             let gatherCategoryRecursive = async (categoryId) => {
-                const currentCategory = await dynamicCategoriesModel.findById(categoryId);
+                let currentCategory = await dynamicCategoriesModel.findById(categoryId);
                 if (!currentCategory) return;
 
                 preview.categories.push({
@@ -737,7 +737,7 @@ module.exports = {
                 });
                 if (currentCategory.imageName) preview.files.push({ folder: "ProductCategories", file: currentCategory.imageName });
 
-                const subCategories = await dynamicCategoriesModel.find({ parentCategoryId: categoryId });
+                let subCategories = await dynamicCategoriesModel.find({ parentCategoryId: categoryId });
                 for (let sub of subCategories) {
                     await gatherCategoryRecursive(sub._id);
                 }
@@ -792,25 +792,25 @@ module.exports = {
                     }
                 }
 
-                const brandsWithSub = await brandmodel.find({ SubCategoryId: categoryId });
-                for (const brand of brandsWithSub) {
+                let brandsWithSub = await brandmodel.find({ SubCategoryId: categoryId });
+                for (let brand of brandsWithSub) {
                     preview.brands.push({ _id: brand._id, BrandName: brand.BrandName, SubCategoryId: brand.SubCategoryId });
                     if (brand.BrandImage) preview.files.push({ folder: "BrandImage", file: brand.BrandImage });
 
-                    const banners = await BannerModel.find({ BrandId: brand._id, SubCategoryId: categoryId });
-                    for (const banner of banners) {
+                    let banners = await BannerModel.find({ BrandId: brand._id, SubCategoryId: categoryId });
+                    for (let banner of banners) {
                         preview.banners.push({ _id: banner._id, BannerName: banner.BannerName, BannerImage: banner.BannerImage });
                         if (banner.BannerImage) preview.files.push({ folder: "BannerImage", file: banner.BannerImage });
                     }
                 }
 
-                const brandsToDelete = await brandmodel.find({ HeadCategoryId: categoryId });
-                for (const brand of brandsToDelete) {
+                let brandsToDelete = await brandmodel.find({ HeadCategoryId: categoryId });
+                for (let brand of brandsToDelete) {
                     preview.brands.push({ _id: brand._id, BrandName: brand.BrandName, HeadCategoryId: brand.HeadCategoryId });
                     if (brand.BrandImage) preview.files.push({ folder: "BrandImage", file: brand.BrandImage });
 
-                    const banners = await BannerModel.find({ BrandId: brand._id });
-                    for (const banner of banners) {
+                    let banners = await BannerModel.find({ BrandId: brand._id });
+                    for (let banner of banners) {
                         preview.banners.push({ _id: banner._id, BannerName: banner.BannerName, BannerImage: banner.BannerImage });
                         if (banner.BannerImage) preview.files.push({ folder: "BannerImage", file: banner.BannerImage });
                     }

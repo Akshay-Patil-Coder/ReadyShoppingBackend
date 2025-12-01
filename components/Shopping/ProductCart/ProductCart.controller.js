@@ -38,7 +38,7 @@ module.exports = {
                     .status(400)
                     .json({ message: "Please provide valid product details", success: false });
 
-            const FoundUser = await User.findOne({ _id: UserId, companyId });
+            let FoundUser = await User.findOne({ _id: UserId, companyId });
             if (!FoundUser)
                 return res
                     .status(404)
@@ -60,7 +60,7 @@ module.exports = {
             );
 
 
-            const FoundProduct = await Product.findOne({
+            let FoundProduct = await Product.findOne({
                 _id: ProductId,
                 companyId,
                 VariantProductIds: VariantProductId,
@@ -68,7 +68,7 @@ module.exports = {
             if (!FoundProduct)
                 return res.status(404).json({ message: "Product not found", success: false });
 
-            const FoundVariantProduct = await VariantProduct.findOne({
+            let FoundVariantProduct = await VariantProduct.findOne({
                 _id: VariantProductId,
                 ProductId,
                 companyId,
@@ -76,7 +76,7 @@ module.exports = {
             if (!FoundVariantProduct)
                 return res.status(404).json({ message: "Variant not found", success: false });
 
-            const calculateProductTotals = (variant, qty, activePaidServices = []) => {
+            let calculateProductTotals = (variant, qty, activePaidServices = []) => {
                 let total = variant.Price * qty;
                 let discount = 0;
                 if (variant.OfferPercentage > 0)
@@ -84,7 +84,7 @@ module.exports = {
 
                 let final = total - discount;
                 if (activePaidServices.length > 0) {
-                    const servicePrice = activePaidServices.reduce(
+                    let servicePrice = activePaidServices.reduce(
                         (sum, s) => sum + (s.ProductServiceAmount || 0),
                         0
                     );
@@ -95,11 +95,11 @@ module.exports = {
                 return { total, discount, final };
             };
 
-            const recalcCartTotals = (cart) => {
+            let recalcCartTotals = (cart) => {
                 let total = 0,
                     discount = 0,
                     final = 0;
-                for (const p of cart.Products) {
+                for (let p of cart.Products) {
                     if (p.IsActive !== false && p.Reserved !== true) {
                         total += p.TotalPrice || 0;
                         discount += p.DiscountPrice || 0;
@@ -114,16 +114,16 @@ module.exports = {
                 if (!Quantity || Quantity <= 0) Quantity = 1;
 
                 if (FoundVariantProduct.InventoryBaseStock?.InventoryBase) {
-                    const stock = FoundVariantProduct.InventoryBaseStock.AvailableStock || 0;
+                    let stock = FoundVariantProduct.InventoryBaseStock.AvailableStock || 0;
                     if (stock <= 0)
                         return res.status(400).json({ message: "Out of stock", success: false });
                     if (stock < Quantity) Quantity = stock;
                 }
 
-                const paidServices = FoundProduct.ProductServices.filter((s) => s.Paid);
-                const freeServices = FoundProduct.ProductServices.filter((s) => !s.Paid);
+                let paidServices = FoundProduct.ProductServices.filter((s) => s.Paid);
+                let freeServices = FoundProduct.ProductServices.filter((s) => !s.Paid);
 
-                const selectedPaidServices = paidServices.filter((s) =>
+                let selectedPaidServices = paidServices.filter((s) =>
                     ProductServicesIds.includes(s.ProductServiceId.toString())
                 );
 
@@ -131,7 +131,7 @@ module.exports = {
                     FoundCart.Products.splice(existingIndex, 1);
                 }
 
-                const { total, discount, final } = calculateProductTotals(
+                let { total, discount, final } = calculateProductTotals(
                     FoundVariantProduct,
                     Quantity,
                     selectedPaidServices
@@ -153,7 +153,7 @@ module.exports = {
                 });
 
                 recalcCartTotals(FoundCart);
-                const saved = await FoundCart.save();
+                let saved = await FoundCart.save();
 
                 try {
                     await module.exports.ValidateCart(req, res);
@@ -180,7 +180,7 @@ module.exports = {
                 }
                 if (typeof IsActive !== "undefined") existingProduct.IsActive = IsActive;
                 if (ProductServiceId && typeof ServiceActive !== "undefined") {
-                    const sIndex = existingProduct.ProductServices.findIndex(
+                    let sIndex = existingProduct.ProductServices.findIndex(
                         (s) => s.ProductServiceId.toString() === ProductServiceId.toString()
                     );
 
@@ -207,7 +207,7 @@ module.exports = {
                         return res.status(400).json({ message: "Quantity must be > 0", success: false });
 
                     if (FoundVariantProduct.InventoryBaseStock?.InventoryBase) {
-                        const stock = FoundVariantProduct.InventoryBaseStock.AvailableStock || 0;
+                        let stock = FoundVariantProduct.InventoryBaseStock.AvailableStock || 0;
                         if (stock < Quantity)
                             Quantity = stock;
                     }
@@ -215,13 +215,13 @@ module.exports = {
                     existingProduct.Quantity = Quantity;
                 }
 
-                const paidServices = FoundProduct.ProductServices.filter((s) => s.Paid);
-                const activePaid = existingProduct.ProductServices.filter((s) => s.ServiceActive);
-                const fullServiceData = paidServices.filter((s) =>
+                let paidServices = FoundProduct.ProductServices.filter((s) => s.Paid);
+                let activePaid = existingProduct.ProductServices.filter((s) => s.ServiceActive);
+                let fullServiceData = paidServices.filter((s) =>
                     activePaid.some((ap) => ap.ProductServiceId.toString() === s.ProductServiceId.toString())
                 );
 
-                const { total, discount, final } = calculateProductTotals(
+                let { total, discount, final } = calculateProductTotals(
                     FoundVariantProduct,
                     existingProduct.Quantity,
                     fullServiceData
@@ -234,7 +234,7 @@ module.exports = {
                 FoundCart.Products[existingIndex] = existingProduct;
 
                 recalcCartTotals(FoundCart);
-                const saved = await FoundCart.save();
+                let saved = await FoundCart.save();
                 try {
                     await module.exports.ValidateCart(req, res);
                 } catch (e) {
@@ -264,7 +264,7 @@ module.exports = {
 
                 recalcCartTotals(FoundCart);
 
-                const saved = await FoundCart.save();
+                let saved = await FoundCart.save();
                 try {
                     await module.exports.ValidateCart(req, res);
                 } catch (e) {
@@ -287,12 +287,12 @@ module.exports = {
     },
 
     ValidateCart: async (req, res) => {
-        const { UserId, companyId } = req.body;
+        let { UserId, companyId } = req.body;
         try {
             if (!UserId || !companyId)
                 return res.status(400).json({ message: 'User Or Company Not Found', success: false });
 
-            const FoundUser = await User.findOne({ _id: UserId, companyId });
+            let FoundUser = await User.findOne({ _id: UserId, companyId });
             if (!FoundUser)
                 return res.status(400).json({ message: 'User Not Found', success: false });
 
@@ -301,7 +301,7 @@ module.exports = {
                 return res.status(404).json({ message: 'Cart is empty', success: false });
 
 
-            const calculateProductTotals = (variant, qty, activeServices = []) => {
+            let calculateProductTotals = (variant, qty, activeServices = []) => {
                 let total = variant.Price * qty;
                 let discount = 0;
                 if (variant.OfferPercentage > 0)
@@ -310,7 +310,7 @@ module.exports = {
                 let final = total - discount;
 
                 if (activeServices.length) {
-                    const serviceTotal = activeServices.reduce(
+                    let serviceTotal = activeServices.reduce(
                         (sum, s) => sum + (s.ProductServiceAmount || 0),
                         0
                     );
@@ -346,7 +346,7 @@ module.exports = {
 
 
                 if (!EachProduct.Reserved && FoundVariantProduct.InventoryBaseStock?.InventoryBase === true) {
-                    const availableStock = FoundVariantProduct.InventoryBaseStock.AvailableStock || 0;
+                    let availableStock = FoundVariantProduct.InventoryBaseStock.AvailableStock || 0;
 
                     if (availableStock <= 0) continue;
 
@@ -356,16 +356,16 @@ module.exports = {
                 }
 
 
-                const ProductServicesList = FoundProduct.ProductServices || [];
-                const PaidServices = ProductServicesList.filter(s => s.Paid === true);
-                const FreeServices = ProductServicesList.filter(s => s.Paid === false);
+                let ProductServicesList = FoundProduct.ProductServices || [];
+                let PaidServices = ProductServicesList.filter(s => s.Paid === true);
+                let FreeServices = ProductServicesList.filter(s => s.Paid === false);
 
                 let activePaidServices = [];
                 let NewProductServices = [];
                 let NewFreeServices = [];
 
                 for (let EachService of EachProduct.ProductServices || []) {
-                    const serviceData = await ProductService.findOne({
+                    let serviceData = await ProductService.findOne({
                         _id: EachService.ProductServiceId,
                         companyId,
                         isActive: true
@@ -378,7 +378,7 @@ module.exports = {
                         )
                     ) {
                         if (EachService.ServiceActive === true) {
-                            const matchedConfig = PaidServices.find(
+                            let matchedConfig = PaidServices.find(
                                 (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
                             );
 
@@ -395,7 +395,7 @@ module.exports = {
                 }
 
                 for (let EachService of FreeServices || []) {
-                    const serviceData = await ProductService.findOne({
+                    let serviceData = await ProductService.findOne({
                         _id: EachService.ProductServiceId,
                         companyId,
                         isActive: true
@@ -411,7 +411,7 @@ module.exports = {
 
 
                 if (!EachProduct.Reserved) {
-                    const { total, discount, final } = calculateProductTotals(
+                    let { total, discount, final } = calculateProductTotals(
                         FoundVariantProduct,
                         EachProduct.Quantity,
                         activePaidServices
@@ -431,7 +431,7 @@ module.exports = {
 
 
 
-            const activeProducts = updatedProducts.filter(p => p.Reserved !== true && p.IsActive !== false);
+            let activeProducts = updatedProducts.filter(p => p.Reserved !== true && p.IsActive !== false);
 
             FoundCart.TotalCartPrice = parseFloat(activeProducts.reduce((sum, p) => sum + (p.TotalPrice || 0), 0).toFixed(2));
             FoundCart.DiscountCartPrice = parseFloat(activeProducts.reduce((sum, p) => sum + (p.DiscountPrice || 0), 0).toFixed(2));
@@ -453,7 +453,7 @@ module.exports = {
 
     getCartData: async (matchCondition) => {
         try {
-            const data = await ProductCart.aggregate([
+            let data = await ProductCart.aggregate([
                 { $match: matchCondition },
 
                 {
@@ -897,8 +897,8 @@ module.exports = {
                 data = data.map(cart => {
                     cart.Products = cart.Products.map(prod => {
                         if (prod?.ProductInfo?.ProductServices && prod?.ServiceInfo) {
-                            const existingServiceIds = prod.ServiceInfo.map(s => s.ProductServiceId?.toString());
-                            const allServiceIds = prod.ProductInfo.ProductServices.map(s => s.ProductServiceId?.toString());
+                            let existingServiceIds = prod.ServiceInfo.map(s => s.ProductServiceId?.toString());
+                            let allServiceIds = prod.ProductInfo.ProductServices.map(s => s.ProductServiceId?.toString());
 
                             let remainingServices = prod.ProductInfo.ProductServices.filter(
                                 s => !existingServiceIds.includes(s.ProductServiceId?.toString())
@@ -941,7 +941,7 @@ module.exports = {
         if (req.user.companyId) companyId = req.user.companyId
         let rollback = { orderId: null, stockUpdates: [], ReservedUpdated: [] };
 
-        const RollBackFunction = async (rollback) => {
+        let RollBackFunction = async (rollback) => {
             try {
                 try {
                     if (rollback.stockUpdates && rollback.stockUpdates.length !== 0) {
@@ -990,14 +990,14 @@ module.exports = {
         try {
             await module.exports.ValidateCart(req, res);
 
-            const FoundCart = await ProductCart.findOne({ UserId, companyId })
+            let FoundCart = await ProductCart.findOne({ UserId, companyId })
             if (!FoundCart || !FoundCart.Products?.length)
                 return res.status(400).json({ message: "Cart is empty", success: false });
 
             let OrderData = {};
             let FoundOrder;
             let data;
-            const FoundUser = await User.findOne({ companyId, _id: UserId });
+            let FoundUser = await User.findOne({ companyId, _id: UserId });
             if (!FoundUser) {
 
                 return res.status(400).json({ message: "User Not Found", success: false });
@@ -1057,7 +1057,7 @@ module.exports = {
                         data = data.map(cart => {
                             cart.Products = cart.Products.map(prod => {
                                 if (prod?.ProductInfo?.ProductServices && prod?.ServiceInfo) {
-                                    const existingServiceIds = prod.ServiceInfo.map(s => s.ProductServiceId?.toString());
+                                    let existingServiceIds = prod.ServiceInfo.map(s => s.ProductServiceId?.toString());
                                     let remaining = prod.ProductInfo.ProductServices
                                         .filter(s => !existingServiceIds.includes(s.ProductServiceId?.toString()))
                                         .filter(s => s.Paid == true);
@@ -1073,7 +1073,7 @@ module.exports = {
                     for (let p of data[0].Products) {
                         if (p.IsActive == false || p.Reserved == true) continue;
 
-                        const variantInfo = await VariantProduct.findById(p.VariantProductId)
+                        let variantInfo = await VariantProduct.findById(p.VariantProductId)
 
                         let ProductEntry = {
                             CartProductId: p._id,
@@ -1147,7 +1147,7 @@ module.exports = {
                 OrderData.DiscountCartPrice = parseFloat(OrderData.Products.reduce((a, b) => a + (b.DiscountPrice || 0), 0).toFixed(2));
                 OrderData.FinalCartPrice = parseFloat(OrderData.Products.reduce((a, b) => a + (b.FinalPrice || 0), 0).toFixed(2));
 
-                const SaveOrder = await new ProductOrder(OrderData).save();
+                let SaveOrder = await new ProductOrder(OrderData).save();
                 rollback.orderId = SaveOrder._id
                 FoundOrder = await ProductOrder.findOne({ _id: SaveOrder._id });
 
@@ -1169,7 +1169,7 @@ module.exports = {
                 for (let item of FoundOrder.Products) {
                     if (item.Reserved === true || item.IsActive === false) continue;
 
-                    const variant = await VariantProduct.findOne({
+                    let variant = await VariantProduct.findOne({
                         _id: item.ProductData.VariantProductInfo.VariantProductId,
                         ProductId: item.ProductData.ProductInfo.ProductId,
                         companyId,
@@ -1183,7 +1183,7 @@ module.exports = {
                     }
 
                     if (variant.InventoryBaseStock?.InventoryBase === true) {
-                        const available = variant.InventoryBaseStock?.AvailableStock || 0;
+                        let available = variant.InventoryBaseStock?.AvailableStock || 0;
                         if (item.Quantity > available) {
 
                             await RollBackFunction(rollback)
@@ -1222,10 +1222,10 @@ module.exports = {
             }
 
             try {
-                const orderId = `ORDER_${FoundOrder._id.toString().slice(-6)}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
-                const totalAmount = FoundOrder.FinalCartPrice || FoundOrder.TotalCartPrice;
+                let orderId = `ORDER_${FoundOrder._id.toString().slice(-6)}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+                let totalAmount = FoundOrder.FinalCartPrice || FoundOrder.TotalCartPrice;
 
-                const paytmParams = {
+                let paytmParams = {
                     body: {
                         requestType: "Payment",
                         mid: process.env.PAYTM_MID,
@@ -1237,14 +1237,14 @@ module.exports = {
                     }
                 };
 
-                const checksum = await PaytmChecksum.generateSignature(
+                let checksum = await PaytmChecksum.generateSignature(
                     JSON.stringify(paytmParams.body),
                     process.env.PAYTM_KEY
                 );
                 paytmParams.head = { signature: checksum };
-                const post_data = JSON.stringify(paytmParams);
+                let post_data = JSON.stringify(paytmParams);
 
-                const options = {
+                let options = {
                     hostname: process.env.PAYTM_HOSTNAME,
                     port: 443,
                     path: `/theia/api/v1/initiateTransaction?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
@@ -1255,9 +1255,9 @@ module.exports = {
                     }
                 };
 
-                const paytmResponse = await new Promise((resolve, reject) => {
+                let paytmResponse = await new Promise((resolve, reject) => {
                     let response = "";
-                    const paytmReq = https.request(options, (paytmRes) => {
+                    let paytmReq = https.request(options, (paytmRes) => {
                         paytmRes.on("data", chunk => response += chunk);
                         paytmRes.on("end", () => {
                             try {
@@ -1326,33 +1326,33 @@ module.exports = {
     },
 
     handlePaymentStatus: async (req, res) => {
-        const paytmResponse = req.body;
-        const orderId = paytmResponse?.body?.orderId;
-        const body = paytmResponse.body || {};
-        const paymentInfo = {
+        let paytmResponse = req.body;
+        let orderId = paytmResponse?.body?.orderId;
+        let body = paytmResponse.body || {};
+        let paymentInfo = {
             orderId: body.orderId,
             txnId: body.txnId,
             amount: body.txnAmount?.value || 0,
             resultInfo: body.resultInfo
         };
 
-        const safeId = (v) => (v === undefined || v === null) ? null : (typeof v === "string" ? v : (v.toString ? v.toString() : String(v)));
-        const isReserved = (p) => Boolean(p && (p.Reserved == true || p.Reserved == "true" || p.Reserved == 1 || p.Reserved == "1"));
-        const pullCartProduct = async (cartId, cartProductId) => {
+        let safeId = (v) => (v === undefined || v === null) ? null : (typeof v === "string" ? v : (v.toString ? v.toString() : String(v)));
+        let isReserved = (p) => Boolean(p && (p.Reserved == true || p.Reserved == "true" || p.Reserved == 1 || p.Reserved == "1"));
+        let pullCartProduct = async (cartId, cartProductId) => {
             try {
                 await ProductCart.updateOne({ _id: cartId }, { $pull: { Products: { _id: cartProductId } } });
             } catch (err) {
                 console.error('pullCartProduct Error', err?.message || err);
             }
         };
-        const unreserveCartProduct = async (cartId, cartProductId) => {
+        let unreserveCartProduct = async (cartId, cartProductId) => {
             try {
                 await ProductCart.updateOne({ _id: cartId, "Products._id": cartProductId }, { $set: { "Products.$.Reserved": false } });
             } catch (err) {
                 console.error('unreserveCartProduct Error', err?.message || err);
             }
         };
-        const adjustVariantStock = async (variantId, incObj = {}) => {
+        let adjustVariantStock = async (variantId, incObj = {}) => {
             if (!variantId) return;
             try {
                 await VariantProduct.updateOne({ _id: variantId, 'InventoryBaseStock.InventoryBase': true }, { $inc: incObj });
@@ -1361,10 +1361,10 @@ module.exports = {
             }
         };
 
-        const groupCartByKey = (cartProducts = [], orderKeySet = new Set()) => {
-            const map = new Map();
-            for (const p of (cartProducts || [])) {
-                const key = `${safeId(p?.ProductId)}|${safeId(p?.VariantProductId)}`;
+        let groupCartByKey = (cartProducts = [], orderKeySet = new Set()) => {
+            let map = new Map();
+            for (let p of (cartProducts || [])) {
+                let key = `${safeId(p?.ProductId)}|${safeId(p?.VariantProductId)}`;
                 if (!orderKeySet.has(key)) continue;
                 if (!map.has(key)) map.set(key, []);
                 map.get(key).push(p);
@@ -1372,21 +1372,21 @@ module.exports = {
             return Array.from(map.entries()).map(([key, items]) => ({ key, items }));
         };
 
-        const cleanupGroupForOrder = async (cartId, group, order) => {
-            const cartItems = group.items || [];
+        let cleanupGroupForOrder = async (cartId, group, order) => {
+            let cartItems = group.items || [];
             if (!cartItems.length) return;
 
-            const [prodId, varId] = group.key.split('|');
-            const orderItemsForKey = (order.Products || []).filter(p =>
+            let [prodId, varId] = group.key.split('|');
+            let orderItemsForKey = (order.Products || []).filter(p =>
                 safeId(p?.ProductData?.ProductInfo?.ProductId) === prodId &&
                 safeId(p?.ProductData?.VariantProductInfo?.VariantProductId) === varId
             );
 
-            const orderWithCartIds = orderItemsForKey.filter(p => safeId(p?.CartProductId));
+            let orderWithCartIds = orderItemsForKey.filter(p => safeId(p?.CartProductId));
             if (orderWithCartIds.length) {
-                for (const oi of orderWithCartIds) {
-                    const cartProdId = safeId(oi.CartProductId);
-                    const cartEntry = cartItems.find(c => safeId(c._id) === cartProdId);
+                for (let oi of orderWithCartIds) {
+                    let cartProdId = safeId(oi.CartProductId);
+                    let cartEntry = cartItems.find(c => safeId(c._id) === cartProdId);
                     if (!cartEntry) continue;
                     if (isReserved(cartEntry)) {
                         await pullCartProduct(cartId, cartProdId);
@@ -1400,15 +1400,15 @@ module.exports = {
             let totalOrderQty = orderItemsForKey.reduce((s, it) => s + (Number(it.Quantity) || 0), 0);
             if (totalOrderQty <= 0) return;
 
-            const reserved = cartItems.filter(isReserved);
-            const unreserved = cartItems.filter(ci => !isReserved(ci));
+            let reserved = cartItems.filter(isReserved);
+            let unreserved = cartItems.filter(ci => !isReserved(ci));
 
             if (reserved.length && unreserved.length) {
-                const reservedSorted = reserved.slice().sort((a, b) => (Number(a.Quantity) || 0) - (Number(b.Quantity) || 0));
+                let reservedSorted = reserved.slice().sort((a, b) => (Number(a.Quantity) || 0) - (Number(b.Quantity) || 0));
                 let toRemove = totalOrderQty;
-                for (const r of reservedSorted) {
+                for (let r of reservedSorted) {
                     if (toRemove <= 0) break;
-                    const q = Number(r.Quantity) || 0;
+                    let q = Number(r.Quantity) || 0;
                     await pullCartProduct(cartId, r._id);
                     toRemove -= q;
                 }
@@ -1420,7 +1420,7 @@ module.exports = {
                     await unreserveCartProduct(cartId, reserved[0]._id);
                     return;
                 }
-                const highest = reserved.reduce((max, p) => (Number(p.Quantity) > Number(max.Quantity) ? p : max), reserved[0]);
+                let highest = reserved.reduce((max, p) => (Number(p.Quantity) > Number(max.Quantity) ? p : max), reserved[0]);
                 await Promise.all(reserved.map(async (r) => {
                     if (safeId(r._id) !== safeId(highest._id)) {
                         await pullCartProduct(cartId, r._id);
@@ -1435,12 +1435,12 @@ module.exports = {
 
 
         try {
-            const paytmParams = { body: { mid: process.env.PAYTM_MID, orderId: paymentInfo.orderId } };
-            const checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), process.env.PAYTM_KEY);
+            let paytmParams = { body: { mid: process.env.PAYTM_MID, orderId: paymentInfo.orderId } };
+            let checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), process.env.PAYTM_KEY);
             paytmParams.head = { signature: checksum };
-            const post_data = JSON.stringify(paytmParams);
+            let post_data = JSON.stringify(paytmParams);
 
-            const options = {
+            let options = {
                 hostname: "securegw.paytm.in",
                 port: 443,
                 path: `/v3/order/status`,
@@ -1448,9 +1448,9 @@ module.exports = {
                 headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(post_data) }
             };
 
-            const verifyPaytmStatus = await new Promise((resolve, reject) => {
+            let verifyPaytmStatus = await new Promise((resolve, reject) => {
                 let response = "";
-                const paytmReq = https.request(options, (paytmRes) => {
+                let paytmReq = https.request(options, (paytmRes) => {
                     paytmRes.on("data", chunk => response += chunk);
                     paytmRes.on("end", () => {
                         try { resolve(JSON.parse(response)); } catch (err) { reject(err); }
@@ -1461,13 +1461,13 @@ module.exports = {
                 paytmReq.end();
             });
 
-            const resultStatus = verifyPaytmStatus?.body?.resultInfo?.resultStatus;
+            let resultStatus = verifyPaytmStatus?.body?.resultInfo?.resultStatus;
             let FoundOrder = await ProductOrder.findOne({ "PaymentSession.orderId": orderId });
 
             if (!FoundOrder) return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=ORDER-NOT-FOUND`);
 
-            const UserId = FoundOrder.UserId;
-            const companyId = FoundOrder.companyId;
+            let UserId = FoundOrder.UserId;
+            let companyId = FoundOrder.companyId;
             let FoundCart = await ProductCart.findOne({ UserId, companyId, _id: FoundOrder.CartId });
 
             if (resultStatus === "TXN_SUCCESS") {
@@ -1476,9 +1476,9 @@ module.exports = {
                     // return res.status(200).json({ message: "✅ Payment verified and order placed successfully.", success: true });
                 }
 
-                for (const item of (FoundOrder.Products || [])) {
+                for (let item of (FoundOrder.Products || [])) {
                     try {
-                        const variantId = safeId(item?.ProductData?.VariantProductInfo?.VariantProductId);
+                        let variantId = safeId(item?.ProductData?.VariantProductInfo?.VariantProductId);
                         await adjustVariantStock(variantId, { "InventoryBaseStock.ReservedStock": -(Number(item.Quantity) || 0) });
                     } catch (err) {
                         console.error('Stock Deduct On Payment Success Error:', err?.message || err);
@@ -1491,8 +1491,8 @@ module.exports = {
                 FoundOrder.PaymentSession.amount = paymentInfo.amount;
 
                 try {
-                    for (const cartProd of (FoundCart?.Products || [])) {
-                        const referenced = (FoundOrder.Products || []).filter(p => safeId(p?.CartProductId) === safeId(cartProd._id));
+                    for (let cartProd of (FoundCart?.Products || [])) {
+                        let referenced = (FoundOrder.Products || []).filter(p => safeId(p?.CartProductId) === safeId(cartProd._id));
                         if (referenced.length && isReserved(cartProd)) {
                             await pullCartProduct(FoundCart._id, cartProd._id);
                         }
@@ -1513,15 +1513,15 @@ module.exports = {
                     // return res.status(200).json({ message: "❌ Payment failed. Stock restored and cart reactivated.", success: false });
                 }
 
-                const orderKeySet = new Set((FoundOrder.Products || []).map(p => {
-                    const pid = safeId(p?.ProductData?.ProductInfo?.ProductId);
-                    const vid = safeId(p?.ProductData?.VariantProductInfo?.VariantProductId);
+                let orderKeySet = new Set((FoundOrder.Products || []).map(p => {
+                    let pid = safeId(p?.ProductData?.ProductInfo?.ProductId);
+                    let vid = safeId(p?.ProductData?.VariantProductInfo?.VariantProductId);
                     return pid && vid ? `${pid}|${vid}` : null;
                 }).filter(Boolean));
 
                 if (FoundCart) {
-                    const groups = groupCartByKey(FoundCart.Products || [], orderKeySet);
-                    for (const g of groups) {
+                    let groups = groupCartByKey(FoundCart.Products || [], orderKeySet);
+                    for (let g of groups) {
                         await cleanupGroupForOrder(FoundCart._id, g, FoundOrder);
                     }
                 }
@@ -1533,8 +1533,8 @@ module.exports = {
                 await FoundOrder.save();
 
                 try {
-                    for (const item of (FoundOrder.Products || [])) {
-                        const variantId = safeId(item?.ProductData?.VariantProductInfo?.VariantProductId);
+                    for (let item of (FoundOrder.Products || [])) {
+                        let variantId = safeId(item?.ProductData?.VariantProductInfo?.VariantProductId);
                         await adjustVariantStock(variantId, {
                             "InventoryBaseStock.AvailableStock": (Number(item.Quantity) || 0),
                             "InventoryBaseStock.ReservedStock": -(Number(item.Quantity) || 0)
@@ -1543,7 +1543,7 @@ module.exports = {
                 } catch (err) {
                     console.error('Restored Stock On Payment Failed Error', err?.message || err);
                 }
-                const isCancelled = verifyPaytmStatus?.body?.resultInfo?.resultMsg?.includes('cancelled');
+                let isCancelled = verifyPaytmStatus?.body?.resultInfo?.resultMsg?.includes('cancelled');
                 if (isCancelled) {
                     return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=CANCELLED&cartorderid=${FoundOrder._id}`);
                 }
@@ -1572,7 +1572,7 @@ module.exports = {
                 return res.status(400).json({ message: 'Not Found Proper Data Of Company Or User', success: false });
             }
 
-            const Orders = await ProductOrder.find({ UserId, companyId });
+            let Orders = await ProductOrder.find({ UserId, companyId });
 
             if (!Orders.length) {
                 return res.status(400).json({ message: "Orders Not Found", success: false });
@@ -1586,7 +1586,7 @@ module.exports = {
                 }
                 else if (Status) {
                     products = products.filter(p => {
-                        const lastStatus = p.OrderStatus[p.OrderStatus.length - 1]?.Status;
+                        let lastStatus = p.OrderStatus[p.OrderStatus.length - 1]?.Status;
                         return lastStatus == Status;
                     });
                 }
@@ -1646,7 +1646,7 @@ module.exports = {
                 }
                 else if (Status) {
                     products = products.filter(p => {
-                        const lastStatus = p.OrderStatus[p.OrderStatus.length - 1]?.Status;
+                        let lastStatus = p.OrderStatus[p.OrderStatus.length - 1]?.Status;
                         return lastStatus == Status;
                     });
                 }

@@ -88,7 +88,7 @@ const adminLogin = async (req, res) => {
 // };
 const createAdmin = async (req, res) => {
     try {
-        const { username, password, name, role } = req.body;
+        let { username, password, name, role } = req.body;
 
         if (!username || !password) {
             if (req.file?.filename) {
@@ -99,7 +99,7 @@ const createAdmin = async (req, res) => {
             }
             return res.status(400).json({ success: false, message: "Username and password are required" });
         }
-        const AdminData = {
+        let AdminData = {
             username,
             name,
             role,

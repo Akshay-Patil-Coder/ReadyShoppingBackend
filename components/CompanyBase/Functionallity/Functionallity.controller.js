@@ -6,30 +6,30 @@ module.exports = {
 
     addmasterusers: async (req, res) => {
         try {
-            const { FunctionallityName } = req.body;
+            let { FunctionallityName } = req.body;
             if (!FunctionallityName) {
                 if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
+                    let newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }
                 }
                 res.status(400).json({ message: 'please filled all fields', success: false })
             }
-            const FunctionallityData = {
+            let FunctionallityData = {
                 FunctionallityName
             }
             if (req.file) {
                 FunctionallityData.FunctionallityLogo = req.file.filename;
             }
 
-            const newUser = new masterUsers(FunctionallityData);
+            let newUser = new masterUsers(FunctionallityData);
 
-            const savedUser = await newUser.save();
+            let savedUser = await newUser.save();
 
             if (!savedUser) {
                 if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
+                    let newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }
@@ -44,7 +44,7 @@ module.exports = {
             });
         } catch (error) {
              if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
+                    let newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }
@@ -56,7 +56,7 @@ module.exports = {
     getmasterusers: async (req, res) => {
         try {
 
-            const users = await masterUsers.find();
+            let users = await masterUsers.find();
             res.status(200).json({
                 success: true,
                 message: "Functionallity Fetched Successfully",
@@ -74,12 +74,12 @@ module.exports = {
 
     updatemasterusers: async (req, res) => {
         try {
-            const { id } = req.params;
-            const existingUser = await masterUsers.findById(id);
+            let { id } = req.params;
+            let existingUser = await masterUsers.findById(id);
 
             if (!existingUser) {
                 if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
+                    let newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }
@@ -88,7 +88,7 @@ module.exports = {
             }
             if (!req.body.FunctionallityName || !id) {
               if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
+                    let newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }
@@ -100,7 +100,7 @@ module.exports = {
 
             if (req.file?.filename) {
 
-                const oldImagePath = path.join(__dirname, '..','..','public','FunctionallityLogos', existingUser?.FunctionallityLogo);
+                let oldImagePath = path.join(__dirname, '..','..','public','FunctionallityLogos', existingUser?.FunctionallityLogo);
                 if (existingUser?.FunctionallityLogo && fs.existsSync(oldImagePath)) {
                     fs.unlinkSync(oldImagePath);
                 }
@@ -108,7 +108,7 @@ module.exports = {
                 updatedData.FunctionallityLogo = req.file.filename;
             }
 
-            const updatedUser = await masterUsers.findByIdAndUpdate(id, updatedData, { new: true });
+            let updatedUser = await masterUsers.findByIdAndUpdate(id, updatedData, { new: true });
 
             res.status(200).json({
                 success: true,
@@ -118,7 +118,7 @@ module.exports = {
 
         } catch (error) {
               if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
+                    let newImagePath = path.join(__dirname, '..', '..', 'public', 'FunctionallityLogos', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }

@@ -21,9 +21,9 @@ module.exports = {
             } = req.body;
             if (req.user.companyId) companyId = req.user.companyId
 
-            const deleteBannerImage = () => {
+            let deleteBannerImage = () => {
                 if (req.file?.filename) {
-                    const filePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                    let filePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
                     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
                 }
             };
@@ -108,8 +108,8 @@ module.exports = {
                 );
             }
 
-            const newBanner = new bannersSchema(bannerData);
-            const result = await newBanner.save();
+            let newBanner = new bannersSchema(bannerData);
+            let result = await newBanner.save();
 
             if (!result) {
                 deleteBannerImage();
@@ -124,7 +124,7 @@ module.exports = {
 
         } catch (error) {
             if (req.file?.filename) {
-                const filePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                let filePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
                 if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
             }
 
@@ -419,7 +419,7 @@ module.exports = {
                 matchCondition.BannerType = BannerType;
             }
 
-            const data = await module.exports.getBannersData(matchCondition);
+            let data = await module.exports.getBannersData(matchCondition);
 
             if (!data || data.length === 0) {
                 return res.status(404).json({ message: 'No banners found for the given criteria', success: false });
@@ -438,7 +438,7 @@ module.exports = {
         try {
             let { BannerId, VariantsProductsId, BannerType } = req.body;
             let companyId = req.query.companyId;
-            const operation = req.query.operation;
+            let operation = req.query.operation;
             if (req.user.companyId) companyId = req.user.companyId
 
             if (!BannerId || !VariantsProductsId || VariantsProductsId.length === 0) {
@@ -449,9 +449,9 @@ module.exports = {
                 return resp.status(400).json({ message: 'BannerType must be "Offer"', success: false });
             }
 
-            const bannerObjectId = new mongoose.Types.ObjectId(String(BannerId));
-            const companyObjectId = new mongoose.Types.ObjectId(String(companyId));
-            const variantObjectIds = VariantsProductsId.map(id => new mongoose.Types.ObjectId(String(id)));
+            let bannerObjectId = new mongoose.Types.ObjectId(String(BannerId));
+            let companyObjectId = new mongoose.Types.ObjectId(String(companyId));
+            let variantObjectIds = VariantsProductsId.map(id => new mongoose.Types.ObjectId(String(id)));
 
             if (operation === 'delete') {
                 let updatedResult = await bannersSchema.findOneAndUpdate(
@@ -526,10 +526,10 @@ module.exports = {
                 return res.status(400).json({ message: 'Invalid company ID format', success: false });
             }
 
-            const bannerObjectId = new mongoose.Types.ObjectId(String(_id));
-            const companyObjectId = new mongoose.Types.ObjectId(String(companyId));
+            let bannerObjectId = new mongoose.Types.ObjectId(String(_id));
+            let companyObjectId = new mongoose.Types.ObjectId(String(companyId));
 
-            const bannerData = await bannersSchema.findOne({ _id: bannerObjectId, companyId: companyObjectId });
+            let bannerData = await bannersSchema.findOne({ _id: bannerObjectId, companyId: companyObjectId });
             if (!bannerData) {
                 return res.status(404).json({ message: 'Banner not found', success: false });
             }
@@ -538,8 +538,8 @@ module.exports = {
             if (bannerData.BannerType === 'Offer' && bannerData.VariantsProductsIds?.length) {
                 productObjectIds = bannerData.VariantsProductsIds.map(pid => new mongoose.Types.ObjectId(String(pid)));
 
-                for (const prodObjectId of productObjectIds) {
-                    const productData = await VariantProduct.findOne({ _id: prodObjectId });
+                for (let prodObjectId of productObjectIds) {
+                    let productData = await VariantProduct.findOne({ _id: prodObjectId });
                     if (productData && productData.OfferPercentage === bannerData.OfferPercentage) {
                         await VariantProduct.updateOne({ _id: prodObjectId }, { $set: { OfferPercentage: null } });
                     }
@@ -547,13 +547,13 @@ module.exports = {
             }
 
             if (bannerData.BannerImage) {
-                const imagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', bannerData.BannerImage);
+                let imagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', bannerData.BannerImage);
                 if (fs.existsSync(imagePath)) {
                     fs.unlinkSync(imagePath);
                 }
             }
 
-            const result = await bannersSchema.deleteOne({ _id: bannerObjectId, companyId: companyObjectId });
+            let result = await bannersSchema.deleteOne({ _id: bannerObjectId, companyId: companyObjectId });
 
             return res.status(200).json({ data: result, success: true, message: "Banner deleted successfully" });
 
@@ -571,7 +571,7 @@ module.exports = {
 
             if (!BannerId || !BannerName) {
                 if (req.file?.filename) {
-                    const imagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                    let imagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
                     if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
                 }
                 return resp.status(400).json({ message: 'BannerId and BannerName are required', success: false });
@@ -584,28 +584,28 @@ module.exports = {
                 return resp.status(400).json({ message: 'Invalid companyId', success: false });
             }
 
-            const bannerObjectId = new mongoose.Types.ObjectId(String(BannerId));
-            const companyObjectId = new mongoose.Types.ObjectId(String(companyId));
+            let bannerObjectId = new mongoose.Types.ObjectId(String(BannerId));
+            let companyObjectId = new mongoose.Types.ObjectId(String(companyId));
 
-            const bannerData = { BannerName };
+            let bannerData = { BannerName };
 
             if (req.file?.filename) {
-                const existingBanner = await bannersSchema.findOne({ _id: bannerObjectId, companyId: companyObjectId });
+                let existingBanner = await bannersSchema.findOne({ _id: bannerObjectId, companyId: companyObjectId });
                 if (existingBanner?.BannerImage) {
-                    const existingImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', existingBanner.BannerImage);
+                    let existingImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', existingBanner.BannerImage);
                     if (fs.existsSync(existingImagePath)) fs.unlinkSync(existingImagePath);
                 }
                 bannerData.BannerImage = req.file.filename;
             }
 
-            const updatedResult = await bannersSchema.updateOne(
+            let updatedResult = await bannersSchema.updateOne(
                 { _id: bannerObjectId, companyId: companyObjectId },
                 { $set: bannerData }
             );
 
             if (!updatedResult.modifiedCount) {
                 if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                    let newImagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
                     if (fs.existsSync(newImagePath)) fs.unlinkSync(newImagePath);
                 }
                 return resp.status(400).json({ message: 'Banner not updated', success: false });
@@ -615,7 +615,7 @@ module.exports = {
 
         } catch (error) {
             if (req.file?.filename) {
-                const imagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
+                let imagePath = path.join(__dirname, '..', '..', 'public', 'BannerImage', req.file.filename);
                 if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
             }
             console.error("Error in updateBannerDetails:", error);

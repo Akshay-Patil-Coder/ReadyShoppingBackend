@@ -20,7 +20,7 @@ module.exports = {
         try {
             if (!CompanyName || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !Contact_person_name || !Password) {
                 if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
+                    let newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }
@@ -29,8 +29,8 @@ module.exports = {
             }
             try {
                 if (!PredifinedDomain) {
-                    const companyName = CompanyName || '';
-                    const subdomain = companyName
+                    let companyName = CompanyName || '';
+                    let subdomain = companyName
                         .trim()
                         .split(/\s+/)[0]
                         ?.toLowerCase()
@@ -39,13 +39,13 @@ module.exports = {
                 }
 
                 if (PredifinedDomain) {
-                    const existingCompany = await Company.findOne({
+                    let existingCompany = await Company.findOne({
                         PredifinedDomain: String(PredifinedDomain).toLowerCase()
                     });
 
                     if (existingCompany) {
                         if (req.file?.filename) {
-                            const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
+                            let newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
                             if (fs.existsSync(newImagePath)) {
                                 fs.unlinkSync(newImagePath);
                             }
@@ -73,7 +73,7 @@ module.exports = {
                 }
                 if (!CompanyDomain && !PredifinedDomain) {
                     if (req.file?.filename) {
-                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
+                        let newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
                         if (fs.existsSync(newImagePath)) {
                             fs.unlinkSync(newImagePath);
                         }
@@ -84,7 +84,7 @@ module.exports = {
             } catch (error) {
                 console.error('Error generating or validating company domain:', error);
                 if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
+                    let newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }
@@ -103,12 +103,12 @@ module.exports = {
             }
             let CopyOfPassword;
             if (Password) {
-                const salt = await bcrypt.genSalt(10);
+                let salt = await bcrypt.genSalt(10);
                 CopyOfPassword = Password;
                 Password = await bcrypt.hash(Password, salt);
             }
 
-            const CompanyData = {
+            let CompanyData = {
                 CompanyName,
                 Street,
                 City,
@@ -123,19 +123,19 @@ module.exports = {
                 Password,
             };
 
-            const fetchLatLng = async () => {
+            let fetchLatLng = async () => {
                 if (!Latitude || !Longitude) {
-                    const address = [Street, City, State, Country, PostalCode].filter(Boolean).join(', ');
-                    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-                    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
-                    const response = await axios.get(url);
-                    const results = response.data.results;
+                    let address = [Street, City, State, Country, PostalCode].filter(Boolean).join(', ');
+                    let apiKey = process.env.GOOGLE_MAPS_API_KEY;
+                    let url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+                    let response = await axios.get(url);
+                    let results = response.data.results;
 
                     if (!results || results.length === 0) {
                         return
                     }
 
-                    const location = results[0].geometry.location;
+                    let location = results[0].geometry.location;
                     CompanyData.Latitude = location.lat;
                     CompanyData.Longitude = location.lng;
                 }
@@ -159,12 +159,12 @@ module.exports = {
             }
             console.log(CompanyData, 'data')
 
-            const company = new Company(CompanyData);
-            const data = await company.save();
+            let company = new Company(CompanyData);
+            let data = await company.save();
 
             if (!data) {
                 if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
+                    let newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }
@@ -174,10 +174,10 @@ module.exports = {
             }
 
             if (CompanyDomain) {
-                const redirectLink = `https://${CompanyDomain}.shop.readytechnologies.in`;
-                const adminPanelLink = `https://adminshop.readytechnologies.in`;
+                let redirectLink = `https://${CompanyDomain}.shop.readytechnologies.in`;
+                let adminPanelLink = `https://adminshop.readytechnologies.in`;
 
-                const transporter = nodemailer.createTransport({
+                let transporter = nodemailer.createTransport({
                     host: '192.168.1.112',
                     port: 465,
                     secure: true,
@@ -190,7 +190,7 @@ module.exports = {
                     }
                 });
 
-                const mailOptions = {
+                let mailOptions = {
                     from: '"HR" <hr@onelifecapital.in>',
                     to: Email,
                     subject: 'Your Website Access Details',
@@ -213,9 +213,9 @@ module.exports = {
 
             }
             else if (PredifinedDomain) {
-                const adminPanelLink = `https://adminshop.readytechnologies.in`;
+                let adminPanelLink = `https://adminshop.readytechnologies.in`;
 
-                const transporter = nodemailer.createTransport({
+                let transporter = nodemailer.createTransport({
                     host: '192.168.1.112',
                     port: 465,
                     secure: true,
@@ -228,7 +228,7 @@ module.exports = {
                     }
                 });
 
-                const mailOptions = {
+                let mailOptions = {
                     from: '"HR" <hr@onelifecapital.in>',
                     to: Email,
                     subject: 'Your Website Access Details',
@@ -273,7 +273,7 @@ module.exports = {
             if (req.query.CompanyDomain) query.CompanyDomain = (req.query.CompanyDomain)
             if (req.query.PredifinedDomain) query.PredifinedDomain = (req.query.PredifinedDomain)
 
-            const data = await Company.find(query);
+            let data = await Company.find(query);
 
 
 
@@ -293,9 +293,9 @@ module.exports = {
     },
 
     updatecompanies: async (req, res) => {
-        const removeUploadedFile = () => {
+        let removeUploadedFile = () => {
             if (req.file?.filename) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
+                let newImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', req.file.filename);
                 if (fs.existsSync(newImagePath)) fs.unlinkSync(newImagePath);
             }
         };
@@ -325,13 +325,13 @@ module.exports = {
                 return res.status(400).json({ message: "Please provide company ID to update", success: false });
             }
 
-            const FoundCompany = await Company.findById(_id);
+            let FoundCompany = await Company.findById(_id);
             if (!FoundCompany) {
                 removeUploadedFile();
                 return res.status(404).json({ message: "Company not found", success: false });
             }
 
-            const fields = {
+            let fields = {
                 CompanyName,
                 Street,
                 City,
@@ -345,12 +345,12 @@ module.exports = {
                 Contact_person_name
             };
 
-            const CompanyData = Object.fromEntries(
+            let CompanyData = Object.fromEntries(
                 Object.entries(fields).filter(([_, v]) => v !== undefined && v !== null && v !== "")
             );
 
             if (PredifinedDomain) {
-                const existingDomain = await Company.findOne({
+                let existingDomain = await Company.findOne({
                     PredifinedDomain: String(PredifinedDomain),
                     _id: { $ne: _id }
                 });
@@ -366,14 +366,14 @@ module.exports = {
 
             if (req.file?.filename) {
                 if (FoundCompany.CompanyLogo) {
-                    const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', FoundCompany.CompanyLogo);
+                    let oldImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', FoundCompany.CompanyLogo);
                     if (fs.existsSync(oldImagePath)) fs.unlinkSync(oldImagePath);
                 }
                 CompanyData.CompanyLogo = req.file.filename;
             }
 
             if ((!Latitude || !Longitude) && (Street || City || State || Country || PostalCode)) {
-                const address = [
+                let address = [
                     Street || FoundCompany.Street,
                     City || FoundCompany.City,
                     State || FoundCompany.State,
@@ -390,12 +390,12 @@ module.exports = {
                 }
 
                 try {
-                    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-                    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
-                    const response = await axios.get(url);
+                    let apiKey = process.env.GOOGLE_MAPS_API_KEY;
+                    let url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+                    let response = await axios.get(url);
 
                     if (response.data.results?.length > 0) {
-                        const location = response.data.results[0].geometry.location;
+                        let location = response.data.results[0].geometry.location;
                         CompanyData.Latitude = location.lat;
                         CompanyData.Longitude = location.lng;
                     } else {
@@ -426,7 +426,7 @@ module.exports = {
                 }
             }
 
-            const updatedCompany = await Company.findByIdAndUpdate(_id, { $set: CompanyData }, { new: true });
+            let updatedCompany = await Company.findByIdAndUpdate(_id, { $set: CompanyData }, { new: true });
 
             return res.status(200).json({
                 success: true,
@@ -449,14 +449,14 @@ module.exports = {
 
     deletecompanies: async (req, res) => {
         try {
-            const existingCompany = await Company.findOne({ _id: req.params._id })
+            let existingCompany = await Company.findOne({ _id: req.params._id })
             if (existingCompany && existingCompany?.CompanyLogo) {
-                const oldImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', existingCompany.CompanyLogo);
+                let oldImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', existingCompany.CompanyLogo);
                 if (fs.existsSync(oldImagePath)) {
                     fs.unlinkSync(oldImagePath);
                 }
             }
-            const data = await Company.deleteOne({ _id: req.params._id })
+            let data = await Company.deleteOne({ _id: req.params._id })
             res.status(200).send({
                 success: true,
                 message: "Company successfully deleted",
@@ -483,7 +483,7 @@ module.exports = {
                 });
             }
 
-            const company = await Company.findById(companyId);
+            let company = await Company.findById(companyId);
             if (!company) {
                 return res.status(404).json({
                     success: false,
@@ -498,7 +498,7 @@ module.exports = {
                 });
             }
 
-            const bankDetails = {
+            let bankDetails = {
                 IFSC,
                 AccountNumber,
                 BankName: BankName?.trim() || "",
@@ -508,7 +508,7 @@ module.exports = {
                 BankState: BankState?.trim() || ""
             };
 
-            const updatedCompany = await Company.findByIdAndUpdate(
+            let updatedCompany = await Company.findByIdAndUpdate(
                 companyId,
                 { $set: { BankDetails: bankDetails } },
                 { new: true }
@@ -548,7 +548,7 @@ module.exports = {
                 });
             }
 
-            const company = await Company.findById(companyId);
+            let company = await Company.findById(companyId);
             if (!company) {
                 return res.status(404).json({
                     success: false,
@@ -563,7 +563,7 @@ module.exports = {
                 });
             }
 
-            const updatedCompany = await Company.findByIdAndUpdate(
+            let updatedCompany = await Company.findByIdAndUpdate(
                 companyId,
                 { $unset: { BankDetails: "" } },
                 { new: true }
@@ -586,7 +586,7 @@ module.exports = {
     },
     previewDeleteCompany: async (req, res) => {
         try {
-            const { companyId } = req.query;
+            let { companyId } = req.query;
 
             if (!companyId) {
                 return res.status(400).json({ message: 'Company Not Found', success: false });
@@ -596,7 +596,7 @@ module.exports = {
                 return res.status(400).json({ message: 'Invalid Company ID', success: false });
             }
 
-            const FoundCompany = await Company.findById(companyId);
+            let FoundCompany = await Company.findById(companyId);
             if (!FoundCompany) {
                 return res.status(404).json({ message: 'Company Not Found', success: false });
             }
@@ -606,7 +606,7 @@ module.exports = {
                 shopping: {}
             };
 
-            const FoundAccess = await AccessModel.aggregate([
+            let FoundAccess = await AccessModel.aggregate([
                 {
                     $match: {
                         companyId: new mongoose.Types.ObjectId(companyId)
@@ -633,7 +633,7 @@ module.exports = {
 
             AllData.access = FoundAccess;
 
-            const AssignValues = FoundAccess[0]?.assignValues || [];
+            let AssignValues = FoundAccess[0]?.assignValues || [];
 
             for (let EachAccess of AssignValues) {
                 if (EachAccess.FunctionallityName === 'shopping') {

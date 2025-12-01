@@ -74,8 +74,8 @@ module.exports = {
                 VariantData.Extension = Extension;
             }
 
-            const newVariant = new Variant(VariantData);
-            const result = await newVariant.save();
+            let newVariant = new Variant(VariantData);
+            let result = await newVariant.save();
 
             return res.status(201).json({
                 success: true,
@@ -181,8 +181,8 @@ module.exports = {
             }
 
             if (Array.isArray(VariantValues) && VariantValues.length > 0) {
-                const existing = FoundVariant.VariantValues || [];
-                for (const v of VariantValues) {
+                let existing = FoundVariant.VariantValues || [];
+                for (let v of VariantValues) {
                     let val = v.Value;
 
                     if (FoundVariant.VariantType === "Number" && isNaN(Number(val))) {
@@ -292,9 +292,9 @@ module.exports = {
     //                 .select('_id BrandName BrandImage');
 
     //             if (BrandData?.length) {
-    //                 const FilteredBrands = await Promise.all(
+    //                 let FilteredBrands = await Promise.all(
     //                     BrandData.map(async (EachBrand) => {
-    //                         const EachVariantProduct = await VariantProduct.find({
+    //                         let EachVariantProduct = await VariantProduct.find({
     //                             BrandId: EachBrand._id,
     //                             companyId,
     //                             SubCategoryId,
@@ -303,7 +303,7 @@ module.exports = {
     //                     })
     //                 );
 
-    //                 const ValidBrands = FilteredBrands.filter((b) => b !== null);
+    //                 let ValidBrands = FilteredBrands.filter((b) => b !== null);
 
     //                 if (ValidBrands.length) Filter.BrandFilter = ValidBrands;
     //             }
@@ -315,9 +315,9 @@ module.exports = {
     //             let BadgesData = await Batch.find({ isActive: true }).select('_id BatchName BatchLogo');
 
     //             if (BadgesData?.length) {
-    //                 const FilteredBadges = await Promise.all(
+    //                 let FilteredBadges = await Promise.all(
     //                     BadgesData.map(async (EachBadge) => {
-    //                         const EachVariantProduct = await VariantProduct.find({
+    //                         let EachVariantProduct = await VariantProduct.find({
     //                             BatchIds: EachBadge._id,
     //                             companyId,
     //                             SubCategoryId,
@@ -326,7 +326,7 @@ module.exports = {
     //                     })
     //                 );
 
-    //                 const ValidBadges = FilteredBadges.filter((b) => b !== null);
+    //                 let ValidBadges = FilteredBadges.filter((b) => b !== null);
 
     //                 if (ValidBadges.length) Filter.BadgeFilter = ValidBadges;
     //             }
@@ -335,7 +335,7 @@ module.exports = {
     //         }
 
     //         try {
-    //             const PriceRange = await VariantProduct.aggregate([
+    //             let PriceRange = await VariantProduct.aggregate([
     //                 {
     //                     $match: {
     //                         companyId: new mongoose.Types.ObjectId(String(companyId)),
@@ -368,7 +368,7 @@ module.exports = {
     //             console.error('Error fetching price range:', error);
     //         }
     //         try {
-    //             const FoundProducts = await VariantProduct.find({ companyId, SubCategoryId })
+    //             let FoundProducts = await VariantProduct.find({ companyId, SubCategoryId })
     //             if (FoundProducts && FoundProducts.length !== 0) {
     //                 Filter.SortByArrivalsFilter = {
     //                     Newer: 'Newer',
@@ -416,7 +416,7 @@ module.exports = {
                 return res.status(400).json({ message: "Invalid companyId format", success: false });
 
             // Convert companyId
-            const companyObj = new mongoose.Types.ObjectId(companyId);
+            let companyObj = new mongoose.Types.ObjectId(companyId);
 
             // --------------------- HANDLE MULTIPLE SUBCATEGORY IDS ---------------------
             let SubCatArray = [];
@@ -473,7 +473,7 @@ module.exports = {
             }
 
             try {
-                const BrandData = await brandmodel
+                let BrandData = await brandmodel
                     .find({
                         companyId: companyObj,
                         SubCategoryId: { $in: SubCategoryIds },

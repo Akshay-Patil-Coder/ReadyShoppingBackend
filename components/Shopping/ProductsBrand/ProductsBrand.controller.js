@@ -20,7 +20,7 @@ module.exports = {
           }
         } catch {
           if (req.file?.filename) {
-            const newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
+            let newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
             if (fs.existsSync(newImagePath)) {
               fs.unlinkSync(newImagePath);
             }
@@ -30,7 +30,7 @@ module.exports = {
       }
       if (!BrandName || !companyId || !HeadCategoryId || SubCategoryId.length == 0) {
         if (req.file?.filename) {
-          const newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
+          let newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
           if (fs.existsSync(newImagePath)) fs.unlinkSync(newImagePath);
         }
         return resp.status(400).json({ message: 'Please fill in all required fields', success: false });
@@ -39,12 +39,12 @@ module.exports = {
       let brandData = { BrandName, companyId, HeadCategoryId, SubCategoryId };
       if (req.file?.filename) brandData.BrandImage = req.file.filename;
 
-      const newBrand = new brandmodel.brandmodel(brandData);
-      const result = await newBrand.save();
+      let newBrand = new brandmodel.brandmodel(brandData);
+      let result = await newBrand.save();
 
       if (!result) {
         if (req.file?.filename) {
-          const newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
+          let newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
           if (fs.existsSync(newImagePath)) fs.unlinkSync(newImagePath);
         }
         return resp.status(400).json({ message: 'Something went wrong while saving the brand', success: false });
@@ -53,7 +53,7 @@ module.exports = {
       return resp.status(200).json({ data: result, success: true, message: 'Brand added successfully' });
     } catch (error) {
       if (req.file?.filename) {
-        const newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
+        let newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
         if (fs.existsSync(newImagePath)) fs.unlinkSync(newImagePath);
       }
       return resp.status(500).json({ message: "Internal Server Error", error: error.message, success: false });
@@ -109,7 +109,7 @@ module.exports = {
       if (BrandName && BrandName.trim() !== "") {
         matchCondition.BrandName = { $regex: new RegExp(BrandName.trim(), "i") };
       }
-      const data = await module.exports.getBrandData(matchCondition);
+      let data = await module.exports.getBrandData(matchCondition);
 
       if (data.length === 0) {
         return res.status(404).json({ message: 'No Brands found for this category', success: false });
@@ -125,7 +125,7 @@ module.exports = {
     try {
       let { BrandId, SubCategoryId } = req.body;
       let companyId = req.query.companyId;
-      const operation = req.query.operation;
+      let operation = req.query.operation;
       if (req.user.companyId) companyId = req.user.companyId
 
       if (!BrandId || !SubCategoryId || SubCategoryId.length === 0) {
@@ -161,7 +161,7 @@ module.exports = {
       if (req.user.companyId) companyId = req.user.companyId
       if (!BrandId || !BrandName) {
         if (req.file?.filename) {
-          const newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
+          let newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
           if (fs.existsSync(newImagePath)) fs.unlinkSync(newImagePath);
         }
         return resp.status(400).send({ message: 'Please insert valid data', success: false });
@@ -181,7 +181,7 @@ module.exports = {
           }
         } catch (err) {
           if (req.file?.filename) {
-            const newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
+            let newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
             if (fs.existsSync(newImagePath)) fs.unlinkSync(newImagePath);
           }
           return resp.status(400).json({
@@ -191,9 +191,9 @@ module.exports = {
         }
       }
       if (req.file?.filename) {
-        const existingBrand = await brandmodel.brandmodel.findOne({ _id: BrandId, companyId });
+        let existingBrand = await brandmodel.brandmodel.findOne({ _id: BrandId, companyId });
         if (existingBrand?.BrandImage) {
-          const oldImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', existingBrand.BrandImage);
+          let oldImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', existingBrand.BrandImage);
           if (fs.existsSync(oldImagePath)) fs.unlinkSync(oldImagePath);
         }
         brandData.BrandImage = req.file.filename;
@@ -211,7 +211,7 @@ module.exports = {
       return resp.status(200).json({ data: updatedResult, success: true, message: "Brand detail updated successfully" });
     } catch (error) {
       if (req.file?.filename) {
-        const newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
+        let newImagePath = path.join(__dirname, '..', '..', 'public', 'BrandImage', req.file.filename);
         if (fs.existsSync(newImagePath)) fs.unlinkSync(newImagePath);
       }
       return resp.status(400).json({ message: "Internal Server Error", error: error.message, success: false });

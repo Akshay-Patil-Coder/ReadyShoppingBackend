@@ -23,10 +23,10 @@ module.exports = {
 
         if (req.user.companyId) companyId = req.user.companyId
 
-        const clearFiles = (files) => {
+        let clearFiles = (files) => {
             if (!Array.isArray(files)) return;
             files.forEach((file) => {
-                const filePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', file);
+                let filePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', file);
                 try {
                     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
                 } catch (err) {
@@ -34,10 +34,10 @@ module.exports = {
                 }
             });
         };
-        const clearVideo = (files) => {
+        let clearVideo = (files) => {
             if (!Array.isArray(files)) return;
             files.forEach((file) => {
-                const filePath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', file);
+                let filePath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', file);
                 try {
                     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
                 } catch (err) {
@@ -86,9 +86,9 @@ module.exports = {
             let ProductData = { companyId, HeadCategoryId, SubCategoryId, BrandId, ProductName };
 
             if (Array.isArray(req.body.ProductServices) && req.body.ProductServices.length > 0) {
-                const ProductServicesData = [];
-                for (const EachService of req.body.ProductServices) {
-                    const FoundService = await ProductService.findById(EachService?.ProductServiceId);
+                let ProductServicesData = [];
+                for (let EachService of req.body.ProductServices) {
+                    let FoundService = await ProductService.findById(EachService?.ProductServiceId);
                     if (FoundService) ProductServicesData.push(EachService);
                 }
                 if (ProductServicesData.length > 0) ProductData.ProductServices = ProductServicesData;
@@ -304,9 +304,9 @@ module.exports = {
                         let variantFieldsArray = [];
                         if (row.VariantFields) {
                             let vfObj = JSON.parse(row.VariantFields);
-                            for (const [VariantId, VariantValue] of Object.entries(vfObj)) {
+                            for (let [VariantId, VariantValue] of Object.entries(vfObj)) {
                                 if (!VariantId || !VariantValue) continue;
-                                const FoundVariant = await Variant.findById(VariantId);
+                                let FoundVariant = await Variant.findById(VariantId);
                                 if (FoundVariant) variantFieldsArray.push({ VariantId, VariantValue });
                             }
                         }
@@ -320,12 +320,12 @@ module.exports = {
                             }));
                         }
 
-                        const filterFilesEndsWith = (csvFiles, uploaded) =>
+                        let filterFilesEndsWith = (csvFiles, uploaded) =>
                             (csvFiles || []).filter(csvFile => uploaded.some(u => u.endsWith(csvFile)));
 
-                        const commonImagesFiltered = filterFilesEndsWith(JSON.parse(row.CommonImages || '[]'), uploadedImages);
-                        const commonVideosFiltered = filterFilesEndsWith(JSON.parse(row.CommonVideos || '[]'), uploadedVideos);
-                        const variantImagesFiltered = filterFilesEndsWith(JSON.parse(row.VariantProductImage || '[]'), uploadedImages);
+                        let commonImagesFiltered = filterFilesEndsWith(JSON.parse(row.CommonImages || '[]'), uploadedImages);
+                        let commonVideosFiltered = filterFilesEndsWith(JSON.parse(row.CommonVideos || '[]'), uploadedVideos);
+                        let variantImagesFiltered = filterFilesEndsWith(JSON.parse(row.VariantProductImage || '[]'), uploadedImages);
 
                         usedImages.push(...commonImagesFiltered, ...variantImagesFiltered);
                         usedVideos.push(...commonVideosFiltered);
@@ -428,8 +428,8 @@ module.exports = {
                 }
             }
 
-            const cleanupFiles = (folder, uploaded, used) => {
-                const folderPath = path.join(__dirname, '..', '..', 'public', folder);
+            let cleanupFiles = (folder, uploaded, used) => {
+                let folderPath = path.join(__dirname, '..', '..', 'public', folder);
                 if (!fs.existsSync(folderPath)) return;
                 fs.readdirSync(folderPath).forEach(file => {
                     if (uploaded.includes(file) && !used.some(u => u.endsWith(file))) {
@@ -459,7 +459,7 @@ module.exports = {
                 fs.unlinkSync(csvFilePath);
                 console.log('🗑️ Old CSV deleted');
             }
-            const csvWriter = createCsvWriter({
+            let csvWriter = createCsvWriter({
                 path: csvFilePath,
                 header: [
                     { id: 'ProductName', title: 'ProductName' },
@@ -514,7 +514,7 @@ module.exports = {
 
         let cleanupFiles = async (files, ProductId, companyId, VariantProductId = null) => {
             if (!Array.isArray(files) || files.length === 0) return;
-            for (const file of files) {
+            for (let file of files) {
                 try {
                     let usedInVariant;
                     if (VariantProductId) {
@@ -532,14 +532,14 @@ module.exports = {
                         });
                     }
 
-                    const usedInProduct = await Product.findOne({
+                    let usedInProduct = await Product.findOne({
                         _id: ProductId,
                         companyId,
                         CommonImages: { $in: [file] }
                     });
 
                     if (!usedInVariant && !usedInProduct) {
-                        const filePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', file);
+                        let filePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', file);
                         if (fs.existsSync(filePath)) {
                             fs.unlinkSync(filePath);
                             console.log(`🗑️ Deleted unused file: ${file}`);
@@ -552,7 +552,7 @@ module.exports = {
         };
 
         try {
-            const jsonFields = ['InventoryBaseStock', 'Specification', 'AboutProduct', 'VariantFields'];
+            let jsonFields = ['InventoryBaseStock', 'Specification', 'AboutProduct', 'VariantFields'];
             for (let key of jsonFields) {
                 if (req.body[key]) {
                     try {
@@ -606,14 +606,14 @@ module.exports = {
 
             let updateVariantCounts = async (fields, increment = true) => {
                 if (!Array.isArray(fields)) return;
-                for (const f of fields) {
+                for (let f of fields) {
                     try {
-                        const query = {
+                        let query = {
                             _id: f?.VariantId,
                             "VariantValues.Value": f?.VariantValue,
                             ...(increment ? {} : { "VariantValues.Count": { $gt: 0 } })
                         };
-                        const found = await Variant.findOne(query);
+                        let found = await Variant.findOne(query);
                         if (found) {
                             await Variant.findOneAndUpdate(
                                 { _id: f?.VariantId, "VariantValues.Value": f?.VariantValue },
@@ -668,7 +668,7 @@ module.exports = {
 
                 VariantProductData.VariantProductImage = uploadedImages.length ? uploadedImages : [product?.CommonImages[0]] || [];
 
-                const newVariant = await new VariantProduct(VariantProductData).save();
+                let newVariant = await new VariantProduct(VariantProductData).save();
                 await updateVariantCounts(VariantProductData.VariantFields, true);
                 await Product.findOneAndUpdate(
                     { _id: ProductId, companyId },
@@ -683,7 +683,7 @@ module.exports = {
                     return res.status(400).json({ message: "VariantProductId required", success: false });
                 }
 
-                const existing = await VariantProduct.findOne({ _id: VariantProductId, companyId });
+                let existing = await VariantProduct.findOne({ _id: VariantProductId, companyId });
                 if (!existing) {
                     await cleanupFiles(uploadedImages, ProductId, companyId, VariantProductId);
                     return res.status(404).json({ message: "Variant product not found", success: false });
@@ -744,8 +744,8 @@ module.exports = {
             Object.keys(ProductData).forEach(key => ProductData[key] === undefined && delete ProductData[key]);
 
             if (Array.isArray(ProductServices) && ProductServices.length > 0) {
-                const ValidServices = [];
-                for (const EachService of ProductServices) {
+                let ValidServices = [];
+                for (let EachService of ProductServices) {
                     let FoundService = await ProductService.findById(EachService?.ProductServiceId);
                     if (FoundService) ValidServices.push(EachService);
                 }
@@ -792,14 +792,14 @@ module.exports = {
     UpdateCommonImages: async (req, res) => {
         try {
             let { ProductId, companyId, Operation, ImageName } = req.body;
-            const AllProductImages = req.files?.length ? req.files.map(f => f.filename) : [];
+            let AllProductImages = req.files?.length ? req.files.map(f => f.filename) : [];
             if (req.user.companyId) companyId = req.user.companyId
 
-            const clearFiles = async (files) => {
+            let clearFiles = async (files) => {
                 if (!files?.length) return;
                 try {
                     files.forEach(file => {
-                        const filePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', file);
+                        let filePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', file);
                         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
                     });
                 } catch (err) {
@@ -815,7 +815,7 @@ module.exports = {
                 });
             }
 
-            const product = await Product.findOne({ _id: ProductId, companyId });
+            let product = await Product.findOne({ _id: ProductId, companyId });
             if (!product) {
                 await clearFiles(AllProductImages);
                 return res.status(404).json({
@@ -835,7 +835,7 @@ module.exports = {
                 }
 
                 if (ImageName) {
-                    const FilteredImages = product.CommonImages.filter(img => img !== ImageName);
+                    let FilteredImages = product.CommonImages.filter(img => img !== ImageName);
                     FilteredImages.push(...AllProductImages);
 
                     updatedProduct = await Product.findOneAndUpdate(
@@ -844,14 +844,14 @@ module.exports = {
                         { new: true }
                     );
 
-                    const variantUsingImage = await VariantProduct.findOne({
+                    let variantUsingImage = await VariantProduct.findOne({
                         ProductId,
                         companyId,
                         VariantProductImage: ImageName
                     });
 
                     if (!variantUsingImage) {
-                        const oldImagePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', ImageName);
+                        let oldImagePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', ImageName);
                         if (fs.existsSync(oldImagePath)) fs.unlinkSync(oldImagePath);
                     }
 
@@ -884,7 +884,7 @@ module.exports = {
                     });
                 }
 
-                const imageArray = Array.isArray(ImageName) ? ImageName : [ImageName];
+                let imageArray = Array.isArray(ImageName) ? ImageName : [ImageName];
 
                 updatedProduct = await Product.findOneAndUpdate(
                     { _id: ProductId, companyId },
@@ -892,15 +892,15 @@ module.exports = {
                     { new: true }
                 );
 
-                for (const img of imageArray) {
-                    const variantUsingImage = await VariantProduct.findOne({
+                for (let img of imageArray) {
+                    let variantUsingImage = await VariantProduct.findOne({
                         ProductId,
                         companyId,
                         VariantProductImage: img
                     });
 
                     if (!variantUsingImage) {
-                        const filePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', img);
+                        let filePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', img);
                         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
                     }
                 }
@@ -932,14 +932,14 @@ module.exports = {
     UpdateCommonVideos: async (req, res) => {
         try {
             let { ProductId, companyId, Operation, VideoName } = req.body;
-            const AllProductVideos = req.files?.length ? req.files.map(f => f.filename) : [];
+            let AllProductVideos = req.files?.length ? req.files.map(f => f.filename) : [];
             if (req.user.companyId) companyId = req.user.companyId
 
-            const clearFiles = async (files) => {
+            let clearFiles = async (files) => {
                 if (!files?.length) return;
                 try {
                     files.forEach(file => {
-                        const filePath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', file);
+                        let filePath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', file);
                         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
                     });
                 } catch (err) {
@@ -955,7 +955,7 @@ module.exports = {
                 });
             }
 
-            const product = await Product.findOne({ _id: ProductId, companyId });
+            let product = await Product.findOne({ _id: ProductId, companyId });
             if (!product) {
                 await clearFiles(AllProductVideos);
                 return res.status(404).json({
@@ -975,7 +975,7 @@ module.exports = {
                 }
 
                 if (VideoName) {
-                    const FilteredVideos = product.CommonVideos.filter(vid => vid !== VideoName);
+                    let FilteredVideos = product.CommonVideos.filter(vid => vid !== VideoName);
                     FilteredVideos.push(...AllProductVideos);
 
                     updatedProduct = await Product.findOneAndUpdate(
@@ -984,7 +984,7 @@ module.exports = {
                         { new: true }
                     );
 
-                    const oldVideoPath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', VideoName);
+                    let oldVideoPath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', VideoName);
                     if (fs.existsSync(oldVideoPath)) fs.unlinkSync(oldVideoPath);
 
                     return res.status(200).json({
@@ -1016,7 +1016,7 @@ module.exports = {
                     });
                 }
 
-                const videoArray = Array.isArray(VideoName) ? VideoName : [VideoName];
+                let videoArray = Array.isArray(VideoName) ? VideoName : [VideoName];
 
                 updatedProduct = await Product.findOneAndUpdate(
                     { _id: ProductId, companyId },
@@ -1024,8 +1024,8 @@ module.exports = {
                     { new: true }
                 );
 
-                for (const vid of videoArray) {
-                    const filePath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', vid);
+                for (let vid of videoArray) {
+                    let filePath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', vid);
                     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
                 }
 
@@ -1057,11 +1057,11 @@ module.exports = {
         let { ProductId, companyId } = req.body;
         if (req.user.companyId) companyId = req.user.companyId
 
-        const clearFiles = async (files) => {
+        let clearFiles = async (files) => {
             if (!Array.isArray(files) || files.length === 0) return;
-            for (const file of files) {
+            for (let file of files) {
                 try {
-                    const filePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', file);
+                    let filePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', file);
                     if (fs.existsSync(filePath)) {
                         fs.unlinkSync(filePath);
                     }
@@ -1071,11 +1071,11 @@ module.exports = {
             }
         };
 
-        const clearVideos = async (files) => {
+        let clearVideos = async (files) => {
             if (!Array.isArray(files) || files.length === 0) return;
-            for (const file of files) {
+            for (let file of files) {
                 try {
-                    const filePath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', file);
+                    let filePath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', file);
                     if (fs.existsSync(filePath)) {
                         fs.unlinkSync(filePath);
                     }
@@ -1093,7 +1093,7 @@ module.exports = {
                 });
             }
 
-            const FindedProduct = await Product.findOne({ _id: ProductId, companyId });
+            let FindedProduct = await Product.findOne({ _id: ProductId, companyId });
             if (!FindedProduct) {
                 return res.status(404).json({
                     message: "Product not found",
@@ -1102,8 +1102,8 @@ module.exports = {
             }
 
             if (Array.isArray(FindedProduct.VariantProductIds) && FindedProduct.VariantProductIds.length > 0) {
-                for (const EachVariantId of FindedProduct.VariantProductIds) {
-                    const FindedVariantProduct = await VariantProduct.findOne({
+                for (let EachVariantId of FindedProduct.VariantProductIds) {
+                    let FindedVariantProduct = await VariantProduct.findOne({
                         _id: EachVariantId,
                         companyId,
                         ProductId,
@@ -1116,7 +1116,7 @@ module.exports = {
                     }
 
                     if (Array.isArray(FindedVariantProduct.VariantFields)) {
-                        for (const EachVariant of FindedVariantProduct.VariantFields) {
+                        for (let EachVariant of FindedVariantProduct.VariantFields) {
                             try {
                                 await Variant.findOneAndUpdate(
                                     {
@@ -1154,7 +1154,7 @@ module.exports = {
                 console.warn('⚠️ Rating and review not deleted:', error.message);
             }
 
-            const DeleteProduct = await Product.deleteOne({ _id: ProductId, companyId });
+            let DeleteProduct = await Product.deleteOne({ _id: ProductId, companyId });
 
             if (DeleteProduct.deletedCount === 0) {
                 return res.status(400).json({
@@ -1189,7 +1189,7 @@ module.exports = {
                 });
             }
 
-            const FindedProduct = await Product.findOne({ _id: ProductId, companyId });
+            let FindedProduct = await Product.findOne({ _id: ProductId, companyId });
             if (!FindedProduct) {
                 return res.status(404).json({
                     message: "Product not found",
@@ -1198,7 +1198,7 @@ module.exports = {
             }
 
             if (VariantIds && VariantIds.length > 0) {
-                const ArrayIds = Array.isArray(VariantIds) ? VariantIds : [VariantIds];
+                let ArrayIds = Array.isArray(VariantIds) ? VariantIds : [VariantIds];
                 try {
                     await VariantProduct.updateMany(
                         { _id: { $in: ArrayIds }, companyId },
@@ -1226,7 +1226,7 @@ module.exports = {
                 }
             }
 
-            const UpdatedProduct = await Product.findOneAndUpdate(
+            let UpdatedProduct = await Product.findOneAndUpdate(
                 { _id: ProductId, companyId },
                 { $set: { isActive } },
                 { new: true }
@@ -1255,7 +1255,7 @@ module.exports = {
     },
 
     getProductData: async (matchCondition) => {
-        const data = await Product.aggregate([
+        let data = await Product.aggregate([
             { $match: matchCondition },
 
             {
@@ -1574,7 +1574,7 @@ module.exports = {
                 return res.status(400).json({ message: 'companyId is required', success: false });
             }
 
-            const validateObjectId = (id, fieldName) => {
+            let validateObjectId = (id, fieldName) => {
                 if (!mongoose.Types.ObjectId.isValid(id)) {
                     throw new Error(`Invalid ${fieldName} format`);
                 }
@@ -1621,7 +1621,7 @@ module.exports = {
                 let BrandIds = [];
 
                 for (let id of BrandIdArray) {
-                    const validId = validateObjectId(id, 'BrandId');
+                    let validId = validateObjectId(id, 'BrandId');
                     if (validId) BrandIds.push(validId);
                 }
 
@@ -1642,7 +1642,7 @@ module.exports = {
                 let SubIds = [];
 
                 for (let id of SubIdArray) {
-                    const validId = validateObjectId(id, 'SubCategoryId');
+                    let validId = validateObjectId(id, 'SubCategoryId');
                     if (validId) {
                         SubIds.push(validId);
                     }
@@ -1654,7 +1654,7 @@ module.exports = {
             }
 
 
-            const data = await module.exports.getProductData(matchCondition);
+            let data = await module.exports.getProductData(matchCondition);
             if (!data || data.length === 0) {
                 return res.status(404).json({ message: 'No Products found for this criteria', success: false });
             }
@@ -1662,7 +1662,7 @@ module.exports = {
             let filteredData = data;
 
             if (ProductName) {
-                const regex = new RegExp(ProductName, 'i');
+                let regex = new RegExp(ProductName, 'i');
                 filteredData = filteredData.filter(product =>
                     regex.test(product.ProductName) ||
                     product.VariantProducts.some(vp => regex.test(vp.VariantProductName))
@@ -1670,7 +1670,7 @@ module.exports = {
             }
 
             if (VariantFilters && Array.isArray(VariantFilters) && VariantFilters.length > 0) {
-                const variantPairs = VariantFilters.map(pair => {
+                let variantPairs = VariantFilters.map(pair => {
                     if (!pair.VariantId || !pair.VariantValue) {
                         throw new Error('Each variant filter must have both VariantId and VariantValue');
                     }
@@ -1685,7 +1685,7 @@ module.exports = {
 
                 filteredData = filteredData
                     .map(product => {
-                        const matchedVariants = product.VariantProducts.filter(vp =>
+                        let matchedVariants = product.VariantProducts.filter(vp =>
                             variantPairs.some(pair =>   
                                 vp.VariantFields.some(
                                     vf => vf.VariantId.equals(pair.VariantId) &&
@@ -1700,32 +1700,32 @@ module.exports = {
 
             }
             if (BatchIds) {
-                const batchIdsArray = Array.isArray(BatchIds) ? BatchIds : [BatchIds];
-                const batchObjectIds = batchIdsArray.map(id => validateObjectId(id, 'BatchId'));
+                let batchIdsArray = Array.isArray(BatchIds) ? BatchIds : [BatchIds];
+                let batchObjectIds = batchIdsArray.map(id => validateObjectId(id, 'BatchId'));
 
                 filteredData = filteredData.map(product => {
-                    const matchedVariants = product.VariantProducts.filter(vp =>
+                    let matchedVariants = product.VariantProducts.filter(vp =>
                         vp.BatchesInfo.some(b => batchObjectIds.some(bid => b._id.equals(bid)))
                     );
                     return { ...product, VariantProducts: matchedVariants };
                 }).filter(p => p.VariantProducts.length > 0);
             }
             if (BatchIds) {
-                const batchIdsArray = Array.isArray(BatchIds) ? BatchIds : [BatchIds];
-                const batchObjectIds = batchIdsArray.map(id => validateObjectId(id, 'BatchId'));
+                let batchIdsArray = Array.isArray(BatchIds) ? BatchIds : [BatchIds];
+                let batchObjectIds = batchIdsArray.map(id => validateObjectId(id, 'BatchId'));
 
                 filteredData = filteredData
                     .map(product => {
-                        const matchedVariants = product.VariantProducts
+                        let matchedVariants = product.VariantProducts
                             .map(vp => {
-                                const matchedBatches = vp.BatchesInfo.filter(b =>
+                                let matchedBatches = vp.BatchesInfo.filter(b =>
                                     batchObjectIds.some(bid => b._id.equals(bid))
                                 );
-                                const otherBatches = vp.BatchesInfo.filter(b =>
+                                let otherBatches = vp.BatchesInfo.filter(b =>
                                     !batchObjectIds.some(bid => b._id.equals(bid))
                                 );
 
-                                const reorderedBatches = [...matchedBatches, ...otherBatches];
+                                let reorderedBatches = [...matchedBatches, ...otherBatches];
 
                                 return { ...vp, BatchesInfo: reorderedBatches };
                             })
@@ -1741,16 +1741,16 @@ module.exports = {
             }
 
             if (BatchName) {
-                const regex = new RegExp(BatchName, 'i');
+                let regex = new RegExp(BatchName, 'i');
 
                 filteredData = filteredData
                     .map(product => {
-                        const matchedVariants = product.VariantProducts
+                        let matchedVariants = product.VariantProducts
                             .map(vp => {
-                                const matchedBatches = vp.BatchesInfo.filter(b => regex.test(b.BatchName));
-                                const otherBatches = vp.BatchesInfo.filter(b => !regex.test(b.BatchName));
+                                let matchedBatches = vp.BatchesInfo.filter(b => regex.test(b.BatchName));
+                                let otherBatches = vp.BatchesInfo.filter(b => !regex.test(b.BatchName));
 
-                                const reorderedBatches = [...matchedBatches, ...otherBatches];
+                                let reorderedBatches = [...matchedBatches, ...otherBatches];
 
                                 return { ...vp, BatchesInfo: reorderedBatches };
                             })
@@ -1762,14 +1762,14 @@ module.exports = {
             }
 
             if (BrandName) {
-                const regex = new RegExp(BrandName, 'i');
+                let regex = new RegExp(BrandName, 'i');
                 filteredData = filteredData.filter(product =>
                     product.Brands &&
                     product.Brands.some(brand => regex.test(brand.BrandName))
                 );
             }
             if (CategoryName) {
-                const regex = new RegExp(CategoryName, 'i');
+                let regex = new RegExp(CategoryName, 'i');
                 filteredData = filteredData.filter(product =>
                     (product.SubCategories &&
                         product.SubCategories.some(sub => regex.test(sub.categoryName))) ||
@@ -1778,20 +1778,20 @@ module.exports = {
                 );
             }
             if (MixedName) {
-                const keywords = MixedName.split(/[\s,\.]+/).filter(Boolean);
+                let keywords = MixedName.split(/[\s,\.]+/).filter(Boolean);
 
-                const regexList = keywords.map(k => new RegExp(k, 'i'));
+                let regexList = keywords.map(k => new RegExp(k, 'i'));
 
-                const matchesAny = str => str && regexList.some(r => r.test(str));
+                let matchesAny = str => str && regexList.some(r => r.test(str));
 
                 filteredData = filteredData.filter(product => {
-                    const productMatch =
+                    let productMatch =
                         matchesAny(product.ProductName) ||
                         (product.Brands && product.Brands.some(b => matchesAny(b.BrandName))) ||
                         (product.SubCategories && product.SubCategories.some(sub => matchesAny(sub.categoryName))) ||
                         (product.HeadCategory && product.HeadCategory.some(head => matchesAny(head.categoryName)));
 
-                    const variantMatch = product.VariantProducts.some(vp =>
+                    let variantMatch = product.VariantProducts.some(vp =>
                         matchesAny(vp.VariantProductName) ||
                         (vp.BatchesInfo && vp.BatchesInfo.some(b => matchesAny(b.BatchName)))
                     );
@@ -1800,16 +1800,16 @@ module.exports = {
                 });
             }
             if (VariantProductId) {
-                const variantObjectIds = Array.isArray(VariantProductId)
+                let variantObjectIds = Array.isArray(VariantProductId)
                     ? VariantProductId.map(id => new mongoose.Types.ObjectId(String(id)))
                     : [new mongoose.Types.ObjectId(String(VariantProductId))];
 
                 filteredData = filteredData
                     .map(product => {
-                        const matchedVariants = product.VariantProducts.filter(vp =>
+                        let matchedVariants = product.VariantProducts.filter(vp =>
                             variantObjectIds.some(vid => vp._id.equals(vid))
                         );
-                        const unmatchedVariants = product.VariantProducts.filter(vp =>
+                        let unmatchedVariants = product.VariantProducts.filter(vp =>
                             !variantObjectIds.some(vid => vp._id.equals(vid))
                         );
 
@@ -1835,11 +1835,11 @@ module.exports = {
                     ? VariantProductIds
                     : [VariantProductIds];
 
-                const variantObjectIds = variantIds.map(id => validateObjectId(id, 'VariantProductId'));
+                let variantObjectIds = variantIds.map(id => validateObjectId(id, 'VariantProductId'));
 
                 filteredData = filteredData
                     .map(product => {
-                        const matchedVariants = product.VariantProducts.filter(vp =>
+                        let matchedVariants = product.VariantProducts.filter(vp =>
                             variantObjectIds.some(vid => vp._id.equals(vid))
                         );
 
@@ -1849,30 +1849,30 @@ module.exports = {
             }
 
             if (SortOrder || StartDate || EndDate || PriceSort || MinPrice || MaxPrice) {
-                const sortDirection =
+                let sortDirection =
                     SortOrder?.toLowerCase() === 'newer'
                         ? -1
                         : SortOrder?.toLowerCase() === 'older'
                             ? 1
                             : 0;
 
-                const priceSortDirection =
+                let priceSortDirection =
                     PriceSort?.toLowerCase() === 'lowtohigh'
                         ? 1
                         : PriceSort?.toLowerCase() === 'hightolow'
                             ? -1
                             : 0;
 
-                const startDate = StartDate ? new Date(StartDate) : null;
-                const endDate = EndDate ? new Date(EndDate) : null;
+                let startDate = StartDate ? new Date(StartDate) : null;
+                let endDate = EndDate ? new Date(EndDate) : null;
 
-                const minPrice = MinPrice ? Number(MinPrice) : null;
-                const maxPrice = MaxPrice ? Number(MaxPrice) : null;
+                let minPrice = MinPrice ? Number(MinPrice) : null;
+                let maxPrice = MaxPrice ? Number(MaxPrice) : null;
 
                 let flattened = [];
 
                 filteredData.forEach(product => {
-                    const { Reviews, ...productWithoutReviews } = product;
+                    let { Reviews, ...productWithoutReviews } = product;
 
                     product.VariantProducts.forEach(variant => {
                         flattened.push({
@@ -1884,7 +1884,7 @@ module.exports = {
 
                 if (startDate || endDate) {
                     flattened = flattened.filter(item => {
-                        const createdAt = new Date(item.VariantProducts[0].createdAt);
+                        let createdAt = new Date(item.VariantProducts[0].createdAt);
                         if (startDate && endDate) return createdAt >= startDate && createdAt <= endDate;
                         if (startDate) return createdAt >= startDate;
                         if (endDate) return createdAt <= endDate;
@@ -1894,7 +1894,7 @@ module.exports = {
 
                 if (minPrice || maxPrice) {
                     flattened = flattened.filter(item => {
-                        const price = Number(item.VariantProducts[0].Price);
+                        let price = Number(item.VariantProducts[0].Price);
                         if (minPrice && maxPrice) return price >= minPrice && price <= maxPrice;
                         if (minPrice) return price >= minPrice;
                         if (maxPrice) return price <= maxPrice;
@@ -1904,16 +1904,16 @@ module.exports = {
 
                 if (SortOrder) {
                     flattened.sort((a, b) => {
-                        const createdAtA = new Date(a.VariantProducts[0].createdAt);
-                        const createdAtB = new Date(b.VariantProducts[0].createdAt);
+                        let createdAtA = new Date(a.VariantProducts[0].createdAt);
+                        let createdAtB = new Date(b.VariantProducts[0].createdAt);
                         return sortDirection * (createdAtA - createdAtB);
                     });
                 }
 
                 if (PriceSort) {
                     flattened.sort((a, b) => {
-                        const priceA = Number(a.VariantProducts[0].Price);
-                        const priceB = Number(b.VariantProducts[0].Price);
+                        let priceA = Number(a.VariantProducts[0].Price);
+                        let priceB = Number(b.VariantProducts[0].Price);
                         return priceSortDirection * (priceA - priceB);
                     });
                 }
@@ -1996,12 +1996,12 @@ module.exports = {
         }
     },
     addBatch: async (req, res) => {
-        const { BatchName } = req.body;
+        let { BatchName } = req.body;
 
-        const cleanupFiles = (file) => {
+        let cleanupFiles = (file) => {
             try {
                 if (file) {
-                    const filePath = path.join(__dirname, "..", "..", "public", "BatchImages", file);
+                    let filePath = path.join(__dirname, "..", "..", "public", "BatchImages", file);
                     if (fs.existsSync(filePath)) {
                         fs.unlinkSync(filePath);
                     }
@@ -2021,12 +2021,12 @@ module.exports = {
                 return res.status(400).json({ message: "Please provide a batch image", success: false });
             }
 
-            const BatchData = {
+            let BatchData = {
                 BatchName,
                 BatchLogo: req.file.filename,
             };
 
-            const SaveBatch = await new Batch(BatchData).save();
+            let SaveBatch = await new Batch(BatchData).save();
 
             if (!SaveBatch) {
                 cleanupFiles(req?.file?.filename);
@@ -2050,7 +2050,7 @@ module.exports = {
         }
     },
     getBatch: async (req, res) => {
-        const { BatchId, BatchName } = req.query;
+        let { BatchId, BatchName } = req.query;
 
         try {
             let matchCondition = {}
@@ -2062,7 +2062,7 @@ module.exports = {
                 matchCondition.BatchName = { $regex: BatchName, $options: "i" };
             }
 
-            const data = await Batch.find(matchCondition)
+            let data = await Batch.find(matchCondition)
             if (!data.length) {
                 return res.status(404).json({
                     message: "No batches found",
@@ -2086,12 +2086,12 @@ module.exports = {
         }
     },
     updateBatch: async (req, res) => {
-        const { BatchId, BatchName } = req.body;
+        let { BatchId, BatchName } = req.body;
 
-        const cleanupFiles = (file) => {
+        let cleanupFiles = (file) => {
             try {
                 if (file) {
-                    const filePath = path.join(__dirname, "..", "..", "public", "BatchImages", file);
+                    let filePath = path.join(__dirname, "..", "..", "public", "BatchImages", file);
                     if (fs.existsSync(filePath)) {
                         fs.unlinkSync(filePath);
                     }
@@ -2110,7 +2110,7 @@ module.exports = {
                 });
             }
 
-            const existingBatch = await Batch.findOne({ _id: BatchId });
+            let existingBatch = await Batch.findOne({ _id: BatchId });
             if (!existingBatch) {
                 cleanupFiles(req?.file?.filename);
                 return res.status(404).json({
@@ -2125,11 +2125,11 @@ module.exports = {
                 updatedLogo = req.file.filename;
             }
 
-            const updateData = {};
+            let updateData = {};
             if (BatchName) updateData.BatchName = BatchName;
             if (updatedLogo) updateData.BatchLogo = updatedLogo;
 
-            const updatedBatch = await Batch.findByIdAndUpdate(
+            let updatedBatch = await Batch.findByIdAndUpdate(
                 BatchId,
                 { $set: updateData },
                 { new: true }
@@ -2174,17 +2174,17 @@ module.exports = {
                 return res.status(400).json({ message: "Invalid or missing Operation type (use 'add' or 'delete')", success: false });
             }
 
-            const validBatches = await Batch.find({ _id: { $in: BatchIds } }).select("_id");
+            let validBatches = await Batch.find({ _id: { $in: BatchIds } }).select("_id");
             if (validBatches.length === 0) {
                 return res.status(404).json({ message: "No valid batches found", success: false });
             }
 
-            const validBatchIds = validBatches.map(b => b._id);
+            let validBatchIds = validBatches.map(b => b._id);
 
             let updatedCount = 0;
 
-            for (const variantProductId of VarianProductIds) {
-                const variantProduct = await VariantProduct.findOne({ _id: variantProductId, companyId });
+            for (let variantProductId of VarianProductIds) {
+                let variantProduct = await VariantProduct.findOne({ _id: variantProductId, companyId });
 
                 if (!variantProduct) continue;
                 if (Operation === "add") {

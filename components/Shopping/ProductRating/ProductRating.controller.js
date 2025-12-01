@@ -12,11 +12,11 @@ module.exports = {
         let { companyId, ProductId, UserId, ReviewText, RatingStar } = req.body;
         if (req.user.UserId) UserId = req.user.UserId
         if (req.user.companyId) companyId = req.user.companyId
-        const ReviewImages = req.files?.map(f => f.filename) || [];
+        let ReviewImages = req.files?.map(f => f.filename) || [];
 
-        const clearFiles = (files) => {
+        let clearFiles = (files) => {
             files.forEach(file => {
-                const filePath = path.join(__dirname, '..', '..', 'public', 'ProductSRatingImage', file);
+                let filePath = path.join(__dirname, '..', '..', 'public', 'ProductSRatingImage', file);
                 if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
             });
         };
@@ -44,13 +44,13 @@ module.exports = {
                 return res.status(400).json({ success: false, message: "Rating star must be between 0 and 5." });
             }
 
-            const product = await Product.findOne({ _id: ProductId, companyId });
+            let product = await Product.findOne({ _id: ProductId, companyId });
             if (!product) {
                 clearFiles(ReviewImages);
                 return res.status(404).json({ success: false, message: "Product not found." });
             }
 
-            const reviewData = { companyId, ProductId, UserId };
+            let reviewData = { companyId, ProductId, UserId };
             if (ReviewText?.trim()) reviewData.ReviewText = ReviewText;
             if (ReviewImages.length) reviewData.ReviewImages = ReviewImages;
             if (RatingStar !== undefined) reviewData.RatingStar = RatingStar;
@@ -62,12 +62,12 @@ module.exports = {
                 return res.status(400).json({ success: false, message: "Review not added." });
             }
 
-            const productObjectId = new mongoose.Types.ObjectId(String(ProductId));
-            const companyObjectId = new mongoose.Types.ObjectId(String(companyId));
-            const m = 30;
+            let productObjectId = new mongoose.Types.ObjectId(String(ProductId));
+            let companyObjectId = new mongoose.Types.ObjectId(String(companyId));
+            let m = 30;
 
             try {
-                const productData = await ProductRating.aggregate([
+                let productData = await ProductRating.aggregate([
                     { $match: { ProductId: productObjectId } },
                     {
                         $group: {
@@ -80,20 +80,20 @@ module.exports = {
                 ]);
 
                 if (productData.length) {
-                    const { avgRating: R, totalReviews: v, ratingsArray } = productData[0];
+                    let { avgRating: R, totalReviews: v, ratingsArray } = productData[0];
 
-                    const globalData = await ProductRating.aggregate([
+                    let globalData = await ProductRating.aggregate([
                         { $match: { companyId: companyObjectId } },
                         { $group: { _id: null, globalAvg: { $avg: "$RatingStar" } } }
                     ]);
-                    const C = globalData[0]?.globalAvg || 3.5;
+                    let C = globalData[0]?.globalAvg || 3.5;
 
-                    const weightedAvg = ((v / (v + m)) * R) + ((m / (v + m)) * C);
-                    const finalRating = Math.min(Math.max(weightedAvg, 0), 5);
+                    let weightedAvg = ((v / (v + m)) * R) + ((m / (v + m)) * C);
+                    let finalRating = Math.min(Math.max(weightedAvg, 0), 5);
 
-                    const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+                    let distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
                     ratingsArray.forEach(r => {
-                        const star = Math.round(r);
+                        let star = Math.round(r);
                         if (star >= 1 && star <= 5) distribution[star]++;
                     });
 
@@ -130,9 +130,9 @@ module.exports = {
     DeleteReview: async (req, res) => {
         let { companyId, ProductId, ReviewIds } = req.body;
         if (req.user.companyId) companyId = req.user.companyId
-        const clearFiles = (files) => {
+        let clearFiles = (files) => {
             files.forEach((file) => {
-                const CurrentImagePath = path.join(__dirname, '..', '..', 'public', 'ProductSRatingImage', file);
+                let CurrentImagePath = path.join(__dirname, '..', '..', 'public', 'ProductSRatingImage', file);
                 try {
                     if (fs.existsSync(CurrentImagePath)) fs.unlinkSync(CurrentImagePath);
                 } catch (error) {
@@ -148,15 +148,15 @@ module.exports = {
                 return res.status(400).json({ success: false, message: "Missing required fields." });
             }
 
-            const foundProduct = await Product.findOne({ companyId, _id: ProductId });
+            let foundProduct = await Product.findOne({ companyId, _id: ProductId });
             if (!foundProduct) {
                 return res.status(400).json({ success: false, message: "Product not found." });
             }
 
             let deletedReviewIds = [];
 
-            for (const eachId of ReviewIds) {
-                const foundReview = await ProductRating.findOne({ _id: eachId, companyId });
+            for (let eachId of ReviewIds) {
+                let foundReview = await ProductRating.findOne({ _id: eachId, companyId });
                 if (foundReview) {
                     if (Array.isArray(foundReview.ReviewImages) && foundReview.ReviewImages.length > 0) {
                         clearFiles(foundReview.ReviewImages);
@@ -170,8 +170,8 @@ module.exports = {
                 $pull: { RatingIds: { $in: deletedReviewIds } }
             });
             let productObjectId = new mongoose.Types.ObjectId(String(ProductId))
-            const m = 30;
-            const productData = await ProductRating.aggregate([
+            let m = 30;
+            let productData = await ProductRating.aggregate([
                 { $match: { ProductId: productObjectId } },
                 {
                     $group: {
@@ -184,20 +184,20 @@ module.exports = {
             ]);
 
             if (productData.length) {
-                const { avgRating: R, totalReviews: v, ratingsArray } = productData[0];
+                let { avgRating: R, totalReviews: v, ratingsArray } = productData[0];
                 let companyObjectId = new mongoose.Types.ObjectId(String(companyId))
-                const globalData = await ProductRating.aggregate([
+                let globalData = await ProductRating.aggregate([
                     { $match: { companyId: companyObjectId } },
                     { $group: { _id: null, globalAvg: { $avg: "$RatingStar" } } }
                 ]);
-                const C = globalData[0]?.globalAvg || 3.5;
+                let C = globalData[0]?.globalAvg || 3.5;
 
-                const weightedAvg = ((v / (v + m)) * R) + ((m / (v + m)) * C);
-                const finalRating = Math.min(Math.max(weightedAvg, 0), 5);
+                let weightedAvg = ((v / (v + m)) * R) + ((m / (v + m)) * C);
+                let finalRating = Math.min(Math.max(weightedAvg, 0), 5);
 
-                const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+                let distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
                 ratingsArray.forEach(r => {
-                    const star = Math.round(r);
+                    let star = Math.round(r);
                     if (star >= 1 && star <= 5) distribution[star]++;
                 });
 
@@ -294,7 +294,7 @@ module.exports = {
 
     getReview: async (req, res) => {
         try {
-            const { companyId, ProductId, ReviewId, RatingStar, UserId } = req.query;
+            let { companyId, ProductId, ReviewId, RatingStar, UserId } = req.query;
 
             if (!companyId)
                 return res.status(400).json({ message: 'companyId is required', success: false });
@@ -308,7 +308,7 @@ module.exports = {
             }
 
             if (RatingStar !== undefined) {
-                const star = Number(RatingStar);
+                let star = Number(RatingStar);
                 if (Number.isNaN(star) || star < 0 || star > 5)
                     return res.status(400).json({ success: false, message: "Rating star must be between 0 and 5." });
                 matchCondition.RatingStar = star;
@@ -327,7 +327,7 @@ module.exports = {
             }
 
             // Fetch enriched reviews using aggregation
-            const data = await module.exports.getReviewByData(matchCondition);
+            let data = await module.exports.getReviewByData(matchCondition);
 
             if (!data || data.length === 0)
                 return res.status(404).json({ message: 'No reviews found for this criteria', success: false });
@@ -348,19 +348,19 @@ module.exports = {
                 return res.status(400).json({ success: false, message: "Missing required fields." });
             }
 
-            const review = await ProductRating.findOne({ _id: ReviewId, companyId, ProductId });
+            let review = await ProductRating.findOne({ _id: ReviewId, companyId, ProductId });
             if (!review) {
                 return res.status(404).json({ success: false, message: "Review not found." });
             }
 
-            const existingResponseIndex = review.ResponseOnReview.findIndex(
+            let existingResponseIndex = review.ResponseOnReview.findIndex(
                 r => r.UserId.toString() === UserId
             );
 
             let message = "";
 
             if (existingResponseIndex !== -1) {
-                const existingResponse = review.ResponseOnReview[existingResponseIndex];
+                let existingResponse = review.ResponseOnReview[existingResponseIndex];
 
                 if (existingResponse.LikeOrDislike === Reaction) {
                     review.ResponseOnReview.splice(existingResponseIndex, 1);

@@ -7,8 +7,6 @@ const path = require("path");
 const fs = require('fs');
 const { default: mongoose } = require("mongoose");
 
-
-
 module.exports = {
 
   LoginViaPhone: async (req, res) => {
@@ -22,14 +20,14 @@ module.exports = {
       let users = await User.find({ Phone: phone, companyId });
 
       if (users.length === 0) {
-        const newUser = new User({
+        let newUser = new User({
           Phone: phone,
           companyId,
         });
 
         await newUser.save();
 
-        const lmsData = {
+        let lmsData = {
           name: "",
           address: "",
           email: "",
@@ -39,7 +37,7 @@ module.exports = {
         };
 
         try {
-          const response = await axios.post(
+          let response = await axios.post(
             'https://lmsapi.dealmoneyonline.com/api/v2/fch/addLead',
             lmsData,
             { headers: { "Content-Type": "application/json" } }
@@ -48,11 +46,11 @@ module.exports = {
         } catch (err) {
           console.log("Dialer API error", err.message);
         }
-        const otpResponse = await module.exports.OtpSend(phone);
+        let otpResponse = await module.exports.OtpSend(phone);
         return res.status(201).json({ success: true, message: "Otp Sended", data: otpResponse, firstTimeLogin: true });
 
       } else {
-        const otpResponse = await module.exports.OtpSend(phone);
+        let otpResponse = await module.exports.OtpSend(phone);
         return res.status(201).json({ success: true, message: "Otp Sended", data: otpResponse });
       }
 
@@ -77,15 +75,15 @@ module.exports = {
     } else {
       OTP = Math.floor(1000 + Math.random() * 9000);
 
-      const smsData = {
+      let smsData = {
         mobileNo: phoneno,
         msg: `Use ${OTP} as your website login OTP. Your OTP is confidential. familycare never calls you asking for OTP.`
       };
 
-      const to = "91" + smsData.mobileNo;
-      const msg = encodeURIComponent(smsData.msg);
+      let to = "91" + smsData.mobileNo;
+      let msg = encodeURIComponent(smsData.msg);
 
-      const url = `https://sms.cell24x7.com:1111/mspProducerM/sendSMS?user=familycare&pwd=Info@2020&sender=FMLYCR&mobile=${to}&msg=${msg}&mt=0&tempId=1007457883683974747`;
+      let url = `https://sms.cell24x7.com:1111/mspProducerM/sendSMS?user=familycare&pwd=Info@2020&sender=FMLYCR&mobile=${to}&msg=${msg}&mt=0&tempId=1007457883683974747`;
 
       try {
         await superagent.get(url);
@@ -94,8 +92,8 @@ module.exports = {
         throw err;
       }
     }
-    const hashedOtp = bcrypt.hashSync(OTP.toString(), 10);
-    const updatedUser = await User.findOneAndUpdate(
+    let hashedOtp = bcrypt.hashSync(OTP.toString(), 10);
+    let updatedUser = await User.findOneAndUpdate(
       { Phone: phoneno },
       { $set: { ActiveOtp: hashedOtp, OtpTime: Date.now() + 5 * 60 * 1000 } },
       { new: true }
@@ -111,7 +109,7 @@ module.exports = {
         return res.status(400).json({ success: false, code: 101, message: "arguments missing" });
       }
 
-      const user = await User.findOne({ Phone: phone, _id: id, companyId });
+      let user = await User.findOne({ Phone: phone, _id: id, companyId });
 
       if (!user) {
         return res.status(404).json({ success: false, code: 104, message: "User not found" });
@@ -128,7 +126,7 @@ module.exports = {
         user.OtpTime = null;
         await user.save();
 
-        const userObject = {
+        let userObject = {
           _id: user._id,
           phone: user.Phone,
           email: user.Email || "",
@@ -136,8 +134,8 @@ module.exports = {
           companyId:user.companyId
         };
 
-        const token = jwt.sign({ userObject }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "7d" });
-        const refToken = jwt.sign({ userObject }, process.env.REFER_TOKEN_SECRET, { expiresIn: "7d" });
+        let token = jwt.sign({ userObject }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "7d" });
+        let refToken = jwt.sign({ userObject }, process.env.REFER_TOKEN_SECRET, { expiresIn: "7d" });
 
         return res.status(200).json({
           token,
@@ -163,19 +161,19 @@ module.exports = {
         return res.status(400).json({ success: false, message: "Please send Id" });
       }
 
-      const user = await User.findOne({ _id: id, companyId });
+      let user = await User.findOne({ _id: id, companyId });
       if (!user) {
         return res.status(404).json({ success: false, message: "User not found" });
       }
 
-      const OTP = (user.Phone === "9819289042")
+      let OTP = (user.Phone === "9819289042")
         ? 1111
         : Math.floor(1000 + Math.random() * 9000);
 
       if (user.Phone !== "9819289042") {
-        const msg = `Use ${OTP} as your website login OTP. Your OTP is confidential. familycare never calls you asking for OTP.`
+        let msg = `Use ${OTP} as your website login OTP. Your OTP is confidential. familycare never calls you asking for OTP.`
 
-        const url = `https://sms.cell24x7.com:1111/mspProducerM/sendSMS?user=familycare&pwd=Info@2020&sender=FMLYCR&mobile=${user.Phone}&msg=${msg}&mt=0&tempId=1007457883683974747`;
+        let url = `https://sms.cell24x7.com:1111/mspProducerM/sendSMS?user=familycare&pwd=Info@2020&sender=FMLYCR&mobile=${user.Phone}&msg=${msg}&mt=0&tempId=1007457883683974747`;
 
 
         try {
@@ -185,8 +183,8 @@ module.exports = {
         }
       }
 
-      const hashedOtp = await bcrypt.hash(OTP.toString(), 10);
-      const expiryTime = Date.now() + 5 * 60 * 1000;
+      let hashedOtp = await bcrypt.hash(OTP.toString(), 10);
+      let expiryTime = Date.now() + 5 * 60 * 1000;
 
       await User.findByIdAndUpdate(
         id,
@@ -206,9 +204,9 @@ module.exports = {
     }
   },
   addProfile: async (req, res) => {
-    const { _id, companyId } = req.body;
+    let { _id, companyId } = req.body;
 
-    const deleteFile = (filePath) => {
+    let deleteFile = (filePath) => {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
@@ -222,7 +220,7 @@ module.exports = {
         return res.status(400).json({ message: 'Provide user data to update profile', success: false });
       }
 
-      const user = await User.findOne({ _id, companyId });
+      let user = await User.findOne({ _id, companyId });
       if (!user) {
         if (req.file?.filename) {
           deleteFile(path.join(__dirname, '..', '..', 'public', 'UserImage', req.file.filename));
@@ -230,8 +228,8 @@ module.exports = {
         return res.status(404).json({ message: 'User not found', success: false });
       }
 
-      const newFileName = req.file?.filename || null;
-      const updatedUser = await User.findOneAndUpdate(
+      let newFileName = req.file?.filename || null;
+      let updatedUser = await User.findOneAndUpdate(
         { _id, companyId },
         { $set: { UserProfile: newFileName } },
         { new: true }
@@ -265,7 +263,7 @@ module.exports = {
 
   updateDetail: async (req, res) => {
     try {
-      const { _id, companyId, UserName, DOB, Gender, Email } = req.body;
+      let { _id, companyId, UserName, DOB, Gender, Email } = req.body;
 
       if (!_id || !companyId) {
         return res.status(400).json({
@@ -274,8 +272,8 @@ module.exports = {
         });
       }
 
-      const allowedFields = { UserName, DOB, Gender, Email };
-      const updateData = {};
+      let allowedFields = { UserName, DOB, Gender, Email };
+      let updateData = {};
       Object.keys(allowedFields).forEach((key) => {
         if (allowedFields[key]) updateData[key] = allowedFields[key];
       });
@@ -287,7 +285,7 @@ module.exports = {
         });
       }
 
-      const updatedUser = await User.findOneAndUpdate(
+      let updatedUser = await User.findOneAndUpdate(
         { _id, companyId },
         { $set: updateData },
         { new: true }
@@ -296,7 +294,7 @@ module.exports = {
       if (!updatedUser) {
         return res.status(404).json({ message: "User not found", success: false });
       }
-      const filteredData = {
+      let filteredData = {
         UserName: updatedUser.UserName || "",
         Email: updatedUser.Email || "",
         Phone: updatedUser.Phone || "",
@@ -329,11 +327,11 @@ module.exports = {
           message: "Please provide latitude and longitude"
         });
       }
-      const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${Latitude},${Longitude}&key=${apiKey}`;
+      let apiKey = process.env.GOOGLE_MAPS_API_KEY;
+      let url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${Latitude},${Longitude}&key=${apiKey}`;
 
-      const response = await axios.get(url);
-      const results = response.data.results;
+      let response = await axios.get(url);
+      let results = response.data.results;
       if (!results || results.length === 0) {
         return res.status(404).json({
           success: false,
@@ -341,19 +339,19 @@ module.exports = {
         });
       }
 
-      const addressComponents = results[0].address_components;
+      let addressComponents = results[0].address_components;
 
-      const getAddressComponent = (components, type) => {
-        const comp = components.find(c => c.types.includes(type));
+      let getAddressComponent = (components, type) => {
+        let comp = components.find(c => c.types.includes(type));
         return comp ? comp.long_name : "";
       };
-      const formattedAddress = results[0].formatted_address;
-      const Street = getAddressComponent(addressComponents, "route") || getAddressComponent(addressComponents, "street_address");
-      const streetNumber = getAddressComponent(addressComponents, "street_number");
-      const City = getAddressComponent(addressComponents, "locality") || getAddressComponent(addressComponents, "sublocality") || getAddressComponent(addressComponents, "administrative_area_level_2");
-      const State = getAddressComponent(addressComponents, "administrative_area_level_1");
-      const Country = getAddressComponent(addressComponents, "country");
-      const PostalCode = getAddressComponent(addressComponents, "postal_code");
+      let formattedAddress = results[0].formatted_address;
+      let Street = getAddressComponent(addressComponents, "route") || getAddressComponent(addressComponents, "street_address");
+      let streetNumber = getAddressComponent(addressComponents, "street_number");
+      let City = getAddressComponent(addressComponents, "locality") || getAddressComponent(addressComponents, "sublocality") || getAddressComponent(addressComponents, "administrative_area_level_2");
+      let State = getAddressComponent(addressComponents, "administrative_area_level_1");
+      let Country = getAddressComponent(addressComponents, "country");
+      let PostalCode = getAddressComponent(addressComponents, "postal_code");
 
       return res.status(200).json({
         success: true,
@@ -395,7 +393,7 @@ module.exports = {
           success: false
         });
       }
-      const addressData = { Latitude, Longitude, Street, City, State, Country, PostalCode, ManualAddress, DefaultAddress, AddresserName, AddressType, AddresserNumber };
+      let addressData = { Latitude, Longitude, Street, City, State, Country, PostalCode, ManualAddress, DefaultAddress, AddresserName, AddressType, AddresserNumber };
       Object.keys(addressData).forEach(key => addressData[key] === undefined && delete addressData[key]);
 
       if (Object.keys(addressData).length === 0 && Operation !== 'delete') {
@@ -407,19 +405,19 @@ module.exports = {
 
       let updatedUser;
 
-      const fetchLatLng = async () => {
+      let fetchLatLng = async () => {
         if (!Latitude || !Longitude) {
-          const address = [Street, City, State, Country, PostalCode].filter(Boolean).join(', ');
-          const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-          const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
-          const response = await axios.get(url);
-          const results = response.data.results;
+          let address = [Street, City, State, Country, PostalCode].filter(Boolean).join(', ');
+          let apiKey = process.env.GOOGLE_MAPS_API_KEY;
+          let url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+          let response = await axios.get(url);
+          let results = response.data.results;
 
           if (!results || results.length === 0) {
             return
           }
 
-          const location = results[0].geometry.location;
+          let location = results[0].geometry.location;
           addressData.Latitude = location.lat;
           addressData.Longitude = location.lng;
         }
@@ -435,7 +433,7 @@ module.exports = {
             { new: true }
           );
           if (addressData.DefaultAddress === true) {
-            for (const each of updatedUser.Address) {
+            for (let each of updatedUser.Address) {
               if (each._id.toString() !== AddressId.toString()) {
                 await User.findOneAndUpdate(
                   { _id, companyId, "Address._id": each._id },
@@ -450,9 +448,9 @@ module.exports = {
             { $push: { Address: addressData } },
             { new: true }
           );
-          const newAddress = updatedUser.Address[updatedUser.Address.length - 1];
+          let newAddress = updatedUser.Address[updatedUser.Address.length - 1];
           if (addressData.DefaultAddress === true && newAddress?._id) {
-            for (const each of updatedUser.Address) {
+            for (let each of updatedUser.Address) {
               if (each._id.toString() !== newAddress._id.toString()) {
                 await User.findOneAndUpdate(
                   { _id, companyId, "Address._id": each._id },
@@ -586,7 +584,7 @@ module.exports = {
         matchCondition.ManualAddress = { $regex: ManualAddress, $options: "i" };
 
       }
-      const data = await module.exports.getUserData(matchCondition);
+      let data = await module.exports.getUserData(matchCondition);
 
       if (!data || data.length === 0) {
         return res.status(404).json({ message: 'No users found matching criteria', success: false });

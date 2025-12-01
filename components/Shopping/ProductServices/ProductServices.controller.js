@@ -9,7 +9,7 @@ module.exports = {
         let cleanupFiles = (files) => {
             if (!files) return;
             files.forEach(file => {
-                const filePath = path.join(__dirname, '..', '..', 'public', 'ProductServiceImage', file.filename);
+                let filePath = path.join(__dirname, '..', '..', 'public', 'ProductServiceImage', file.filename);
                 if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
             });
         };
@@ -40,8 +40,8 @@ module.exports = {
                 ...(ServiceImages.length && { ServiceImages })
             };
 
-            const newProductService = new ProductService(ProductServiceData);
-            const result = await newProductService.save();
+            let newProductService = new ProductService(ProductServiceData);
+            let result = await newProductService.save();
 
             if (!result) {
                 cleanupFiles(req.files);
@@ -124,7 +124,7 @@ module.exports = {
 
             if (ServiceName) matchCondition.ServiceName = { $regex: ServiceName, $options: 'i' };
 
-            const data = await module.exports.getProductServicesData(matchCondition);
+            let data = await module.exports.getProductServicesData(matchCondition);
 
             if (!data || data.length === 0) {
                 return res.status(404).json({ message: 'No Product Service found for this criteria', success: false });
@@ -138,10 +138,10 @@ module.exports = {
         }
     },
     updateProductsService: async (req, res) => {
-        const cleanupFiles = (files) => {
+        let cleanupFiles = (files) => {
             if (!files) return;
             files.forEach(file => {
-                const filePath = path.join(__dirname, '..', '..', 'public', 'ProductServiceImage', file.filename);
+                let filePath = path.join(__dirname, '..', '..', 'public', 'ProductServiceImage', file.filename);
                 if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
             });
         };
@@ -160,11 +160,11 @@ module.exports = {
             if (Description) updateData.$set.Description = Description;
 
             if (req.files?.length) {
-                const serviceImages = req.files.map(file => file.filename);
+                let serviceImages = req.files.map(file => file.filename);
                 updateData.$push = { ServiceImages: { $each: serviceImages } };
             }
 
-            const updatedResult = await ProductService.findOneAndUpdate(
+            let updatedResult = await ProductService.findOneAndUpdate(
                 { _id: ServiceProductId, companyId },
                 updateData,
                 { new: true }
@@ -196,14 +196,14 @@ module.exports = {
                 return res.status(400).json({ message: "Product Service ID and image(s) are required", success: false });
             }
 
-            const imagesToDelete = Array.isArray(ServiceImages) ? ServiceImages : [ServiceImages];
+            let imagesToDelete = Array.isArray(ServiceImages) ? ServiceImages : [ServiceImages];
 
-            const serviceProduct = await ProductService.findById(id);
+            let serviceProduct = await ProductService.findById(id);
             if (!serviceProduct) {
                 return res.status(404).json({ message: "Product Service not found", success: false });
             }
 
-            const updatedService = await ProductService.findOneAndUpdate(
+            let updatedService = await ProductService.findOneAndUpdate(
                 { _id: id, companyId },
                 { $pull: { ServiceImages: { $in: imagesToDelete } } },
                 { new: true }
@@ -214,7 +214,7 @@ module.exports = {
             }
 
             imagesToDelete.forEach(file => {
-                const imagePath = path.join(__dirname, '..', '..', 'public', 'ProductServiceImage', file);
+                let imagePath = path.join(__dirname, '..', '..', 'public', 'ProductServiceImage', file);
                 if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
             });
 

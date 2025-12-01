@@ -9,11 +9,11 @@ module.exports = {
             let { companyId, assignvalues } = req.body;
             console.log(req.body);
 
-            const findata = await adminuserschema.findOne({ companyId });
+            let findata = await adminuserschema.findOne({ companyId });
 
             if (!findata) {
-                const add = new adminuserschema(req.body);
-                const data = await add.save();
+                let add = new adminuserschema(req.body);
+                let data = await add.save();
 
                 res.status(200).json({
                     success: true,
@@ -50,12 +50,12 @@ module.exports = {
                 query.companyId = mongoose.Types.ObjectId.createFromHexString(req.query.companyId)
             }
 
-            const users = await adminuserschema.find(query)
+            let users = await adminuserschema.find(query)
                 .populate({
                     path: "assignvalues",
                     model: "masterusers"
                 });
-            const companyData = await Company.find({ _id: req.query.companyId })
+            let companyData = await Company.find({ _id: req.query.companyId })
 
 
             res.status(200).json({
@@ -103,7 +103,7 @@ module.exports = {
 
     deleteadminusers: async (req, res) => {
         try {
-            const data = await adminuserschema.findByIdAndDelete(req.params.id);
+            let data = await adminuserschema.findByIdAndDelete(req.params.id);
 
             res.status(200).json({
                 success: true,
@@ -120,7 +120,7 @@ module.exports = {
     },
     getadminusersforallcompany: async (req, resp) => {
         try {
-            const data = await adminuserschema.aggregate([
+            let data = await adminuserschema.aggregate([
                 {
                     $lookup: {
                         from: "companies",
