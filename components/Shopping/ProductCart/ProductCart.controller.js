@@ -1333,6 +1333,7 @@ module.exports = {
             orderId: body.ORDERID,
             txnId: body.TXNID,
             amount: body.TXNAMOUNT,
+            respMsg: body.RESPMSG
         };
 
         let safeId = (v) => (v === undefined || v === null) ? null : (typeof v === "string" ? v : (v.toString ? v.toString() : String(v)));
@@ -1542,7 +1543,13 @@ module.exports = {
                 } catch (err) {
                     console.error('Restored Stock On Payment Failed Error', err?.message || err);
                 }
-                let isCancelled = verifyPaytmStatus?.body?.resultInfo?.resultMsg?.includes('cancelled');
+                let resultMsg = verifyPaytmStatus?.body?.resultInfo?.resultMsg || "";
+                let respMsg = paymentInfo?.respMsg || "";
+
+                let isCancelled =
+                    resultMsg.toLowerCase().includes("cancelled") ||
+                    respMsg.toLowerCase().includes("user has not completed transaction");
+
                 if (isCancelled) {
                     return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=CANCELLED&cartorderid=${FoundOrder._id}`);
                 }
