@@ -1472,7 +1472,7 @@ module.exports = {
 
             if (resultStatus === "TXN_SUCCESS") {
                 if (FoundOrder.PaymentSession?.status === 'SUCCESS') {
-                    return res.redirect(`${process.env.FRONTEND_URL}/order-checked?orderId=${paymentInfo.orderId}&Status=SUCCESS&cartorderid=${FoundOrder._id}`);
+                    return res.redirect(`${process.env.FRONTEND_URL}/order-checked?orderId=${paymentInfo.orderId}&status=SUCCESS&cartorderid=${FoundOrder._id}`);
                     // return res.status(200).json({ message: "✅ Payment verified and order placed successfully.", success: true });
                 }
 
