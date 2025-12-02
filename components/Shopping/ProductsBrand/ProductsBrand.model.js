@@ -2,7 +2,7 @@
 const mongoose = require('mongoose');
 
 const brandsSchema = mongoose.Schema(
-    { 
+    {
 
         BrandName: {
             type: String,
@@ -25,14 +25,18 @@ const brandsSchema = mongoose.Schema(
             {
                 type: mongoose.Schema.Types.ObjectId,
                 ref: 'Categgggory',
-                required:true
+                required: true
             }
         ],
         isActive: {
             type: Boolean,
             default: true,
 
-        }
+        },
+        isActiveBy: {
+            type: String,
+            default: 'Self'
+        },
     }, {
     timestamps: true
 }

@@ -46,7 +46,11 @@ const bannersSchema = new mongoose.Schema({
     isActive: {
         type: Boolean,
         default: true
-    }
+    },
+    isActiveBy: {
+        type: String,
+        default: 'Self'
+    },
 }
     , {
         timeStamp: true

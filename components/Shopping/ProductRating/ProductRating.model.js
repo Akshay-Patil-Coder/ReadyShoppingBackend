@@ -33,9 +33,9 @@ const ProductRatingSchema = new mongoose.Schema({
             default: Date.now
         }
     }],
-    RatingStar:{
-        type:Number,
-        default:0
+    RatingStar: {
+        type: Number,
+        default: 0
     },
     TotalLike: {
         type: Number,
@@ -48,7 +48,11 @@ const ProductRatingSchema = new mongoose.Schema({
     isActive: {
         type: Boolean,
         default: true
-    }
+    },
+     isActiveBy: {
+        type: String,
+        default: 'Self'
+    },
 }, {
     timestamps: true
 });

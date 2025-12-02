@@ -23,8 +23,8 @@ const UserSchema = new mongoose.Schema({
             type: String,
             default: "Guest"
         },
-        AddresserNumber:{
-            type:Number
+        AddresserNumber: {
+            type: Number
         },
         DefaultAddress: {
             type: Boolean,
@@ -68,6 +68,10 @@ const UserSchema = new mongoose.Schema({
     isActive: {
         type: Boolean,
         default: true
+    },
+    isActiveBy: {
+        type: String,
+        default: 'Self'
     },
     ActiveOtp: {
         type: String

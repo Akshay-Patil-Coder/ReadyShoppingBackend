@@ -27,11 +27,8 @@ router.post('/proceedToPaymentForCart', authentication, (req, res) => {
     }
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 })
-router.post('/handlePaymentStatus', authentication, (req, res) => {
-    if (req.user.role == 'User') {
+router.post('/handlePaymentStatus',  (req, res) => {
         return cartsController.handlePaymentStatus(req, res)
-    }
-    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 })
 router.get('/getOrders', authentication, (req, res) => {

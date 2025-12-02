@@ -40,7 +40,11 @@ const VariantSchema = new mongoose.Schema({
     isActive: {
         type: Boolean,
         default: true
-    }
+    },
+     isActiveBy:{
+        type:String,
+        default:'Self'
+    },
 }, {
     timestamps: true
 });

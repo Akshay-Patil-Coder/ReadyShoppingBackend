@@ -21,6 +21,10 @@ const categorySchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    isActiveBy:{
+        type:String,
+        default:'Self'
+    },
     imageName: {
         type: String
     },

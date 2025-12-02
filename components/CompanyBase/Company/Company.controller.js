@@ -12,6 +12,7 @@ const { ProductService } = require('../../Shopping/ProductServices/ProductServic
 const BannerModel = require('../../Shopping/ShoppingBanners/ShoppingBanners.model')
 const { Variant } = require('../../Shopping/Variants/Variants.model')
 const { VariantProduct, Product, Batch } = require('../../Shopping/VariantsProducts/VariantsProducts.model')
+const { ProductCart } = require('../../Shopping/ProductCart/ProductCart.model')
 const axios = require('axios')
 module.exports = {
     addcompanies: async (req, res) => {
@@ -609,7 +610,7 @@ module.exports = {
             let FoundAccess = await AccessModel.aggregate([
                 {
                     $match: {
-                        companyId: new mongoose.Types.ObjectId(companyId)
+                        companyId: new mongoose.Types.ObjectId(String(companyId))
                     }
                 },
                 {
@@ -627,6 +628,7 @@ module.exports = {
                     categoryLevel: cat.categoryLevel,
                     Description: cat.Description,
                     imageName: cat.imageName,
+                    _id: cat._id,
                     subcategories: (cat.subcategories || []).map(sub => cleanCategory(sub))
                 };
             }
@@ -661,6 +663,7 @@ module.exports = {
                             return {
                                 BrandName: EachBrand.BrandName,
                                 BrandImage: EachBrand.BrandImage,
+                                _id: EachBrand._id
                             }
                         });
                     } catch (error) {
@@ -671,14 +674,15 @@ module.exports = {
                             `${process.env.BASE_URL}masterbanners/getBannersById?companyId=${companyId}`
                         );
 
-                        AllData.shopping.banners = bannerres.data.data.map((EachBanner)=>{
-                            return{
-                                BannerName:EachBanner.BannerName,
-                                Position:EachBanner.Position,
-                                BannerImage:EachBanner.BannerImage,
-                                OfferPercentage:EachBanner.OfferPercentage,
-                                BannerType:EachBanner.BannerType,
-                                
+                        AllData.shopping.banners = bannerres.data.data.map((EachBanner) => {
+                            return {
+                                BannerName: EachBanner.BannerName,
+                                Position: EachBanner.Position,
+                                BannerImage: EachBanner.BannerImage,
+                                OfferPercentage: EachBanner.OfferPercentage,
+                                BannerType: EachBanner.BannerType,
+                                _id: EachBanner._id
+
                             }
                         });
                     } catch (error) {
@@ -692,7 +696,8 @@ module.exports = {
                         AllData.shopping.variants = variantres.data.data.map((EachVariant) => {
                             return {
                                 VariantName: EachVariant.VariantName,
-                                VariantType: EachVariant.VariantType
+                                VariantType: EachVariant.VariantType,
+                                _id: EachVariant._id
                             }
                         })
                     } catch (error) {
@@ -708,6 +713,7 @@ module.exports = {
                                 ServiceName: EachService.ServiceName,
                                 ServiceImages: EachService.ServiceImages,
                                 Description: EachService.Description,
+                                _id: EachService._id
                             }
                         });
                     } catch (error) {
@@ -724,15 +730,17 @@ module.exports = {
                                 CommonImages: EachProduct.CommonImages,
                                 CommonVideos: EachProduct.CommonVideos,
                                 CommonDescription: EachProduct.CommonDescription,
-                                VariantProducts: EachProduct.VariantProducts.map((EachVariantProduct)=>{
+                                ProductId: EachProduct._id,
+                                VariantProducts: EachProduct.VariantProducts.map((EachVariantProduct) => {
                                     return {
-                                        VariantProductName:EachVariantProduct.VariantProductName,
-                                        Price:EachVariantProduct.Price,
-                                        VariantProductImage:EachVariantProduct.VariantProductImage,
-                                        OfferPercentage:EachVariantProduct.OfferPercentage,
-                                        AboutProduct:EachVariantProduct.AboutProduct,
-                                        Specification:EachVariantProduct.Specification,
-                                        VariantFields:EachVariantProduct.VariantFields
+                                        VariantProductId: EachVariantProduct._id,
+                                        VariantProductName: EachVariantProduct.VariantProductName,
+                                        Price: EachVariantProduct.Price,
+                                        VariantProductImage: EachVariantProduct.VariantProductImage,
+                                        OfferPercentage: EachVariantProduct.OfferPercentage,
+                                        AboutProduct: EachVariantProduct.AboutProduct,
+                                        Specification: EachVariantProduct.Specification,
+                                        VariantFields: EachVariantProduct.VariantFields
                                     }
                                 })
                             }
@@ -758,7 +766,465 @@ module.exports = {
             });
         }
     },
+    ToggleStatusOfCompany: async (req, res) => {
+        try {
+            let { companyId, isActive } = req.query;
 
+            if (!companyId) {
+                return res.status(400).json({ message: 'Company Not Found', success: false });
+            }
+            if (isActive !== true || isActive !== false) {
+                return res.status(400).json({ message: 'Provide Status To Update', success: false });
+            }
+            if (!mongoose.Types.ObjectId.isValid(companyId)) {
+                return res.status(400).json({ message: 'Invalid Company ID', success: false });
+            }
+
+            let FoundCompany = await Company.findById(companyId);
+            if (!FoundCompany) {
+                return res.status(404).json({ message: 'Company Not Found', success: false });
+            }
+
+            let AllData = {
+                access: [],
+                shopping: {}
+            };
+
+            let FoundAccess = await AccessModel.aggregate([
+                {
+                    $match: {
+                        companyId: new mongoose.Types.ObjectId(String(companyId))
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'masterusers',
+                        localField: 'assignvalues',
+                        foreignField: '_id',
+                        as: 'assignValues'
+                    }
+                }
+            ]);
+            function cleanCategory(cat) {
+                return {
+                    categoryName: cat.categoryName,
+                    categoryLevel: cat.categoryLevel,
+                    Description: cat.Description,
+                    imageName: cat.imageName,
+                    _id: cat._id,
+                    isActive: cat.isActive,
+                    isActiveBy: cat.isActiveBy,
+                    subcategories: (cat.subcategories || []).map(sub => cleanCategory(sub))
+                };
+            }
+            async function updateCategoryRecursively(category, isActive) {
+                if (['Self', 'Parent'].includes(category.isActiveBy) && category.isActive !== false && isActive === false) {
+                    await CategoryModel.findByIdAndUpdate(category._id, {
+                        $set: { isActive: false, isActiveBy: "Company" }
+                    });
+                }
+                else if (category.isActiveBy === "Company" && isActive === true) {
+                    await CategoryModel.findByIdAndUpdate(category._id, {
+                        $set: { isActive: true, isActiveBy: "Company" }
+                    });
+                }
+                else if (!category.isActiveBy) {
+                    await CategoryModel.findByIdAndUpdate(category._id, {
+                        $set: { isActive, isActiveBy: "Company" }
+                    });
+                }
+
+                for (let sub of category.subcategories) {
+                    await updateCategoryRecursively(sub, isActive);
+                }
+            }
+
+            AllData.access = FoundAccess;
+
+            let AssignValues = FoundAccess[0]?.assignValues || [];
+
+            for (let EachAccess of AssignValues) {
+                if (EachAccess.FunctionallityName === 'shopping') {
+
+                    try {
+                        let categoryRes = await axios.get(
+                            `${process.env.BASE_URL}dynamicCategories/getCategoryTree?companyId=${companyId}`
+                        );
+
+                        let rawCategories = categoryRes.data.data;
+                        rawCategories = Array.isArray(rawCategories) ? rawCategories : [rawCategories];
+
+                        AllData.shopping = {};
+                        AllData.shopping.categories = rawCategories.map(cat => cleanCategory(cat));
+
+                        for (let category of AllData.shopping.categories) {
+                            await updateCategoryRecursively(category, isActive);
+                        }
+
+                    } catch (error) {
+                        console.error("Error fetching categories:", error.message);
+                    }
+
+
+                    try {
+                        const brandres = await axios.get(
+                            `${process.env.BASE_URL}brands/getBrandsById?companyId=${companyId}`
+                        );
+
+                        const rawBrands = brandres.data.data || [];
+
+                        AllData.shopping.brands = rawBrands.map(b => ({
+                            BrandName: b.BrandName,
+                            BrandImage: b.BrandImage,
+                            _id: b._id,
+                            isActive: b.isActive,
+                            isActiveBy: b.isActiveBy
+                        }));
+
+                        for (const brand of AllData.shopping.brands) {
+
+                            if (brand.isActiveBy === "Self" && brand.isActive !== false && isActive === false) {
+                                await brandmodel.findByIdAndUpdate(brand._id, {
+                                    $set: { isActive: false, isActiveBy: "Company" }
+                                });
+                            }
+                            else if (brand.isActiveBy === "Company" && isActive === true) {
+                                await brandmodel.findByIdAndUpdate(brand._id, {
+                                    $set: { isActive: true, isActiveBy: "Company" }
+                                });
+                            }
+                            else if (!brand.isActiveBy) {
+                                await brandmodel.findByIdAndUpdate(brand._id, {
+                                    $set: { isActive: isActive, isActiveBy: "Company" }
+                                });
+                            }
+                        }
+
+                    } catch (error) {
+                        console.error("Error fetching brands:", error.message);
+                    }
+
+                    try {
+                        const bannerres = await axios.get(
+                            `${process.env.BASE_URL}masterbanners/getBannersById?companyId=${companyId}`
+                        );
+
+                        const rawBanners = bannerres.data.data || [];
+
+                        AllData.shopping.banners = rawBanners.map(b => ({
+                            BannerName: b.BannerName,
+                            Position: b.Position,
+                            BannerImage: b.BannerImage,
+                            OfferPercentage: b.OfferPercentage,
+                            BannerType: b.BannerType,
+                            _id: b._id,
+                            isActive: b.isActive,
+                            isActiveBy: b.isActiveBy
+                        }));
+
+                        for (const banner of AllData.shopping.banners) {
+
+                            if (banner.isActiveBy === "Self" && banner.isActive !== false && isActive === false) {
+                                await BannerModel.findByIdAndUpdate(banner._id, {
+                                    $set: { isActive: false, isActiveBy: "Company" }
+                                });
+                            }
+
+                            else if (banner.isActiveBy === "Company" && isActive === true) {
+                                await BannerModel.findByIdAndUpdate(banner._id, {
+                                    $set: { isActive: true, isActiveBy: "Company" }
+                                });
+                            }
+
+                            else if (!banner.isActiveBy) {
+                                await BannerModel.findByIdAndUpdate(banner._id, {
+                                    $set: { isActive: isActive, isActiveBy: "Company" }
+                                });
+                            }
+                        }
+
+                    } catch (error) {
+                        console.error("Error fetching banners:", error.message);
+                    }
+
+                    try {
+                        let variantres = await axios.get(
+                            `${process.env.BASE_URL}variants/getVariantsById?companyId=${companyId}`
+                        );
+
+                        const variants = variantres.data.data || [];
+
+                        AllData.shopping.variants = variants.map(v => ({
+                            VariantName: v.VariantName,
+                            VariantType: v.VariantType,
+                            _id: v._id,
+                            isActive: v.isActive,
+                            isActiveBy: v.isActiveBy
+                        }));
+
+                        for (const variant of AllData.shopping.variants) {
+
+                            if (
+                                variant.isActiveBy === "Self" &&
+                                variant.isActive === true &&
+                                isActive === false
+                            ) {
+                                await Variant.findByIdAndUpdate(variant._id, {
+                                    $set: { isActive: false, isActiveBy: "Company" }
+                                });
+                                continue;
+                            }
+
+                            if (variant.isActiveBy === "Company" && isActive === true) {
+                                await Variant.findByIdAndUpdate(variant._id, {
+                                    $set: { isActive: true, isActiveBy: "Company" }
+                                });
+                                continue;
+                            }
+
+                            if (!variant.isActiveBy) {
+                                await Variant.findByIdAndUpdate(variant._id, {
+                                    $set: { isActive: isActive, isActiveBy: "Company" }
+                                });
+                                continue;
+                            }
+                        }
+                    } catch (error) {
+                        console.error("Error fetching variantres:", error.message);
+                    }
+
+                    try {
+                        const productserviceres = await axios.get(
+                            `${process.env.BASE_URL}productservices/getProductServicesById?companyId=${companyId}`
+                        );
+
+                        const services = productserviceres?.data?.data || [];
+
+                        AllData.shopping.productservices = services.map(s => ({
+                            ServiceName: s.ServiceName,
+                            ServiceImages: s.ServiceImages,
+                            Description: s.Description,
+                            _id: s._id,
+                            isActive: s.isActive,
+                            isActiveBy: s.isActiveBy
+                        }));
+
+                        for (const service of AllData.shopping.productservices) {
+
+                            if (service.isActiveBy === "Self" && service.isActive && !isActive) {
+                                await ProductService.findByIdAndUpdate(service._id, {
+                                    $set: { isActive: false, isActiveBy: "Company" }
+                                });
+                                continue;
+                            }
+
+                            if (service.isActiveBy === "Company" && isActive === true) {
+                                await ProductService.findByIdAndUpdate(service._id, {
+                                    $set: { isActive: true, isActiveBy: "Company" }
+                                });
+                                continue;
+                            }
+
+                            if (!service.isActiveBy) {
+                                await ProductService.findByIdAndUpdate(service._id, {
+                                    $set: { isActive, isActiveBy: "Company" }
+                                });
+                                continue;
+                            }
+                        }
+
+                    } catch (error) {
+                        console.error("Error fetching productservices:", error.message);
+                    }
+
+                    try {
+                        const productsres = await axios.post(
+                            `${process.env.BASE_URL}products/getProductsById?companyId=${companyId}`,
+                            { "": "" }
+                        );
+
+                        const products = productsres?.data?.data || [];
+
+                        AllData.shopping.products = products.map(product => ({
+                            ProductName: product.ProductName,
+                            CommonImages: product.CommonImages,
+                            CommonVideos: product.CommonVideos,
+                            CommonDescription: product.CommonDescription,
+                            ProductId: product._id,
+                            isActive: product.isActive,
+                            isActiveBy: product.isActiveBy,
+
+                            VariantProducts: (product.VariantProducts || []).map(vp => ({
+                                VariantProductId: vp._id,
+                                VariantProductName: vp.VariantProductName,
+                                Price: vp.Price,
+                                VariantProductImage: vp.VariantProductImage,
+                                OfferPercentage: vp.OfferPercentage,
+                                AboutProduct: vp.AboutProduct,
+                                Specification: vp.Specification,
+                                VariantFields: vp.VariantFields,
+                                isActive: vp.isActive,
+                                isActiveBy: vp.isActiveBy,
+                                ProductId: product._id
+                            }))
+                        }));
+
+                        for (const product of AllData.shopping.products) {
+
+                            if (product.isActiveBy === "Self" && product.isActive === true && isActive === false) {
+                                await Product.findByIdAndUpdate(product.ProductId, {
+                                    $set: { isActive: false, isActiveBy: "Company" }
+                                });
+                            }
+                            else if (product.isActiveBy === "Company" && isActive === true) {
+                                await Product.findByIdAndUpdate(product.ProductId, {
+                                    $set: { isActive: true, isActiveBy: "Company" }
+                                });
+                            }
+                            else if (!product.isActiveBy) {
+                                await Product.findByIdAndUpdate(product.ProductId, {
+                                    $set: { isActive: isActive, isActiveBy: "Company" }
+                                });
+                            }
+
+                            for (const variant of product.VariantProducts) {
+
+                                if (
+                                    variant.isActiveBy === "Self" &&
+                                    variant.isActive === true &&
+                                    isActive === false
+                                ) {
+                                    await VariantProduct.findByIdAndUpdate(variant.VariantProductId, {
+                                        $set: { isActive: false, isActiveBy: "Company" }
+                                    });
+                                }
+
+                                else if (variant.isActiveBy === "Company" && isActive === true) {
+                                    await VariantProduct.findByIdAndUpdate(variant.VariantProductId, {
+                                        $set: { isActive: true, isActiveBy: "Company" }
+                                    });
+                                }
+
+                                else if (!variant.isActiveBy) {
+                                    await VariantProduct.findByIdAndUpdate(variant.VariantProductId, {
+                                        $set: { isActive: isActive, isActiveBy: "Company" }
+                                    });
+                                }
+                            }
+                        }
+
+                    } catch (error) {
+                        console.error("Error fetching products:", error.message);
+                    }
+
+
+                }
+            }
+            let UpdateCompany = await Company.findByIdAndUpdate(companyId, {
+                $set: {
+                    isActive: isActive,
+                    isActiveBy: 'Company'
+                }
+            })
+            return res.status(200).json({
+                success: true,
+                data: UpdateCompany,
+                AllData: AllData
+            });
+
+        } catch (error) {
+            console.error("Error ToggleStatusOfCompany:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Internal Server Error"
+            });
+        }
+    },
+
+    DeleteCompany: async (req, res) => {
+        let { companyId } = req.query;
+
+        try {
+
+            try { await Company.findByIdAndDelete(companyId); }
+            catch (err) { console.error("❌ Company delete error:", err.message); }
+
+            try { await AccessModel.deleteMany({ companyId }); }
+            catch (err) { console.error("❌ Access delete error:", err.message); }
+
+
+
+            try {
+                await CategoryModel.deleteMany({ companyId });
+            } catch (err) {
+                console.error("❌ Categories delete error:", err.message);
+            }
+
+            try {
+                await brandmodel.deleteMany({ companyId });
+            } catch (err) {
+                console.error("❌ Brands delete error:", err.message);
+            }
+
+            try {
+                await BannerModel.deleteMany({ companyId });
+            } catch (err) {
+                console.error("❌ Banners delete error:", err.message);
+            }
+
+            try {
+                await Variant.deleteMany({ companyId });
+            } catch (err) {
+                console.error("❌ Variants delete error:", err.message);
+            }
+
+            try {
+                await ProductService.deleteMany({ companyId });
+            } catch (err) {
+                console.error("❌ Product Services delete error:", err.message);
+            }
+
+            try {
+                await Product.deleteMany({ companyId });
+            } catch (err) {
+                console.error("❌ Products delete error:", err.message);
+            }
+
+            try {
+                await VariantProduct.deleteMany({ companyId });
+            } catch (err) {
+                console.error("❌ Variant Products delete error:", err.message);
+            }
+
+            try {
+                await ProductCart.deleteMany({ companyId });
+            } catch (err) {
+                console.error("❌ Carts delete error:", err.message);
+            }
+
+            try {
+                await AccessModel.deleteMany({ companyId });
+            } catch (err) {
+                console.error("❌ Accesses delete error:", err.message);
+            }
+            let DeleteCompany = await Company.findByIdAndDelete(companyId);
+
+            return res.status(200).json({
+                success: true,
+                message: "Company deletion completed. Check logs for failures.",
+                data: DeleteCompany
+            });
+
+        } catch (error) {
+
+            console.error("❌ DeleteCompany unexpected error:", error);
+
+            return res.status(500).json({
+                success: false,
+                message: "Internal Server Error"
+            });
+        }
+    },
 
 
     loginCompnay: async (req, resp) => {

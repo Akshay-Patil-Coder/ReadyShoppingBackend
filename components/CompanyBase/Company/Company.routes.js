@@ -83,4 +83,10 @@ router.post('/verifyToken', (req, res) => {
 router.get('/previewDeleteCompany', (req, res) => {
   companiesController.previewDeleteCompany(req, res)
 })
+router.get('/ToggleStatusOfCompany', (req, res) => {
+  companiesController.ToggleStatusOfCompany(req, res)
+})
+router.delete('/DeleteCompany', (req, res) => {
+  companiesController.DeleteCompany(req, res)
+})
 module.exports = router;
