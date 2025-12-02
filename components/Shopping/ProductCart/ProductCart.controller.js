@@ -1327,13 +1327,12 @@ module.exports = {
 
     handlePaymentStatus: async (req, res) => {
         let paytmResponse = req.body;
-        let orderId = paytmResponse?.body?.orderId;
-        let body = paytmResponse.body || {};
+        let orderId = paytmResponse?.ORDERID;
+        let body = paytmResponse || {};
         let paymentInfo = {
-            orderId: body.orderId,
-            txnId: body.txnId,
-            amount: body.txnAmount?.value || 0,
-            resultInfo: body.resultInfo
+            orderId: body.ORDERID,
+            txnId: body.TXNID,
+            amount: body.TXNAMOUNT,
         };
 
         let safeId = (v) => (v === undefined || v === null) ? null : (typeof v === "string" ? v : (v.toString ? v.toString() : String(v)));
