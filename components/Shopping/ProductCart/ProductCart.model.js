@@ -111,7 +111,7 @@ const OrderSchema = new mongoose.Schema({
         AddresserNumber: {
             type: Number
         },
-      
+
         AddressType: {
             type: String,
             default: "Home",
@@ -220,6 +220,10 @@ const OrderSchema = new mongoose.Schema({
                     },
                     VariantProductName: {
                         type: String,
+                    },
+                    VariantProductImage: {
+                        type: [String],
+                        default: []
                     },
                     VariantFields: [{
                         VariantName: {

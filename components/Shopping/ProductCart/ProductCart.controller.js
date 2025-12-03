@@ -1119,6 +1119,7 @@ module.exports = {
                                 VariantProductId: variantInfo._id,
                                 VariantProductName: variantInfo.VariantProductName,
                                 VariantFields: p.VariantInfo.VariantFields,
+                                VariantProductImage: p.VariantInfo.VariantProductImage,
                                 OfferPercentage: variantInfo.OfferPercentage,
                                 Price: variantInfo.Price,
                                 Specification: variantInfo.Specification,
@@ -1849,36 +1850,61 @@ module.exports = {
             return res.redirect(`${fallbackDomain}/order-checked?paytmorderId=${paytmorderId}&status=INTERNAL-SERVER-ERROR`);
         }
     },
-
     getOrders: async (req, res) => {
         try {
-            let { UserId, companyId, Status, ProductOrderId } = req.query;
-            if (req.user.UserId) UserId = req.user.UserId
-            if (req.user.companyId) companyId = req.user.companyId
+            let { UserId, companyId, Status, ProductOrderId, OrderId, PaymentStatus } = req.query;
+
+            if (req.user.UserId) UserId = req.user.UserId;
+            if (req.user.companyId) companyId = req.user.companyId;
+
             if (!mongoose.isValidObjectId(companyId) || !mongoose.isValidObjectId(UserId)) {
                 return res.status(400).json({ message: 'Not Found Proper Data Of Company Or User', success: false });
             }
 
-            let Orders = await ProductOrder.find({ UserId, companyId });
+            let matchCondition = { companyId, UserId };
+
+            if (OrderId && !mongoose.isValidObjectId(OrderId)) {
+                return res.status(400).json({ message: 'Provide Proper Order Id To Find Data', success: false });
+            }
+            if (OrderId) {
+                matchCondition._id = OrderId;
+            }
+
+            const allowedPaymentStatus = ['INITIATED', 'SUCCESS', 'FAILED', 'PENDING', 'EXPIRED'];
+
+            if (PaymentStatus && !allowedPaymentStatus.includes(PaymentStatus)) {
+                return res.status(400).json({
+                    message: 'Provide Proper Payment Status To Find Data',
+                    success: false
+                });
+            }
+
+            if (PaymentStatus) {
+                matchCondition["PaymentSession.status"] = PaymentStatus;
+            }
+
+            let Orders = await ProductOrder.find(matchCondition).sort({ createdAt: -1 });
 
             if (!Orders.length) {
                 return res.status(400).json({ message: "Orders Not Found", success: false });
             }
 
+            const allowedStatus = ['INITIATED', 'PENDING', 'SHIPPED', 'OUTFORDELIVERY', 'CANCELED', 'ASSIGNED'];
+            if (Status && !allowedStatus.includes(Status)) {
+                return res.status(400).json({ message: 'Provide Proper Status Of Product', success: false });
+            }
+
             let FilteredOrders = Orders.map(order => {
                 let products = order.Products;
 
-                if (Status && !['INITIATED', 'PENDING', 'SHIPPED', 'OUTFORDELIVERY', 'CANCELED', 'ASSIGNED'].includes(Status)) {
-                    return res.status(400).json({ message: 'Provide Proper Status Of Product', success: false })
-                }
-                else if (Status) {
+                if (Status) {
                     products = products.filter(p => {
-                        let lastStatus = p.OrderStatus[p.OrderStatus.length - 1]?.Status;
+                        const lastStatus = p.OrderStatus[p.OrderStatus.length - 1]?.Status;
                         return lastStatus == Status;
                     });
                 }
 
-                if (mongoose.isValidObjectId(ProductOrderId)) {
+                if (ProductOrderId && mongoose.isValidObjectId(ProductOrderId)) {
                     products = products.filter(p => p._id.equals(ProductOrderId));
                 }
 
