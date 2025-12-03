@@ -1654,17 +1654,7 @@ module.exports = {
                     safeId(p?.ProductData?.VariantProductInfo?.VariantProductId) == varId
                 );
 
-                const orderWithCartIds = orderItemsForKey.filter(p => safeId(p?.CartProductId));
-                if (orderWithCartIds.length) {
-                    for (const oi of orderWithCartIds) {
-                        const cartProdId = safeId(oi.CartProductId);
-                        const cartEntry = cartItems.find(c => safeId(c._id) == cartProdId);
-                        if (!cartEntry) continue;
-                   
-                        await pullCartProduct(cartId, cartProdId);
-                    }
-                    return;
-                }
+            
 
                 const totalOrderQty = orderItemsForKey.reduce((s, it) => s + (Number(it.Quantity) || 0), 0);
                 if (totalOrderQty <= 0) return;
@@ -1763,7 +1753,7 @@ module.exports = {
             const orderCompanyId = FoundOrder.companyId;
             const FoundCart = await ProductCart.findOne({ UserId, companyId: orderCompanyId, _id: FoundOrder.CartId });
 
-            if (resultStatus === "TXN_SUCCESS") {
+            if (resultStatus == "TXN_SUCCESS") {
                 
                 if (FoundOrder.PaymentSession?.status == 'SUCCESS') {
                     return res.redirect(`${FrontendRenderDomain}/order-checked?orderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=SUCCESS&cartorderid=${FoundOrder._id}`);
@@ -1787,7 +1777,7 @@ module.exports = {
 
                 try {
                     for (const cartProd of (FoundCart?.Products || [])) {
-                        const referenced = (FoundOrder.Products || []).filter(p => safeId(p?.CartProductId) === safeId(cartProd._id));
+                        const referenced = (FoundOrder.Products || []).filter(p => safeId(p?.CartProductId) == safeId(cartProd._id));
                         if (referenced.length && isReserved(cartProd)) {
                             await pullCartProduct(FoundCart._id, cartProd._id);
                         }
@@ -1799,8 +1789,8 @@ module.exports = {
                 return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=SUCCESS&cartorderid=${FoundOrder._id}`);
             }
 
-            if (resultStatus === "TXN_FAILURE" || resultStatus === "FAILURE") {
-                if (FoundOrder.PaymentSession?.status === 'FAILED') {
+            if (resultStatus == "TXN_FAILURE" || resultStatus == "FAILURE") {
+                if (FoundOrder.PaymentSession?.status == 'FAILED') {
                     return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=FAILED&cartorderid=${FoundOrder._id}`);
                 }
 
