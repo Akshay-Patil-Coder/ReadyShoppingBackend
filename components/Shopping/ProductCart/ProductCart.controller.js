@@ -1632,7 +1632,7 @@ module.exports = {
                 }
             };
 
-    
+
             const groupCartByKey = (cartProducts = [], orderKeySet = new Set()) => {
                 const map = new Map();
                 for (const p of (cartProducts || [])) {
@@ -1654,7 +1654,7 @@ module.exports = {
                     safeId(p?.ProductData?.VariantProductInfo?.VariantProductId) == varId
                 );
 
-            
+
 
                 const totalOrderQty = orderItemsForKey.reduce((s, it) => s + (Number(it.Quantity) || 0), 0);
                 if (totalOrderQty <= 0) return;
@@ -1692,7 +1692,7 @@ module.exports = {
                 return;
             };
 
-         
+
             let FrontendRenderDomain;
             try {
                 const FoundCompany = companyId ? await CompanyModel.findById(companyId) : null;
@@ -1706,7 +1706,7 @@ module.exports = {
             } catch (err) {
                 console.error('Error fetching company for render domain:', err?.message || err);
             }
-          
+
             if (!FrontendRenderDomain) FrontendRenderDomain = "http://localhost:4200/shopping";
 
             let verifyPaytmStatus;
@@ -1738,7 +1738,7 @@ module.exports = {
                 });
             } catch (err) {
                 console.error('Error verifying paytm status:', err?.message || err);
-              
+
                 return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=PAYTM-VERIFY-ERROR`);
             }
 
@@ -1754,12 +1754,12 @@ module.exports = {
             const FoundCart = await ProductCart.findOne({ UserId, companyId: orderCompanyId, _id: FoundOrder.CartId });
 
             if (resultStatus == "TXN_SUCCESS") {
-                
+
                 if (FoundOrder.PaymentSession?.status == 'SUCCESS') {
                     return res.redirect(`${FrontendRenderDomain}/order-checked?orderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=SUCCESS&cartorderid=${FoundOrder._id}`);
                 }
 
-        
+
                 for (const item of (FoundOrder.Products || [])) {
                     try {
                         const variantId = safeId(item?.ProductData?.VariantProductInfo?.VariantProductId);
@@ -1794,14 +1794,14 @@ module.exports = {
                     return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=FAILED&cartorderid=${FoundOrder._id}`);
                 }
 
-          
+
                 const orderKeySet = new Set((FoundOrder.Products || []).map(p => {
                     const pid = safeId(p?.ProductData?.ProductInfo?.ProductId);
                     const vid = safeId(p?.ProductData?.VariantProductInfo?.VariantProductId);
                     return pid && vid ? `${pid}|${vid}` : null;
                 }).filter(Boolean));
 
-               
+
                 if (FoundCart) {
                     const groups = groupCartByKey(FoundCart.Products || [], orderKeySet);
                     for (const g of groups) {
@@ -1815,7 +1815,7 @@ module.exports = {
                 FoundOrder.PaymentSession.amount = paymentInfo.amount || FoundOrder.PaymentSession.amount;
                 await FoundOrder.save();
 
-            
+
                 try {
                     for (const item of (FoundOrder.Products || [])) {
                         const variantId = safeId(item?.ProductData?.VariantProductInfo?.VariantProductId);
@@ -1843,7 +1843,7 @@ module.exports = {
 
         } catch (err) {
             console.error("handlePaymentStatus Error:", err);
-          
+
             const fallbackDomain = "http://localhost:4200/shopping";
             const paytmorderId = (req.body && req.body.ORDERID) ? encodeURIComponent(req.body.ORDERID) : "";
             return res.redirect(`${fallbackDomain}/order-checked?paytmorderId=${paytmorderId}&status=INTERNAL-SERVER-ERROR`);
@@ -1919,8 +1919,8 @@ module.exports = {
                 if (StartDate) matchCondition.createdAt.$gte = new Date(StartDate);
                 if (EndDate) matchCondition.createdAt.$lte = new Date(EndDate);
             }
-
-            let Orders = await ProductOrder.find(matchCondition);
+            let Orders = await ProductOrder.find(matchCondition)
+                .sort({ createdAt: -1 });
 
             if (!Orders.length) {
                 return res.status(400).json({ message: "Orders Not Found", success: false });
