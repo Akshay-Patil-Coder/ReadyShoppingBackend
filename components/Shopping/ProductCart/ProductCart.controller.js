@@ -2,6 +2,7 @@ const { ProductCart, ProductOrder } = require('./ProductCart.model');
 const { Product, VariantProduct } = require('../VariantsProducts/VariantsProducts.model')
 const { User } = require('../../UserBase/User/User.model')
 const { ProductService } = require('../ProductServices/ProductServices.model')
+const CompanyModel = require('../../CompanyBase/Company/Company.model')
 const mongoose = require('mongoose');
 const PaytmChecksum = require("paytmchecksum");
 const https = require("https");
@@ -937,6 +938,12 @@ module.exports = {
 
     proceedToPaymentForCart: async (req, res) => {
         let { UserId, companyId, AddressId } = req.body;
+        let { RenderingDomain } = req.query;
+        RenderingDomain = ["private", "public"].includes((RenderingDomain || "").toLowerCase())
+            ? RenderingDomain.toLowerCase()
+            : "public";
+
+
         if (req.user.UserId) UserId = req.user.UserId
         if (req.user.companyId) companyId = req.user.companyId
         let rollback = { orderId: null, stockUpdates: [], ReservedUpdated: [] };
@@ -1231,7 +1238,7 @@ module.exports = {
                         mid: process.env.PAYTM_MID,
                         websiteName: process.env.PAYTM_WEBSITE,
                         orderId,
-                        callbackUrl: `${process.env.BASE_URL}productcart/handlePaymentStatus`,
+                        callbackUrl: `${process.env.BASE_URL}productcart/handlePaymentStatus?RenderingDomain=${RenderingDomain}&companyId=${companyId}`,
                         txnAmount: { value: totalAmount.toString(), currency: "INR" },
                         userInfo: { custId: UserId.toString() }
                     }
@@ -1325,160 +1332,447 @@ module.exports = {
         }
     },
 
+    // handlePaymentStatus: async (req, res) => {
+    //     let paytmResponse = req.body;
+    //     let orderId = paytmResponse?.ORDERID;
+    //     let { RenderingDomain, companyId } = req.query;
+    //     let FrontendRenderDomain;
+    //     let body = paytmResponse || {};
+    //     let paymentInfo = {
+    //         orderId: body.ORDERID,
+    //         txnId: body.TXNID,
+    //         amount: body.TXNAMOUNT,
+    //         respMsg: body.RESPMSG
+    //     };
+    //     let FoundCompany = await CompanyModel.findById(companyId)
+    //     if (FoundCompany) {
+    //         if (RenderingDomain.toLowerCase() == 'private') {
+    //             if (FoundCompany.PredifinedDomain)
+    //                 FrontendRenderDomain = FoundCompany.PredifinedDomain + '/shopping'
+    //         }
+    //         else {
+    //             FrontendRenderDomain = `http://${FoundCompany.CompanyDomain}:4200/shopping`
+    //         }
+    //     }
+    //     let safeId = (v) => (v === undefined || v === null) ? null : (typeof v === "string" ? v : (v.toString ? v.toString() : String(v)));
+    //     let isReserved = (p) => Boolean(p && (p.Reserved == true || p.Reserved == "true" || p.Reserved == 1 || p.Reserved == "1"));
+    //     let pullCartProduct = async (cartId, cartProductId) => {
+    //         try {
+    //             await ProductCart.updateOne({ _id: cartId }, { $pull: { Products: { _id: cartProductId } } });
+    //         } catch (err) {
+    //             console.error('pullCartProduct Error', err?.message || err);
+    //         }
+    //     };
+    //     let unreserveCartProduct = async (cartId, cartProductId) => {
+    //         try {
+    //             await ProductCart.updateOne({ _id: cartId, "Products._id": cartProductId }, { $set: { "Products.$.Reserved": false } });
+    //         } catch (err) {
+    //             console.error('unreserveCartProduct Error', err?.message || err);
+    //         }
+    //     };
+    //     let adjustVariantStock = async (variantId, incObj = {}) => {
+    //         if (!variantId) return;
+    //         try {
+    //             await VariantProduct.updateOne({ _id: variantId, 'InventoryBaseStock.InventoryBase': true }, { $inc: incObj });
+    //         } catch (err) {
+    //             console.error('adjustVariantStock Error', err?.message || err);
+    //         }
+    //     };
+
+    //     let groupCartByKey = (cartProducts = [], orderKeySet = new Set()) => {
+    //         let map = new Map();
+    //         for (let p of (cartProducts || [])) {
+    //             let key = `${safeId(p?.ProductId)}|${safeId(p?.VariantProductId)}`;
+    //             if (!orderKeySet.has(key)) continue;
+    //             if (!map.has(key)) map.set(key, []);
+    //             map.get(key).push(p);
+    //         }
+    //         return Array.from(map.entries()).map(([key, items]) => ({ key, items }));
+    //     };
+
+    //     let cleanupGroupForOrder = async (cartId, group, order) => {
+    //         let cartItems = group.items || [];
+    //         if (!cartItems.length) return;
+
+    //         let [prodId, varId] = group.key.split('|');
+    //         let orderItemsForKey = (order.Products || []).filter(p =>
+    //             safeId(p?.ProductData?.ProductInfo?.ProductId) === prodId &&
+    //             safeId(p?.ProductData?.VariantProductInfo?.VariantProductId) === varId
+    //         );
+
+    //         let orderWithCartIds = orderItemsForKey.filter(p => safeId(p?.CartProductId));
+    //         if (orderWithCartIds.length) {
+    //             for (let oi of orderWithCartIds) {
+    //                 let cartProdId = safeId(oi.CartProductId);
+    //                 let cartEntry = cartItems.find(c => safeId(c._id) === cartProdId);
+    //                 if (!cartEntry) continue;
+    //                 if (isReserved(cartEntry)) {
+    //                     await pullCartProduct(cartId, cartProdId);
+    //                 } else {
+    //                     await pullCartProduct(cartId, cartProdId);
+    //                 }
+    //             }
+    //             return;
+    //         }
+
+    //         let totalOrderQty = orderItemsForKey.reduce((s, it) => s + (Number(it.Quantity) || 0), 0);
+    //         if (totalOrderQty <= 0) return;
+
+    //         let reserved = cartItems.filter(isReserved);
+    //         let unreserved = cartItems.filter(ci => !isReserved(ci));
+
+    //         if (reserved.length && unreserved.length) {
+    //             let reservedSorted = reserved.slice().sort((a, b) => (Number(a.Quantity) || 0) - (Number(b.Quantity) || 0));
+    //             let toRemove = totalOrderQty;
+    //             for (let r of reservedSorted) {
+    //                 if (toRemove <= 0) break;
+    //                 let q = Number(r.Quantity) || 0;
+    //                 await pullCartProduct(cartId, r._id);
+    //                 toRemove -= q;
+    //             }
+    //             return;
+    //         }
+
+    //         if (reserved.length && !unreserved.length) {
+    //             if (reserved.length === 1) {
+    //                 await unreserveCartProduct(cartId, reserved[0]._id);
+    //                 return;
+    //             }
+    //             let highest = reserved.reduce((max, p) => (Number(p.Quantity) > Number(max.Quantity) ? p : max), reserved[0]);
+    //             await Promise.all(reserved.map(async (r) => {
+    //                 if (safeId(r._id) !== safeId(highest._id)) {
+    //                     await pullCartProduct(cartId, r._id);
+    //                 }
+    //             }));
+    //             await unreserveCartProduct(cartId, highest._id);
+    //             return;
+    //         }
+
+    //         return;
+    //     };
+
+
+    //     try {
+    //         let paytmParams = { body: { mid: process.env.PAYTM_MID, orderId: paymentInfo.orderId } };
+    //         let checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), process.env.PAYTM_KEY);
+    //         paytmParams.head = { signature: checksum };
+    //         let post_data = JSON.stringify(paytmParams);
+
+    //         let options = {
+    //             hostname: "securegw.paytm.in",
+    //             port: 443,
+    //             path: `/v3/order/status`,
+    //             method: "POST",
+    //             headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(post_data) }
+    //         };
+
+    //         let verifyPaytmStatus = await new Promise((resolve, reject) => {
+    //             let response = "";
+    //             let paytmReq = https.request(options, (paytmRes) => {
+    //                 paytmRes.on("data", chunk => response += chunk);
+    //                 paytmRes.on("end", () => {
+    //                     try { resolve(JSON.parse(response)); } catch (err) { reject(err); }
+    //                 });
+    //             });
+    //             paytmReq.on("error", reject);
+    //             paytmReq.write(post_data);
+    //             paytmReq.end();
+    //         });
+
+    //         let resultStatus = verifyPaytmStatus?.body?.resultInfo?.resultStatus;
+    //         let FoundOrder = await ProductOrder.findOne({ "PaymentSession.orderId": orderId });
+
+    //         if (!FoundOrder) return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paymentInfo.orderId}&status=ORDER-NOT-FOUND`);
+
+    //         let UserId = FoundOrder.UserId;
+    //         let companyId = FoundOrder.companyId;
+    //         let FoundCart = await ProductCart.findOne({ UserId, companyId, _id: FoundOrder.CartId });
+
+    //         if (resultStatus === "TXN_SUCCESS") {
+    //             if (FoundOrder.PaymentSession?.status === 'SUCCESS') {
+    //                 return res.redirect(`${FrontendRenderDomain}/order-checked?orderId=${paymentInfo.orderId}&status=SUCCESS&cartorderid=${FoundOrder._id}`);
+    //                 // return res.status(200).json({ message: "✅ Payment verified and order placed successfully.", success: true });
+    //             }
+
+    //             for (let item of (FoundOrder.Products || [])) {
+    //                 try {
+    //                     let variantId = safeId(item?.ProductData?.VariantProductInfo?.VariantProductId);
+    //                     await adjustVariantStock(variantId, { "InventoryBaseStock.ReservedStock": -(Number(item.Quantity) || 0) });
+    //                 } catch (err) {
+    //                     console.error('Stock Deduct On Payment Success Error:', err?.message || err);
+    //                 }
+    //             }
+
+    //             FoundOrder.PaymentSession = FoundOrder.PaymentSession || {};
+    //             FoundOrder.PaymentSession.status = "SUCCESS";
+    //             FoundOrder.PaymentSession.txnId = paymentInfo.txnId;
+    //             FoundOrder.PaymentSession.amount = paymentInfo.amount;
+
+    //             try {
+    //                 for (let cartProd of (FoundCart?.Products || [])) {
+    //                     let referenced = (FoundOrder.Products || []).filter(p => safeId(p?.CartProductId) === safeId(cartProd._id));
+    //                     if (referenced.length && isReserved(cartProd)) {
+    //                         await pullCartProduct(FoundCart._id, cartProd._id);
+    //                     }
+    //                 }
+    //             } catch (err) {
+    //                 console.error('Delete Reserved Product From Cart On Payment Success Error:', err?.message || err);
+    //             }
+
+    //             await FoundOrder.save();
+    //             return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paymentInfo.orderId}&status=SUCCESS&cartorderid=${FoundOrder._id}`);
+    //             // return res.status(200).json({ message: "✅ Payment verified and order placed successfully.", success: true });
+    //         }
+
+    //         if (resultStatus === "TXN_FAILURE" || resultStatus === "FAILURE") {
+    //             if (FoundOrder.PaymentSession?.status === 'FAILED') {
+    //                 return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paymentInfo.orderId}&status=FAILED&cartorderid=${FoundOrder._id}`);
+
+    //                 // return res.status(200).json({ message: "❌ Payment failed. Stock restored and cart reactivated.", success: false });
+    //             }
+
+    //             let orderKeySet = new Set((FoundOrder.Products || []).map(p => {
+    //                 let pid = safeId(p?.ProductData?.ProductInfo?.ProductId);
+    //                 let vid = safeId(p?.ProductData?.VariantProductInfo?.VariantProductId);
+    //                 return pid && vid ? `${pid}|${vid}` : null;
+    //             }).filter(Boolean));
+
+    //             if (FoundCart) {
+    //                 let groups = groupCartByKey(FoundCart.Products || [], orderKeySet);
+    //                 for (let g of groups) {
+    //                     await cleanupGroupForOrder(FoundCart._id, g, FoundOrder);
+    //                 }
+    //             }
+
+    //             FoundOrder.PaymentSession = FoundOrder.PaymentSession || {};
+    //             FoundOrder.PaymentSession.status = "FAILED";
+    //             FoundOrder.PaymentSession.txnId = paymentInfo.txnId || FoundOrder.PaymentSession.txnId;
+    //             FoundOrder.PaymentSession.amount = paymentInfo.amount || FoundOrder.PaymentSession.amount;
+    //             await FoundOrder.save();
+
+    //             try {
+    //                 for (let item of (FoundOrder.Products || [])) {
+    //                     let variantId = safeId(item?.ProductData?.VariantProductInfo?.VariantProductId);
+    //                     await adjustVariantStock(variantId, {
+    //                         "InventoryBaseStock.AvailableStock": (Number(item.Quantity) || 0),
+    //                         "InventoryBaseStock.ReservedStock": -(Number(item.Quantity) || 0)
+    //                     });
+    //                 }
+    //             } catch (err) {
+    //                 console.error('Restored Stock On Payment Failed Error', err?.message || err);
+    //             }
+    //             let resultMsg = verifyPaytmStatus?.body?.resultInfo?.resultMsg || "";
+    //             let respMsg = paymentInfo?.respMsg || "";
+
+    //             let isCancelled =
+    //                 resultMsg.toLowerCase().includes("cancelled") ||
+    //                 respMsg.toLowerCase().includes("user has not completed transaction");
+
+    //             if (isCancelled) {
+    //                 return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paymentInfo.orderId}&status=CANCELLED&cartorderid=${FoundOrder._id}`);
+    //             }
+
+    //             return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paymentInfo.orderId}&status=FAILED&cartorderid=${FoundOrder._id}`);
+
+    //             // return res.status(200).json({ message: "❌ Payment failed. Stock restored and cart reactivated.", success: false });
+    //         }
+    //         return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paymentInfo.orderId}&status=${resultStatus}&cartorderid=${FoundOrder._id}`);
+
+    //         // return res.status(200).json({ message: `Payment status: ${resultStatus}. No action taken.`, success: false });
+
+    //     } catch (err) {
+    //         console.error("handlePaymentStatus Error:", err);
+    //         return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paymentInfo.orderId}&status=INTERNAL-SERVER-ERROR`);
+    //         // return res.status(500).json({ message: "Internal Server Error", success: false });
+    //     }
+    // },
+
+
     handlePaymentStatus: async (req, res) => {
-        let paytmResponse = req.body;
-        let orderId = paytmResponse?.ORDERID;
-        let body = paytmResponse || {};
-        let paymentInfo = {
-            orderId: body.ORDERID,
-            txnId: body.TXNID,
-            amount: body.TXNAMOUNT,
-            respMsg: body.RESPMSG
-        };
-
-        let safeId = (v) => (v === undefined || v === null) ? null : (typeof v === "string" ? v : (v.toString ? v.toString() : String(v)));
-        let isReserved = (p) => Boolean(p && (p.Reserved == true || p.Reserved == "true" || p.Reserved == 1 || p.Reserved == "1"));
-        let pullCartProduct = async (cartId, cartProductId) => {
-            try {
-                await ProductCart.updateOne({ _id: cartId }, { $pull: { Products: { _id: cartProductId } } });
-            } catch (err) {
-                console.error('pullCartProduct Error', err?.message || err);
-            }
-        };
-        let unreserveCartProduct = async (cartId, cartProductId) => {
-            try {
-                await ProductCart.updateOne({ _id: cartId, "Products._id": cartProductId }, { $set: { "Products.$.Reserved": false } });
-            } catch (err) {
-                console.error('unreserveCartProduct Error', err?.message || err);
-            }
-        };
-        let adjustVariantStock = async (variantId, incObj = {}) => {
-            if (!variantId) return;
-            try {
-                await VariantProduct.updateOne({ _id: variantId, 'InventoryBaseStock.InventoryBase': true }, { $inc: incObj });
-            } catch (err) {
-                console.error('adjustVariantStock Error', err?.message || err);
-            }
-        };
-
-        let groupCartByKey = (cartProducts = [], orderKeySet = new Set()) => {
-            let map = new Map();
-            for (let p of (cartProducts || [])) {
-                let key = `${safeId(p?.ProductId)}|${safeId(p?.VariantProductId)}`;
-                if (!orderKeySet.has(key)) continue;
-                if (!map.has(key)) map.set(key, []);
-                map.get(key).push(p);
-            }
-            return Array.from(map.entries()).map(([key, items]) => ({ key, items }));
-        };
-
-        let cleanupGroupForOrder = async (cartId, group, order) => {
-            let cartItems = group.items || [];
-            if (!cartItems.length) return;
-
-            let [prodId, varId] = group.key.split('|');
-            let orderItemsForKey = (order.Products || []).filter(p =>
-                safeId(p?.ProductData?.ProductInfo?.ProductId) === prodId &&
-                safeId(p?.ProductData?.VariantProductInfo?.VariantProductId) === varId
-            );
-
-            let orderWithCartIds = orderItemsForKey.filter(p => safeId(p?.CartProductId));
-            if (orderWithCartIds.length) {
-                for (let oi of orderWithCartIds) {
-                    let cartProdId = safeId(oi.CartProductId);
-                    let cartEntry = cartItems.find(c => safeId(c._id) === cartProdId);
-                    if (!cartEntry) continue;
-                    if (isReserved(cartEntry)) {
-                        await pullCartProduct(cartId, cartProdId);
-                    } else {
-                        await pullCartProduct(cartId, cartProdId);
-                    }
-                }
-                return;
-            }
-
-            let totalOrderQty = orderItemsForKey.reduce((s, it) => s + (Number(it.Quantity) || 0), 0);
-            if (totalOrderQty <= 0) return;
-
-            let reserved = cartItems.filter(isReserved);
-            let unreserved = cartItems.filter(ci => !isReserved(ci));
-
-            if (reserved.length && unreserved.length) {
-                let reservedSorted = reserved.slice().sort((a, b) => (Number(a.Quantity) || 0) - (Number(b.Quantity) || 0));
-                let toRemove = totalOrderQty;
-                for (let r of reservedSorted) {
-                    if (toRemove <= 0) break;
-                    let q = Number(r.Quantity) || 0;
-                    await pullCartProduct(cartId, r._id);
-                    toRemove -= q;
-                }
-                return;
-            }
-
-            if (reserved.length && !unreserved.length) {
-                if (reserved.length === 1) {
-                    await unreserveCartProduct(cartId, reserved[0]._id);
-                    return;
-                }
-                let highest = reserved.reduce((max, p) => (Number(p.Quantity) > Number(max.Quantity) ? p : max), reserved[0]);
-                await Promise.all(reserved.map(async (r) => {
-                    if (safeId(r._id) !== safeId(highest._id)) {
-                        await pullCartProduct(cartId, r._id);
-                    }
-                }));
-                await unreserveCartProduct(cartId, highest._id);
-                return;
-            }
-
-            return;
-        };
-
-
         try {
-            let paytmParams = { body: { mid: process.env.PAYTM_MID, orderId: paymentInfo.orderId } };
-            let checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), process.env.PAYTM_KEY);
-            paytmParams.head = { signature: checksum };
-            let post_data = JSON.stringify(paytmParams);
-
-            let options = {
-                hostname: "securegw.paytm.in",
-                port: 443,
-                path: `/v3/order/status`,
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(post_data) }
+            let paytmResponse = req.body || {};
+            let orderId = paytmResponse?.ORDERID;
+            let paymentInfo = {
+                orderId,
+                txnId: paytmResponse.TXNID,
+                amount: paytmResponse.TXNAMOUNT,
+                respMsg: paytmResponse.RESPMSG,
+                status: paytmResponse.STATUS
             };
 
-            let verifyPaytmStatus = await new Promise((resolve, reject) => {
-                let response = "";
-                let paytmReq = https.request(options, (paytmRes) => {
-                    paytmRes.on("data", chunk => response += chunk);
-                    paytmRes.on("end", () => {
-                        try { resolve(JSON.parse(response)); } catch (err) { reject(err); }
-                    });
-                });
-                paytmReq.on("error", reject);
-                paytmReq.write(post_data);
-                paytmReq.end();
-            });
+            let { RenderingDomain, companyId } = req.query;
 
-            let resultStatus = verifyPaytmStatus?.body?.resultInfo?.resultStatus;
-            let FoundOrder = await ProductOrder.findOne({ "PaymentSession.orderId": orderId });
+            RenderingDomain = ["private", "public"].includes((RenderingDomain || "").toLowerCase())
+                ? RenderingDomain.toLowerCase()
+                : "public";
 
-            if (!FoundOrder) return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=ORDER-NOT-FOUND`);
+            const safeId = (v) => (v == undefined || v == null) ? null : (typeof v == "string" ? v : (v.toString ? v.toString() : String(v)));
+            const isReserved = (p) => Boolean(p && (p.Reserved == true || p.Reserved == "true" || p.Reserved == 1 || p.Reserved == "1"));
 
-            let UserId = FoundOrder.UserId;
-            let companyId = FoundOrder.companyId;
-            let FoundCart = await ProductCart.findOne({ UserId, companyId, _id: FoundOrder.CartId });
+            const pullCartProduct = async (cartId, cartProductId) => {
+                try {
+                    await ProductCart.updateOne({ _id: cartId }, { $pull: { Products: { _id: cartProductId } } });
+                } catch (err) {
+                    console.error('pullCartProduct Error', err?.message || err);
+                }
+            };
+            const unreserveCartProduct = async (cartId, cartProductId) => {
+                try {
+                    await ProductCart.updateOne({ _id: cartId, "Products._id": cartProductId }, { $set: { "Products.$.Reserved": false } });
+                } catch (err) {
+                    console.error('unreserveCartProduct Error', err?.message || err);
+                }
+            };
+            const adjustVariantStock = async (variantId, incObj = {}) => {
+                if (!variantId) return;
+                try {
+                    await VariantProduct.updateOne({ _id: variantId, 'InventoryBaseStock.InventoryBase': true }, { $inc: incObj });
+                } catch (err) {
+                    console.error('adjustVariantStock Error', err?.message || err);
+                }
+            };
 
-            if (resultStatus === "TXN_SUCCESS") {
-                if (FoundOrder.PaymentSession?.status === 'SUCCESS') {
-                    return res.redirect(`${process.env.FRONTEND_URL}/order-checked?orderId=${paymentInfo.orderId}&status=SUCCESS&cartorderid=${FoundOrder._id}`);
-                    // return res.status(200).json({ message: "✅ Payment verified and order placed successfully.", success: true });
+    
+            const groupCartByKey = (cartProducts = [], orderKeySet = new Set()) => {
+                const map = new Map();
+                for (const p of (cartProducts || [])) {
+                    const key = `${safeId(p?.ProductId)}|${safeId(p?.VariantProductId)}`;
+                    if (!orderKeySet.has(key)) continue;
+                    if (!map.has(key)) map.set(key, []);
+                    map.get(key).push(p);
+                }
+                return Array.from(map.entries()).map(([key, items]) => ({ key, items }));
+            };
+
+            const cleanupGroupForOrder = async (cartId, group, order) => {
+                const cartItems = group.items || [];
+                if (!cartItems.length) return;
+
+                const [prodId, varId] = group.key.split('|');
+                const orderItemsForKey = (order.Products || []).filter(p =>
+                    safeId(p?.ProductData?.ProductInfo?.ProductId) == prodId &&
+                    safeId(p?.ProductData?.VariantProductInfo?.VariantProductId) == varId
+                );
+
+                const orderWithCartIds = orderItemsForKey.filter(p => safeId(p?.CartProductId));
+                if (orderWithCartIds.length) {
+                    for (const oi of orderWithCartIds) {
+                        const cartProdId = safeId(oi.CartProductId);
+                        const cartEntry = cartItems.find(c => safeId(c._id) == cartProdId);
+                        if (!cartEntry) continue;
+                   
+                        await pullCartProduct(cartId, cartProdId);
+                    }
+                    return;
                 }
 
-                for (let item of (FoundOrder.Products || [])) {
+                const totalOrderQty = orderItemsForKey.reduce((s, it) => s + (Number(it.Quantity) || 0), 0);
+                if (totalOrderQty <= 0) return;
+
+                const reserved = cartItems.filter(isReserved);
+                const unreserved = cartItems.filter(ci => !isReserved(ci));
+
+                if (reserved.length && unreserved.length) {
+                    const reservedSorted = reserved.slice().sort((a, b) => (Number(a.Quantity) || 0) - (Number(b.Quantity) || 0));
+                    let toRemove = totalOrderQty;
+                    for (const r of reservedSorted) {
+                        if (toRemove <= 0) break;
+                        const q = Number(r.Quantity) || 0;
+                        await pullCartProduct(cartId, r._id);
+                        toRemove -= q;
+                    }
+                    return;
+                }
+
+                if (reserved.length && !unreserved.length) {
+                    if (reserved.length == 1) {
+                        await unreserveCartProduct(cartId, reserved[0]._id);
+                        return;
+                    }
+                    const highest = reserved.reduce((max, p) => (Number(p.Quantity) > Number(max.Quantity) ? p : max), reserved[0]);
+                    await Promise.all(reserved.map(async (r) => {
+                        if (safeId(r._id) != safeId(highest._id)) {
+                            await pullCartProduct(cartId, r._id);
+                        }
+                    }));
+                    await unreserveCartProduct(cartId, highest._id);
+                    return;
+                }
+
+                return;
+            };
+
+         
+            let FrontendRenderDomain;
+            try {
+                const FoundCompany = companyId ? await CompanyModel.findById(companyId) : null;
+                if (FoundCompany) {
+                    if (RenderingDomain === 'Private' && FoundCompany.PredifinedDomain) {
+                        FrontendRenderDomain = `${FoundCompany.PredifinedDomain.replace(/\/+$/, '')}/shopping`;
+                    } else if (FoundCompany.CompanyDomain) {
+                        FrontendRenderDomain = `http://${FoundCompany.CompanyDomain}:4200/shopping`;
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching company for render domain:', err?.message || err);
+            }
+          
+            if (!FrontendRenderDomain) FrontendRenderDomain = "http://localhost:4200/shopping";
+
+            let verifyPaytmStatus;
+            try {
+                const paytmParams = { body: { mid: process.env.PAYTM_MID, orderId: paymentInfo.orderId } };
+                const checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), process.env.PAYTM_KEY);
+                paytmParams.head = { signature: checksum };
+                const post_data = JSON.stringify(paytmParams);
+
+                const options = {
+                    hostname: "securegw.paytm.in",
+                    port: 443,
+                    path: `/v3/order/status`,
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(post_data) }
+                };
+
+                verifyPaytmStatus = await new Promise((resolve, reject) => {
+                    let response = "";
+                    const paytmReq = https.request(options, (paytmRes) => {
+                        paytmRes.on("data", chunk => response += chunk);
+                        paytmRes.on("end", () => {
+                            try { resolve(JSON.parse(response)); } catch (e) { reject(e); }
+                        });
+                    });
+                    paytmReq.on("error", reject);
+                    paytmReq.write(post_data);
+                    paytmReq.end();
+                });
+            } catch (err) {
+                console.error('Error verifying paytm status:', err?.message || err);
+              
+                return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=PAYTM-VERIFY-ERROR`);
+            }
+
+            const resultStatus = verifyPaytmStatus?.body?.resultInfo?.resultStatus || "UNKNOWN";
+
+            const FoundOrder = await ProductOrder.findOne({ "PaymentSession.orderId": orderId });
+            if (!FoundOrder) {
+                return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=ORDER-NOT-FOUND`);
+            }
+
+            const UserId = FoundOrder.UserId;
+            const orderCompanyId = FoundOrder.companyId;
+            const FoundCart = await ProductCart.findOne({ UserId, companyId: orderCompanyId, _id: FoundOrder.CartId });
+
+            if (resultStatus === "TXN_SUCCESS") {
+                
+                if (FoundOrder.PaymentSession?.status == 'SUCCESS') {
+                    return res.redirect(`${FrontendRenderDomain}/order-checked?orderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=SUCCESS&cartorderid=${FoundOrder._id}`);
+                }
+
+        
+                for (const item of (FoundOrder.Products || [])) {
                     try {
-                        let variantId = safeId(item?.ProductData?.VariantProductInfo?.VariantProductId);
+                        const variantId = safeId(item?.ProductData?.VariantProductInfo?.VariantProductId);
                         await adjustVariantStock(variantId, { "InventoryBaseStock.ReservedStock": -(Number(item.Quantity) || 0) });
                     } catch (err) {
                         console.error('Stock Deduct On Payment Success Error:', err?.message || err);
@@ -1489,10 +1783,11 @@ module.exports = {
                 FoundOrder.PaymentSession.status = "SUCCESS";
                 FoundOrder.PaymentSession.txnId = paymentInfo.txnId;
                 FoundOrder.PaymentSession.amount = paymentInfo.amount;
+                await FoundOrder.save();
 
                 try {
-                    for (let cartProd of (FoundCart?.Products || [])) {
-                        let referenced = (FoundOrder.Products || []).filter(p => safeId(p?.CartProductId) === safeId(cartProd._id));
+                    for (const cartProd of (FoundCart?.Products || [])) {
+                        const referenced = (FoundOrder.Products || []).filter(p => safeId(p?.CartProductId) === safeId(cartProd._id));
                         if (referenced.length && isReserved(cartProd)) {
                             await pullCartProduct(FoundCart._id, cartProd._id);
                         }
@@ -1501,27 +1796,25 @@ module.exports = {
                     console.error('Delete Reserved Product From Cart On Payment Success Error:', err?.message || err);
                 }
 
-                await FoundOrder.save();
-                return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=SUCCESS&cartorderid=${FoundOrder._id}`);
-                // return res.status(200).json({ message: "✅ Payment verified and order placed successfully.", success: true });
+                return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=SUCCESS&cartorderid=${FoundOrder._id}`);
             }
 
             if (resultStatus === "TXN_FAILURE" || resultStatus === "FAILURE") {
                 if (FoundOrder.PaymentSession?.status === 'FAILED') {
-                    return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=FAILED&cartorderid=${FoundOrder._id}`);
-
-                    // return res.status(200).json({ message: "❌ Payment failed. Stock restored and cart reactivated.", success: false });
+                    return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=FAILED&cartorderid=${FoundOrder._id}`);
                 }
 
-                let orderKeySet = new Set((FoundOrder.Products || []).map(p => {
-                    let pid = safeId(p?.ProductData?.ProductInfo?.ProductId);
-                    let vid = safeId(p?.ProductData?.VariantProductInfo?.VariantProductId);
+          
+                const orderKeySet = new Set((FoundOrder.Products || []).map(p => {
+                    const pid = safeId(p?.ProductData?.ProductInfo?.ProductId);
+                    const vid = safeId(p?.ProductData?.VariantProductInfo?.VariantProductId);
                     return pid && vid ? `${pid}|${vid}` : null;
                 }).filter(Boolean));
 
+               
                 if (FoundCart) {
-                    let groups = groupCartByKey(FoundCart.Products || [], orderKeySet);
-                    for (let g of groups) {
+                    const groups = groupCartByKey(FoundCart.Products || [], orderKeySet);
+                    for (const g of groups) {
                         await cleanupGroupForOrder(FoundCart._id, g, FoundOrder);
                     }
                 }
@@ -1532,9 +1825,10 @@ module.exports = {
                 FoundOrder.PaymentSession.amount = paymentInfo.amount || FoundOrder.PaymentSession.amount;
                 await FoundOrder.save();
 
+            
                 try {
-                    for (let item of (FoundOrder.Products || [])) {
-                        let variantId = safeId(item?.ProductData?.VariantProductInfo?.VariantProductId);
+                    for (const item of (FoundOrder.Products || [])) {
+                        const variantId = safeId(item?.ProductData?.VariantProductInfo?.VariantProductId);
                         await adjustVariantStock(variantId, {
                             "InventoryBaseStock.AvailableStock": (Number(item.Quantity) || 0),
                             "InventoryBaseStock.ReservedStock": -(Number(item.Quantity) || 0)
@@ -1543,29 +1837,26 @@ module.exports = {
                 } catch (err) {
                     console.error('Restored Stock On Payment Failed Error', err?.message || err);
                 }
-                let resultMsg = verifyPaytmStatus?.body?.resultInfo?.resultMsg || "";
-                let respMsg = paymentInfo?.respMsg || "";
 
-                let isCancelled =
-                    resultMsg.toLowerCase().includes("cancelled") ||
-                    respMsg.toLowerCase().includes("user has not completed transaction");
+                const resultMsg = (verifyPaytmStatus?.body?.resultInfo?.resultMsg || "").toLowerCase();
+                const respMsg = (paymentInfo?.respMsg || "").toLowerCase();
+                const isCancelled = resultMsg.includes("cancelled") || respMsg.includes("user has not completed transaction");
 
                 if (isCancelled) {
-                    return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=CANCELLED&cartorderid=${FoundOrder._id}`);
+                    return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=CANCELLED&cartorderid=${FoundOrder._id}`);
                 }
 
-                return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=FAILED&cartorderid=${FoundOrder._id}`);
-
-                // return res.status(200).json({ message: "❌ Payment failed. Stock restored and cart reactivated.", success: false });
+                return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=FAILED&cartorderid=${FoundOrder._id}`);
             }
-            return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=${resultStatus}&cartorderid=${FoundOrder._id}`);
 
-            // return res.status(200).json({ message: `Payment status: ${resultStatus}. No action taken.`, success: false });
+            return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=${encodeURIComponent(resultStatus)}&cartorderid=${FoundOrder._id}`);
 
         } catch (err) {
             console.error("handlePaymentStatus Error:", err);
-            return res.redirect(`${process.env.FRONTEND_URL}/order-checked?paytmorderId=${paymentInfo.orderId}&status=INTERNAL-SERVER-ERROR`);
-            // return res.status(500).json({ message: "Internal Server Error", success: false });
+          
+            const fallbackDomain = "http://localhost:4200/shopping";
+            const paytmorderId = (req.body && req.body.ORDERID) ? encodeURIComponent(req.body.ORDERID) : "";
+            return res.redirect(`${fallbackDomain}/order-checked?paytmorderId=${paytmorderId}&status=INTERNAL-SERVER-ERROR`);
         }
     },
 
