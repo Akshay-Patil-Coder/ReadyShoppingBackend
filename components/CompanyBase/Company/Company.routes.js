@@ -89,4 +89,7 @@ router.get('/ToggleStatusOfCompany', (req, res) => {
 router.delete('/DeleteCompany', (req, res) => {
   companiesController.DeleteCompany(req, res)
 })
+router.get('/resetPassword', (req, res) => {
+  companiesController.resetPassword(req, res)
+})
 module.exports = router;

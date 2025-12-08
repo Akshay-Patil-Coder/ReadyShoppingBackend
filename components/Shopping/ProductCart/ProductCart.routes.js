@@ -10,9 +10,7 @@ router.post('/addtocart', authentication, (req, res) => {
         return cartsController.addtocart(req, res)
     }
     return res.status(400).json({ message: 'User Not Found', success: false })
-
 })
-
 
 router.get('/getCart', authentication, (req, res) => {
     if (req.user.role == 'User') {

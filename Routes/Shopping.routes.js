@@ -8,6 +8,7 @@ const ProductsRoutes = require('../components/Shopping/VariantsProducts/Variants
 const ProductServiceRoutes = require('../components/Shopping/ProductServices/ProductServices.routes')
 const ProductReviewRoutes = require('../components/Shopping/ProductRating/ProductRating.routes')
 const ProductCartRoutes = require('../components/Shopping/ProductCart/ProductCart.routes')
+const ProductWishlistRoutes = require('../components/Shopping/WishList/WishList.routes')
 
 
 const apiString = `/api/${process.env.API_VERSION}`;
@@ -20,6 +21,7 @@ const ProductServicesString = apiString + '/productservices'
 const TrendingProductString = apiString + '/trendingproducts'
 const ProductReviewString = apiString + '/productreview'
 const ProductCartString = apiString + '/productcart'
+const ProductWishlistString = apiString + '/wishlist'
 
 
 exports.default = (app) => {
@@ -30,6 +32,7 @@ exports.default = (app) => {
     app.use(TrendingProductString, TrendingProductRoutes)
     app.use(VariantsString, VariantsRoutes)
     app.use(ProductServicesString, ProductServiceRoutes)
-    app.use(ProductReviewString,ProductReviewRoutes )
-    app.use(ProductCartString,ProductCartRoutes )
+    app.use(ProductReviewString, ProductReviewRoutes)
+    app.use(ProductCartString, ProductCartRoutes)
+    app.use(ProductWishlistString, ProductWishlistRoutes)
 }

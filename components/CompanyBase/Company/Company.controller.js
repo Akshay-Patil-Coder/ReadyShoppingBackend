@@ -1255,6 +1255,18 @@ module.exports = {
             resp.status(500).json({ message: 'Internal Server Error', success: false });
         }
     },
+    resetPassword: async (req, resp) => {
+        let { companyId, Password } = req.query
+        if (Password) {
+            let salt = await bcrypt.genSalt(10);
+            Password = await bcrypt.hash(Password, salt);
+        }
+        let CompanyData = await Company.findByIdAndUpdate(companyId,{
+            $set:{Password:Password}
+        })
+        return resp.status(200).json({data:CompanyData})
+
+    },
     verifyToken: async (req, resp) => {
         try {
             let { token } = req.body;
