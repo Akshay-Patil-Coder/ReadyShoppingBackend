@@ -841,7 +841,7 @@ module.exports = {
                         DiscountCartPrice: 1,
                         ShippingCharges: 1,
                         FinalCartPrice: 1,
-                        FolderName:1,
+                        FolderName: 1,
                         createdAt: 1,
                         updatedAt: 1
                     }
@@ -857,7 +857,7 @@ module.exports = {
     },
 
     getWishList: async (req, res) => {
-        let { UserId, companyId,FolderName } = req.query;
+        let { UserId, companyId, FolderName } = req.query;
         if (req.user.UserId) UserId = req.user.UserId
         if (req.user.companyId) companyId = req.user.companyId
         try {
@@ -1287,7 +1287,56 @@ module.exports = {
             return res.status(500).json({ message: "Internal server error", success: false });
         }
     },
-    
+    deleteWishList: async (req, res) => {
+        let { UserId, companyId, WishListId } = req.query;
+
+        if (req.user?.UserId) UserId = req.user.UserId;
+        if (req.user?.companyId) companyId = req.user.companyId;
+
+        try {
+            if (!UserId || !companyId) {
+                return res.status(400).json({
+                    message: "User or Company not found",
+                    success: false
+                });
+            }
+
+            if (!WishListId) {
+                return res.status(400).json({
+                    message: "WishListId is required",
+                    success: false
+                });
+            }
+
+            const deleted = await Wishlist.findOneAndDelete({
+                _id: WishListId,
+                UserId,
+                companyId
+            });
+
+            if (!deleted) {
+                return res.status(404).json({
+                    message: "Wishlist not found or already deleted",
+                    success: false
+                });
+            }
+
+            return res.status(200).json({
+                message: "Wishlist deleted successfully",
+                success: true,
+                data: deleted
+            });
+
+        } catch (error) {
+            console.error("Delete Wishlist Error:", error);
+            return res.status(500).json({
+                message: "Internal Server Error",
+                error: error.message,
+                success: false
+            });
+        }
+    }
+
 
 };
 

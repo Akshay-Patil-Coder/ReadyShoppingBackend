@@ -28,7 +28,13 @@ router.post('/proceedToPaymentForWishList', authentication, (req, res) => {
     return WishListController.proceedToPaymentForWishList(req, res)
   }
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+})
 
+router.delete('/deleteWishList', authentication, (req, res) => {
+  if (req.user.role == 'User') {
+    return WishListController.deleteWishList(req, res)
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 })
 
 module.exports = router
