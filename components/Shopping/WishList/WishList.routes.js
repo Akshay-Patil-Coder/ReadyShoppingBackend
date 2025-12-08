@@ -17,15 +17,15 @@ router.post("/addWishlist", authentication, (req, res) => {
 
 router.get('/getWishList', authentication, (req, res) => {
   if (req.user.role == 'User') {
-  return WishListController.getWishList(req, res)
+    return WishListController.getWishList(req, res)
   }
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 })
 
 router.post('/proceedToPaymentForWishList', authentication, (req, res) => {
-   if (req.user.role == 'User') {
-  return WishListController.proceedToPaymentForWishList(req, res)
+  if (req.user.role == 'User') {
+    return WishListController.proceedToPaymentForWishList(req, res)
   }
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 

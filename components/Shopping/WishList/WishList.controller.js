@@ -841,7 +841,7 @@ module.exports = {
                         DiscountCartPrice: 1,
                         ShippingCharges: 1,
                         FinalCartPrice: 1,
-                        CartType: 1,
+                        FolderName:1,
                         createdAt: 1,
                         updatedAt: 1
                     }
@@ -851,13 +851,13 @@ module.exports = {
 
             return data || null;
         } catch (error) {
-            console.error("getCartDataError:", error);
-            throw new Error("Failed to fetch cart data");
+            console.error("getWishListDataError:", error);
+            throw new Error("Failed to fetch WishList data");
         }
     },
 
     getWishList: async (req, res) => {
-        let { UserId, companyId } = req.query;
+        let { UserId, companyId,FolderName } = req.query;
         if (req.user.UserId) UserId = req.user.UserId
         if (req.user.companyId) companyId = req.user.companyId
         try {
@@ -914,13 +914,13 @@ module.exports = {
 
             }
             return res.status(200).json({
-                message: "Cart fetched and recalculated successfully",
+                message: "WishList fetched and recalculated successfully",
                 success: true,
                 data: data
             });
 
         } catch (error) {
-            console.warn("GetCartError:", error.message);
+            console.warn("getWishListError:", error.message);
             return res.status(500).json({
                 message: "Internal Server Error",
                 error: error.message,
@@ -1287,6 +1287,7 @@ module.exports = {
             return res.status(500).json({ message: "Internal server error", success: false });
         }
     },
+    
 
 };
 
