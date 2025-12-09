@@ -1967,7 +1967,7 @@ module.exports = {
                             let activeVariants = product?.VariantProducts.filter(v => v.isActive === true);
 
                             if (activeVariants.length > 0) {
-                                return { ...product, VarianProducts: activeVariants };
+                                return { ...product, VariantProducts: activeVariants };
                             }
 
                             return null;
