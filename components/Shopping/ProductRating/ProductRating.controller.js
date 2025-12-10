@@ -1,6 +1,7 @@
 const { ObjectId } = require('mongodb');
 const { Product } = require('../VariantsProducts/VariantsProducts.model');
 const { ProductRating } = require('../ProductRating/ProductRating.model')
+const { ProductOrder } = require('../ProductCart/ProductCart.model')
 
 const mongoose = require('mongoose');
 const fs = require('fs');
@@ -48,6 +49,25 @@ module.exports = {
             if (!product) {
                 clearFiles(ReviewImages);
                 return res.status(404).json({ success: false, message: "Product not found." });
+            }
+            const FoundOrder = await ProductOrder.findOne({
+                companyId,
+                UserId,
+                "PaymentSession.status": "SUCCESS",
+                Products: {
+                    $elemMatch: {
+                        "ProductData.ProductInfo.ProductId": ProductId,
+                        "OrderStatus.Status": "SHIPPED"
+                    }
+                }
+            });
+
+            if (!FoundOrder) {
+                clearFiles(ReviewImages);
+                return res.status(400).json({
+                    message: "You must purchase this product before adding a rating.",
+                    success: false
+                });
             }
 
             let reviewData = { companyId, ProductId, UserId };

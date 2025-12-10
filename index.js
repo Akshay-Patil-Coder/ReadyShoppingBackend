@@ -7,7 +7,10 @@ const ShoppingRoutes = require('./Routes/Shopping.routes')
 // const CoachingRoutes = require('./Routes/Coaching.routes')
 const cron = require('node-cron')
 const {  ProductOrder } = require('./components/Shopping/ProductCart/ProductCart.model')
+const staticPaths = require('./Routes/StaticPath.routes');
 const cors = require('cors')
+const clc = require('cli-color');
+
 const axios = require('axios')
 const app = express();
 app.use(express.json());
@@ -19,6 +22,38 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
+app.use((req, res, next) => {
+  const start = Date.now();
+
+  const methodColors = {
+    GET: clc.green,
+    POST: clc.blue,
+    PUT: clc.yellow,
+    PATCH: clc.magenta,
+    DELETE: clc.red
+  };
+
+  const methodColor = methodColors[req.method] || clc.white;
+
+  console.log(clc.bold("\n➡ API HIT"));
+  console.log(methodColor(req.method) + " " + clc.cyan(req.originalUrl));
+
+
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+
+    let statusColor =
+      res.statusCode >= 500 ? clc.bgRed.white :
+      res.statusCode >= 400 ? clc.red :
+      res.statusCode >= 300 ? clc.yellow :
+      clc.green;
+
+    console.log("✔ " + statusColor(`Status: ${res.statusCode}`) + clc.blackBright(` (${duration}ms)`));
+  });
+
+  next();
+});
+
 
 (async () => {
   try {
@@ -81,20 +116,6 @@ cron.schedule("*/10 * * * *", async () => {
 });
 
 
-const staticPaths = {
-  '/api/v1/UserImage': './components/public/UserImage',
-  '/api/v1/BrandImage': './components/public/BrandImage',
-  '/api/v1/BannerImage': './components/public/BannerImage',
-  '/api/v1/CompanyLogos': './components/public/CompanyLogos',
-  '/api/v1/FunctionallityLogos': './components/public/FunctionallityLogos',
-  '/api/v1/ProductCategories': './components/public/ProductCategories',
-  '/api/v1/ProductImage': './components/public/ProductImage',
-  '/api/v1/ProductVideo': './components/public/ProductVideo',
-  '/api/v1/ProductServiceImage': './components/public/ProductServiceImage',
-  '/api/v1/ProductsRatingImage': './components/public/ProductSRatingImage',
-  '/api/v1/BatchImages': './components/public/BatchImages',
-
-};
 
 Object.entries(staticPaths).forEach(([route, dir]) => {
   app.use(route, express.static(path.join(__dirname, dir)));

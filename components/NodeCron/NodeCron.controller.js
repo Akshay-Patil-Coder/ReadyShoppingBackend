@@ -125,9 +125,7 @@ async function processOrder(order, cutoffTime, pendingCutoff) {
     console.log(`📌 Checking Order: ${order._id}`);
 
     const verifyPaytmStatus = await verifyPaytm(order);
-    console.log(verifyPaytmStatus,'paytm')
     const resultStatus = verifyPaytmStatus?.body?.resultInfo?.resultStatus;
-    console.log(`📡 Paytm Status: ${resultStatus} for Order: ${order._id}`);
 
     const FoundCart = await ProductCart.findOne({ _id: order.CartId });
     if (!FoundCart) {

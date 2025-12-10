@@ -1,0 +1,13 @@
+module.exports = {
+  '/api/v1/UserImage': './components/public/UserImage',
+  '/api/v1/BrandImage': './components/public/BrandImage',
+  '/api/v1/BannerImage': './components/public/BannerImage',
+  '/api/v1/CompanyLogos': './components/public/CompanyLogos',
+  '/api/v1/FunctionallityLogos': './components/public/FunctionallityLogos',
+  '/api/v1/ProductCategories': './components/public/ProductCategories',
+  '/api/v1/ProductImage': './components/public/ProductImage',
+  '/api/v1/ProductVideo': './components/public/ProductVideo',
+  '/api/v1/ProductServiceImage': './components/public/ProductServiceImage',
+  '/api/v1/ProductsRatingImage': './components/public/ProductSRatingImage',
+  '/api/v1/BatchImages': './components/public/BatchImages',
+};

@@ -11,7 +11,12 @@ router.post('/addtocart', authentication, (req, res) => {
     }
     return res.status(400).json({ message: 'User Not Found', success: false })
 })
-
+router.post('/proceedToPaymentForSingleProduct', authentication, (req, res) => {
+    if (req.user.role == 'User') {
+        return cartsController.proceedToPaymentForSingleProduct(req, res)
+    }
+    return res.status(400).json({ message: 'User Not Found', success: false })
+})
 router.get('/getCart', authentication, (req, res) => {
     if (req.user.role == 'User') {
         return cartsController.getCart(req, res)
@@ -42,6 +47,5 @@ router.get('/getAllOrders', authentication, (req, res) => {
     }
     
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
-
 })
 module.exports = router

@@ -287,6 +287,398 @@ module.exports = {
         }
     },
 
+
+    proceedToPaymentForSingleProduct: async (req, res) => {
+
+
+        let {
+            UserId,
+            companyId,
+            AddressId,
+            ProductId,
+            VariantProductId,
+            Quantity = 1,
+            ProductServicesIds = []
+        } = req.body;
+
+        if (req.user?.UserId) UserId = req.user.UserId;
+        if (req.user?.companyId) companyId = req.user.companyId;
+
+        let { RenderingDomain } = req.query;
+        RenderingDomain = ["private", "public"].includes((RenderingDomain || "").toLowerCase())
+            ? RenderingDomain.toLowerCase()
+            : "public";
+
+        let rollback = { orderId: null, stockUpdates: [] };
+
+        const RollBack = async () => {
+            try {
+                if (rollback.stockUpdates?.length) {
+                    await Promise.all(
+                        rollback.stockUpdates.map(({ variantId, quantity }) =>
+                            VariantProduct.updateOne(
+                                { _id: variantId },
+                                {
+                                    $inc: {
+                                        "InventoryBaseStock.AvailableStock": quantity,
+                                        "InventoryBaseStock.ReservedStock": -quantity
+                                    }
+                                }
+                            )
+                        )
+                    );
+                }
+                if (rollback.orderId) {
+                    await ProductOrder.findByIdAndDelete(rollback.orderId);
+                }
+            } catch (rbErr) {
+                console.error("Rollback Error:", rbErr.message);
+            }
+        };
+
+        try {
+            if (!ProductId || !VariantProductId) {
+                return res.status(400).json({ message: "Missing product/variant details", success: false });
+            }
+            Quantity = Number(Quantity) || 1;
+            if (Quantity <= 0) Quantity = 1;
+            ProductServicesIds = Array.isArray(ProductServicesIds) ? ProductServicesIds.map(String) : [];
+
+            if (!UserId || !companyId) {
+                return res.status(400).json({ message: "User or Company not provided", success: false });
+            }
+
+            let FoundUser = await User.findOne({ _id: UserId, companyId });
+            if (!FoundUser) return res.status(404).json({ message: "User not found", success: false });
+
+            let Address;
+            if (!AddressId) {
+                Address = FoundUser.Address?.find(a => a.DefaultAddress == true) || FoundUser.Address?.[0];
+            } else {
+                Address = FoundUser.Address?.find(a => String(a._id) === String(AddressId));
+            }
+            if (!Address) return res.status(400).json({ message: "Address not found", success: false });
+
+
+            let FoundProductAgg = await Product.aggregate([
+                {
+                    $match: {
+                        _id: new mongoose.Types.ObjectId(String(ProductId)),
+                        companyId: new mongoose.Types.ObjectId(String(companyId)),
+                        VariantProductIds: new mongoose.Types.ObjectId(String(VariantProductId))
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "productservices",
+                        localField: "ProductServices.ProductServiceId",
+                        foreignField: "_id",
+                        as: "ServiceInfo"
+                    }
+                },
+                {
+                    $addFields: {
+                        ProductServices: {
+                            $map: {
+                                input: "$ProductServices",
+                                as: "ps",
+                                in: {
+                                    $mergeObjects: [
+                                        "$$ps",
+                                        {
+                                            serviceData: {
+                                                $arrayElemAt: [
+                                                    {
+                                                        $filter: {
+                                                            input: "$ServiceInfo",
+                                                            as: "s",
+                                                            cond: { $eq: ["$$s._id", "$$ps.ProductServiceId"] }
+                                                        }
+                                                    },
+                                                    0
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                { $project: { ServiceInfo: 0 } }
+            ]);
+
+            let ProductData = FoundProductAgg?.[0];
+            if (!ProductData) return res.status(404).json({ message: "Product not found", success: false });
+
+
+            let FoundVariantAgg = await VariantProduct.aggregate([
+                {
+                    $match: {
+                        _id: new mongoose.Types.ObjectId(String(VariantProductId)),
+                        ProductId: new mongoose.Types.ObjectId(String(ProductId)),
+                        companyId: new mongoose.Types.ObjectId(String(companyId)),
+                        isActive: true
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "variants",
+                        localField: "VariantFields.VariantId",
+                        foreignField: "_id",
+                        as: "VariantNames"
+                    }
+                },
+                {
+                    $addFields: {
+                        VariantFields: {
+                            $map: {
+                                input: "$VariantFields",
+                                as: "vf",
+                                in: {
+                                    $mergeObjects: [
+                                        "$$vf",
+                                        {
+                                            $let: {
+                                                vars: {
+                                                    matched: {
+                                                        $arrayElemAt: [
+                                                            {
+                                                                $filter: {
+                                                                    input: "$VariantNames",
+                                                                    as: "vn",
+                                                                    cond: { $eq: ["$$vn._id", "$$vf.VariantId"] }
+                                                                }
+                                                            },
+                                                            0
+                                                        ]
+                                                    }
+                                                },
+                                                in: {
+                                                    VariantName: "$$matched.VariantName",
+                                                    Extension: "$$matched.Extension"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                { $project: { VariantNames: 0 } }
+            ]);
+
+            let VariantData = FoundVariantAgg?.[0];
+            if (!VariantData) return res.status(404).json({ message: "Variant not found", success: false });
+
+            let paidServices = (ProductData.ProductServices || []).filter(s => s.Paid);
+            let freeServices = (ProductData.ProductServices || []).filter(s => !s.Paid);
+
+            let selectedPaidServices = paidServices.filter(s =>
+                ProductServicesIds.includes(String(s.ProductServiceId))
+            );
+
+            const calculateTotals = (variant, qty, addOnServices = []) => {
+                const price = Number(variant.Price || 0);
+                const offer = Number(variant.OfferPercentage || 0);
+                let base = price * qty;
+                let discount = offer ? (base * offer) / 100 : 0;
+                let final = base - discount;
+
+                if (Array.isArray(addOnServices) && addOnServices.length) {
+                    const serviceTotal = addOnServices.reduce((sum, s) => {
+                        return sum + Number(s.ProductServiceAmount ?? s.serviceData?.ProductServiceAmount ?? 0);
+                    }, 0);
+                    base = parseFloat((base + serviceTotal).toFixed(2));
+                    final = parseFloat((final + serviceTotal).toFixed(2));
+                } else {
+                    base = parseFloat(base.toFixed(2));
+                    final = parseFloat(final.toFixed(2));
+                    discount = parseFloat(discount.toFixed(2));
+                }
+
+                return { base, discount, final };
+            };
+
+            let { base, discount, final } = calculateTotals(VariantData, Quantity, selectedPaidServices);
+
+            let OrderData = {
+                UserId,
+                companyId,
+                ReservationStartedAt: new Date(),
+                UserDetails: {
+                    UserName: FoundUser.UserName || "",
+                    Email: FoundUser.Email || "",
+                    Phone: FoundUser.Phone,
+                    AddresserName: Address.AddresserName || FoundUser.UserName || "Guest",
+                    AddresserNumber: Address.AddresserNumber || FoundUser.Phone,
+                    AddressType: Address.AddressType || "Home",
+                    Street: Address.Street || "",
+                    City: Address.City || "",
+                    State: Address.State || "",
+                    Country: Address.Country || "",
+                    PostalCode: Address.PostalCode || "",
+                    Latitude: Address.Latitude || "",
+                    Longitude: Address.Longitude || "",
+                    ManualAddress: Address.ManualAddress || ""
+                },
+                Products: []
+            };
+
+            let productEntry = {
+                Quantity,
+                OrderStatus: [{ Status: "INITIATED", StatusAt: Date.now() }],
+                TotalPrice: base,
+                DiscountPrice: discount,
+                FinalPrice: final,
+                ProductData: {
+                    ProductInfo: {
+                        ProductId: ProductData._id,
+                        ProductName: ProductData.ProductName || ProductData.Title || "",
+                        CommonImages: ProductData.CommonImages || [],
+                        CommonVideos: ProductData.CommonVideos || [],
+                        CommonDescription: ProductData.CommonDescription || ""
+                    },
+                    VariantProductInfo: {
+                        VariantProductId: VariantData._id,
+                        VariantProductName: VariantData.VariantProductName,
+                        VariantFields: VariantData.VariantFields,
+                        VariantProductImage: VariantData.VariantProductImage,
+                        Price: VariantData.Price,
+                        OfferPercentage: VariantData.OfferPercentage,
+                        Specification: VariantData.Specification,
+                        AboutProduct: VariantData.AboutProduct
+                    },
+
+                },
+                ProductServices: (selectedPaidServices || []).map(s => ({
+                    ProductServiceId: s.ProductServiceId,
+                    ProductServiceAmount: s.ProductServiceAmount ?? s.serviceData?.ProductServiceAmount ?? 0,
+                    ServiceName: s.serviceData?.ServiceName,
+                    Description: s.serviceData?.Description,
+                    ServiceImages: s.serviceData?.ServiceImages,
+                    ExpiryDate: s.ExpiryDate
+                })),
+                ProductFreeServices: (freeServices || []).map(s => ({
+                    ProductServiceId: s.ProductServiceId,
+                    ProductServiceAmount: s.ProductServiceAmount,
+                    ServiceName: s.serviceData?.ServiceName,
+                    Description: s.serviceData?.Description,
+                    ServiceImages: s.serviceData?.ServiceImages,
+                    ExpiryDate: s.ExpiryDate
+                }))
+            };
+
+            if (ProductData.BrandId) {
+                let FoundBrand = await brandmodel.findOne({ companyId, _id: ProductData.BrandId });
+                if (FoundBrand) {
+                    productEntry.ProductData.ProductInfo.BrandId = FoundBrand._id;
+                    productEntry.ProductData.ProductInfo.BrandName = FoundBrand.BrandName;
+                }
+            }
+
+            OrderData.Products.push(productEntry);
+            OrderData.TotalCartPrice = parseFloat(OrderData.Products.reduce((a, b) => a + (b.TotalPrice || 0), 0).toFixed(2));
+            OrderData.DiscountCartPrice = parseFloat(OrderData.Products.reduce((a, b) => a + (b.DiscountPrice || 0), 0).toFixed(2));
+            OrderData.FinalCartPrice = parseFloat(OrderData.Products.reduce((a, b) => a + (b.FinalPrice || 0), 0).toFixed(2));
+
+
+            let savedOrder = await new ProductOrder(OrderData).save();
+            rollback.orderId = savedOrder._id;
+            let FoundOrder = await ProductOrder.findById(savedOrder._id);
+
+
+            if (VariantData.InventoryBaseStock?.InventoryBase === true) {
+                let updateQuery = { _id: VariantData._id, "InventoryBaseStock.InventoryBase": true };
+                await VariantProduct.updateOne(updateQuery, {
+                    $inc: {
+                        "InventoryBaseStock.AvailableStock": -Quantity,
+                        "InventoryBaseStock.ReservedStock": Quantity
+                    }
+                });
+                rollback.stockUpdates.push({ variantId: VariantData._id, quantity: Quantity });
+            }
+
+
+            const orderId = `ORDER_${FoundOrder._id.toString().slice(-6)}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+            const totalAmount = FoundOrder.FinalCartPrice || FoundOrder.TotalCartPrice || 0;
+
+            const paytmParams = {
+                body: {
+                    requestType: "Payment",
+                    mid: process.env.PAYTM_MID,
+                    websiteName: process.env.PAYTM_WEBSITE,
+                    orderId,
+                    callbackUrl: `${process.env.BASE_URL}productcart/handlePaymentStatus?RenderingDomain=${RenderingDomain}&companyId=${companyId}`,
+                    txnAmount: { value: totalAmount.toString(), currency: "INR" },
+                    userInfo: { custId: UserId.toString() }
+                }
+            };
+
+            const checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), process.env.PAYTM_KEY);
+            paytmParams.head = { signature: checksum };
+            const post_data = JSON.stringify(paytmParams);
+
+            const options = {
+                hostname: process.env.PAYTM_HOSTNAME,
+                port: 443,
+                path: `/theia/api/v1/initiateTransaction?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Content-Length": Buffer.byteLength(post_data)
+                }
+            };
+
+            const paytmResponse = await new Promise((resolve, reject) => {
+                let response = "";
+                const paytmReq = https.request(options, (paytmRes) => {
+                    paytmRes.on("data", chunk => response += chunk);
+                    paytmRes.on("end", () => {
+                        try { resolve(JSON.parse(response)); }
+                        catch (e) { reject(e); }
+                    });
+                });
+                paytmReq.on("error", reject);
+                paytmReq.write(post_data);
+                paytmReq.end();
+            });
+
+            if (!paytmResponse?.body?.txnToken) {
+                await RollBack();
+                console.error("Paytm response missing txnToken:", paytmResponse);
+                return res.status(500).json({ message: "Payment gateway did not return txnToken", success: false });
+            }
+
+            FoundOrder.PaymentSession = {
+                orderId,
+                txnId: null,
+                status: "INITIATED",
+                amount: totalAmount,
+                paymentGateway: "Paytm"
+            };
+            FoundOrder.ReservationStartedAt = new Date();
+            await FoundOrder.save();
+
+            return res.status(200).json({
+                success: true,
+                message: "Payment Initiated",
+                url: `https://securegw.paytm.in/theia/api/v1/showPaymentPage?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
+                txnToken: paytmResponse.body.txnToken,
+                orderId,
+                mid: process.env.PAYTM_MID,
+                amount: totalAmount
+            });
+
+        } catch (error) {
+            console.error("SingleProduct Checkout Error:", error);
+            await RollBack();
+            return res.status(500).json({ message: "Internal Server Error", success: false });
+        }
+    },
+
+
     ValidateCart: async (req, res) => {
         let { UserId, companyId } = req.body;
         try {
@@ -1333,261 +1725,6 @@ module.exports = {
         }
     },
 
-    // handlePaymentStatus: async (req, res) => {
-    //     let paytmResponse = req.body;
-    //     let orderId = paytmResponse?.ORDERID;
-    //     let { RenderingDomain, companyId } = req.query;
-    //     let FrontendRenderDomain;
-    //     let body = paytmResponse || {};
-    //     let paymentInfo = {
-    //         orderId: body.ORDERID,
-    //         txnId: body.TXNID,
-    //         amount: body.TXNAMOUNT,
-    //         respMsg: body.RESPMSG
-    //     };
-    //     let FoundCompany = await CompanyModel.findById(companyId)
-    //     if (FoundCompany) {
-    //         if (RenderingDomain.toLowerCase() == 'private') {
-    //             if (FoundCompany.PredifinedDomain)
-    //                 FrontendRenderDomain = FoundCompany.PredifinedDomain + '/shopping'
-    //         }
-    //         else {
-    //             FrontendRenderDomain = `http://${FoundCompany.CompanyDomain}:4200/shopping`
-    //         }
-    //     }
-    //     let safeId = (v) => (v === undefined || v === null) ? null : (typeof v === "string" ? v : (v.toString ? v.toString() : String(v)));
-    //     let isReserved = (p) => Boolean(p && (p.Reserved == true || p.Reserved == "true" || p.Reserved == 1 || p.Reserved == "1"));
-    //     let pullCartProduct = async (cartId, cartProductId) => {
-    //         try {
-    //             await ProductCart.updateOne({ _id: cartId }, { $pull: { Products: { _id: cartProductId } } });
-    //         } catch (err) {
-    //             console.error('pullCartProduct Error', err?.message || err);
-    //         }
-    //     };
-    //     let unreserveCartProduct = async (cartId, cartProductId) => {
-    //         try {
-    //             await ProductCart.updateOne({ _id: cartId, "Products._id": cartProductId }, { $set: { "Products.$.Reserved": false } });
-    //         } catch (err) {
-    //             console.error('unreserveCartProduct Error', err?.message || err);
-    //         }
-    //     };
-    //     let adjustVariantStock = async (variantId, incObj = {}) => {
-    //         if (!variantId) return;
-    //         try {
-    //             await VariantProduct.updateOne({ _id: variantId, 'InventoryBaseStock.InventoryBase': true }, { $inc: incObj });
-    //         } catch (err) {
-    //             console.error('adjustVariantStock Error', err?.message || err);
-    //         }
-    //     };
-
-    //     let groupCartByKey = (cartProducts = [], orderKeySet = new Set()) => {
-    //         let map = new Map();
-    //         for (let p of (cartProducts || [])) {
-    //             let key = `${safeId(p?.ProductId)}|${safeId(p?.VariantProductId)}`;
-    //             if (!orderKeySet.has(key)) continue;
-    //             if (!map.has(key)) map.set(key, []);
-    //             map.get(key).push(p);
-    //         }
-    //         return Array.from(map.entries()).map(([key, items]) => ({ key, items }));
-    //     };
-
-    //     let cleanupGroupForOrder = async (cartId, group, order) => {
-    //         let cartItems = group.items || [];
-    //         if (!cartItems.length) return;
-
-    //         let [prodId, varId] = group.key.split('|');
-    //         let orderItemsForKey = (order.Products || []).filter(p =>
-    //             safeId(p?.ProductData?.ProductInfo?.ProductId) === prodId &&
-    //             safeId(p?.ProductData?.VariantProductInfo?.VariantProductId) === varId
-    //         );
-
-    //         let orderWithCartIds = orderItemsForKey.filter(p => safeId(p?.CartProductId));
-    //         if (orderWithCartIds.length) {
-    //             for (let oi of orderWithCartIds) {
-    //                 let cartProdId = safeId(oi.CartProductId);
-    //                 let cartEntry = cartItems.find(c => safeId(c._id) === cartProdId);
-    //                 if (!cartEntry) continue;
-    //                 if (isReserved(cartEntry)) {
-    //                     await pullCartProduct(cartId, cartProdId);
-    //                 } else {
-    //                     await pullCartProduct(cartId, cartProdId);
-    //                 }
-    //             }
-    //             return;
-    //         }
-
-    //         let totalOrderQty = orderItemsForKey.reduce((s, it) => s + (Number(it.Quantity) || 0), 0);
-    //         if (totalOrderQty <= 0) return;
-
-    //         let reserved = cartItems.filter(isReserved);
-    //         let unreserved = cartItems.filter(ci => !isReserved(ci));
-
-    //         if (reserved.length && unreserved.length) {
-    //             let reservedSorted = reserved.slice().sort((a, b) => (Number(a.Quantity) || 0) - (Number(b.Quantity) || 0));
-    //             let toRemove = totalOrderQty;
-    //             for (let r of reservedSorted) {
-    //                 if (toRemove <= 0) break;
-    //                 let q = Number(r.Quantity) || 0;
-    //                 await pullCartProduct(cartId, r._id);
-    //                 toRemove -= q;
-    //             }
-    //             return;
-    //         }
-
-    //         if (reserved.length && !unreserved.length) {
-    //             if (reserved.length === 1) {
-    //                 await unreserveCartProduct(cartId, reserved[0]._id);
-    //                 return;
-    //             }
-    //             let highest = reserved.reduce((max, p) => (Number(p.Quantity) > Number(max.Quantity) ? p : max), reserved[0]);
-    //             await Promise.all(reserved.map(async (r) => {
-    //                 if (safeId(r._id) !== safeId(highest._id)) {
-    //                     await pullCartProduct(cartId, r._id);
-    //                 }
-    //             }));
-    //             await unreserveCartProduct(cartId, highest._id);
-    //             return;
-    //         }
-
-    //         return;
-    //     };
-
-
-    //     try {
-    //         let paytmParams = { body: { mid: process.env.PAYTM_MID, orderId: paymentInfo.orderId } };
-    //         let checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), process.env.PAYTM_KEY);
-    //         paytmParams.head = { signature: checksum };
-    //         let post_data = JSON.stringify(paytmParams);
-
-    //         let options = {
-    //             hostname: "securegw.paytm.in",
-    //             port: 443,
-    //             path: `/v3/order/status`,
-    //             method: "POST",
-    //             headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(post_data) }
-    //         };
-
-    //         let verifyPaytmStatus = await new Promise((resolve, reject) => {
-    //             let response = "";
-    //             let paytmReq = https.request(options, (paytmRes) => {
-    //                 paytmRes.on("data", chunk => response += chunk);
-    //                 paytmRes.on("end", () => {
-    //                     try { resolve(JSON.parse(response)); } catch (err) { reject(err); }
-    //                 });
-    //             });
-    //             paytmReq.on("error", reject);
-    //             paytmReq.write(post_data);
-    //             paytmReq.end();
-    //         });
-
-    //         let resultStatus = verifyPaytmStatus?.body?.resultInfo?.resultStatus;
-    //         let FoundOrder = await ProductOrder.findOne({ "PaymentSession.orderId": orderId });
-
-    //         if (!FoundOrder) return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paymentInfo.orderId}&status=ORDER-NOT-FOUND`);
-
-    //         let UserId = FoundOrder.UserId;
-    //         let companyId = FoundOrder.companyId;
-    //         let FoundCart = await ProductCart.findOne({ UserId, companyId, _id: FoundOrder.CartId });
-
-    //         if (resultStatus === "TXN_SUCCESS") {
-    //             if (FoundOrder.PaymentSession?.status === 'SUCCESS') {
-    //                 return res.redirect(`${FrontendRenderDomain}/order-checked?orderId=${paymentInfo.orderId}&status=SUCCESS&cartorderid=${FoundOrder._id}`);
-    //                 // return res.status(200).json({ message: "✅ Payment verified and order placed successfully.", success: true });
-    //             }
-
-    //             for (let item of (FoundOrder.Products || [])) {
-    //                 try {
-    //                     let variantId = safeId(item?.ProductData?.VariantProductInfo?.VariantProductId);
-    //                     await adjustVariantStock(variantId, { "InventoryBaseStock.ReservedStock": -(Number(item.Quantity) || 0) });
-    //                 } catch (err) {
-    //                     console.error('Stock Deduct On Payment Success Error:', err?.message || err);
-    //                 }
-    //             }
-
-    //             FoundOrder.PaymentSession = FoundOrder.PaymentSession || {};
-    //             FoundOrder.PaymentSession.status = "SUCCESS";
-    //             FoundOrder.PaymentSession.txnId = paymentInfo.txnId;
-    //             FoundOrder.PaymentSession.amount = paymentInfo.amount;
-
-    //             try {
-    //                 for (let cartProd of (FoundCart?.Products || [])) {
-    //                     let referenced = (FoundOrder.Products || []).filter(p => safeId(p?.CartProductId) === safeId(cartProd._id));
-    //                     if (referenced.length && isReserved(cartProd)) {
-    //                         await pullCartProduct(FoundCart._id, cartProd._id);
-    //                     }
-    //                 }
-    //             } catch (err) {
-    //                 console.error('Delete Reserved Product From Cart On Payment Success Error:', err?.message || err);
-    //             }
-
-    //             await FoundOrder.save();
-    //             return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paymentInfo.orderId}&status=SUCCESS&cartorderid=${FoundOrder._id}`);
-    //             // return res.status(200).json({ message: "✅ Payment verified and order placed successfully.", success: true });
-    //         }
-
-    //         if (resultStatus === "TXN_FAILURE" || resultStatus === "FAILURE") {
-    //             if (FoundOrder.PaymentSession?.status === 'FAILED') {
-    //                 return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paymentInfo.orderId}&status=FAILED&cartorderid=${FoundOrder._id}`);
-
-    //                 // return res.status(200).json({ message: "❌ Payment failed. Stock restored and cart reactivated.", success: false });
-    //             }
-
-    //             let orderKeySet = new Set((FoundOrder.Products || []).map(p => {
-    //                 let pid = safeId(p?.ProductData?.ProductInfo?.ProductId);
-    //                 let vid = safeId(p?.ProductData?.VariantProductInfo?.VariantProductId);
-    //                 return pid && vid ? `${pid}|${vid}` : null;
-    //             }).filter(Boolean));
-
-    //             if (FoundCart) {
-    //                 let groups = groupCartByKey(FoundCart.Products || [], orderKeySet);
-    //                 for (let g of groups) {
-    //                     await cleanupGroupForOrder(FoundCart._id, g, FoundOrder);
-    //                 }
-    //             }
-
-    //             FoundOrder.PaymentSession = FoundOrder.PaymentSession || {};
-    //             FoundOrder.PaymentSession.status = "FAILED";
-    //             FoundOrder.PaymentSession.txnId = paymentInfo.txnId || FoundOrder.PaymentSession.txnId;
-    //             FoundOrder.PaymentSession.amount = paymentInfo.amount || FoundOrder.PaymentSession.amount;
-    //             await FoundOrder.save();
-
-    //             try {
-    //                 for (let item of (FoundOrder.Products || [])) {
-    //                     let variantId = safeId(item?.ProductData?.VariantProductInfo?.VariantProductId);
-    //                     await adjustVariantStock(variantId, {
-    //                         "InventoryBaseStock.AvailableStock": (Number(item.Quantity) || 0),
-    //                         "InventoryBaseStock.ReservedStock": -(Number(item.Quantity) || 0)
-    //                     });
-    //                 }
-    //             } catch (err) {
-    //                 console.error('Restored Stock On Payment Failed Error', err?.message || err);
-    //             }
-    //             let resultMsg = verifyPaytmStatus?.body?.resultInfo?.resultMsg || "";
-    //             let respMsg = paymentInfo?.respMsg || "";
-
-    //             let isCancelled =
-    //                 resultMsg.toLowerCase().includes("cancelled") ||
-    //                 respMsg.toLowerCase().includes("user has not completed transaction");
-
-    //             if (isCancelled) {
-    //                 return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paymentInfo.orderId}&status=CANCELLED&cartorderid=${FoundOrder._id}`);
-    //             }
-
-    //             return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paymentInfo.orderId}&status=FAILED&cartorderid=${FoundOrder._id}`);
-
-    //             // return res.status(200).json({ message: "❌ Payment failed. Stock restored and cart reactivated.", success: false });
-    //         }
-    //         return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paymentInfo.orderId}&status=${resultStatus}&cartorderid=${FoundOrder._id}`);
-
-    //         // return res.status(200).json({ message: `Payment status: ${resultStatus}. No action taken.`, success: false });
-
-    //     } catch (err) {
-    //         console.error("handlePaymentStatus Error:", err);
-    //         return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paymentInfo.orderId}&status=INTERNAL-SERVER-ERROR`);
-    //         // return res.status(500).json({ message: "Internal Server Error", success: false });
-    //     }
-    // },
-
 
     handlePaymentStatus: async (req, res) => {
         try {
@@ -1927,17 +2064,47 @@ module.exports = {
 
     getAllOrders: async (req, res) => {
         try {
-            let { UserId, companyId, Status, ProductOrderId, SortOrder, StartDate, EndDate } = req.query;
-            if (req.user.companyId) companyId = req.user.companyId
+            let {
+                UserId,
+                companyId,
+                Status,
+                ProductOrderId,
+                SortOrder,
+                StartDate,
+                EndDate,
+                OrderId,
+                PaymentStatus
+            } = req.query;
+
+            if (req.user?.companyId) companyId = req.user.companyId;
 
             if (!mongoose.isValidObjectId(companyId)) {
-                return res.status(400).json({ message: 'Not Found Proper Data Of Company Or User', success: false });
+                return res.status(400).json({
+                    message: 'Not Found Proper Data Of Company',
+                    success: false
+                });
             }
 
             let matchCondition = { companyId };
 
-            if (UserId && mongoose.isValidObjectId(UserId)) {
+            if (UserId) {
+                if (!mongoose.isValidObjectId(UserId)) {
+                    return res.status(400).json({
+                        message: 'Provide Proper User Id',
+                        success: false
+                    });
+                }
                 matchCondition.UserId = UserId;
+            }
+
+            if (OrderId) {
+                if (!mongoose.isValidObjectId(OrderId)) {
+                    return res.status(400).json({
+                        message: 'Provide Proper Order Id To Find Data',
+                        success: false
+                    });
+                }
+                matchCondition._id = OrderId;
             }
 
             if (StartDate || EndDate) {
@@ -1945,25 +2112,52 @@ module.exports = {
                 if (StartDate) matchCondition.createdAt.$gte = new Date(StartDate);
                 if (EndDate) matchCondition.createdAt.$lte = new Date(EndDate);
             }
+
+            const allowedPaymentStatus = ['INITIATED', 'SUCCESS', 'FAILED', 'PENDING', 'EXPIRED'];
+
+            if (PaymentStatus) {
+                if (!allowedPaymentStatus.includes(PaymentStatus)) {
+                    return res.status(400).json({
+                        message: 'Provide Proper Payment Status To Find Data',
+                        success: false
+                    });
+                }
+                matchCondition["PaymentSession.status"] = PaymentStatus;
+            }
+
             let Orders = await ProductOrder.find(matchCondition)
                 .sort({ createdAt: -1 });
 
             if (!Orders.length) {
-                return res.status(400).json({ message: "Orders Not Found", success: false });
+                return res.status(400).json({
+                    message: "Orders Not Found",
+                    success: false
+                });
+            }
+
+            const allowedStatus = ['INITIATED', 'PENDING', 'SHIPPED', 'OUTFORDELIVERY', 'CANCELED', 'ASSIGNED'];
+
+            if (Status && !allowedStatus.includes(Status)) {
+                return res.status(400).json({
+                    message: 'Provide Proper Status Of Product',
+                    success: false
+                });
             }
 
             let FilteredOrders = Orders.map(order => {
-                let products = order.Products;
-                if (Status && !['INITIATED', 'PENDING', 'SHIPPED', 'OUTFORDELIVERY', 'CANCELED', 'ASSIGNED'].includes(Status)) {
-                    return res.status(400).json({ message: 'Provide Proper Status Of Product', success: false })
-                }
-                else if (Status) {
+                let products = order.Products || [];
+
+                if (Status) {
                     products = products.filter(p => {
-                        let lastStatus = p.OrderStatus[p.OrderStatus.length - 1]?.Status;
+                        const lastStatus = p.OrderStatus?.[p.OrderStatus.length - 1]?.Status;
                         return lastStatus == Status;
                     });
                 }
-                if (mongoose.isValidObjectId(ProductOrderId)) {
+
+                if (ProductOrderId) {
+                    if (!mongoose.isValidObjectId(ProductOrderId)) {
+                        return [];
+                    }
                     products = products.filter(p => p._id.equals(ProductOrderId));
                 }
 
@@ -1972,14 +2166,12 @@ module.exports = {
 
             FilteredOrders = FilteredOrders.filter(o => o.Products.length > 0);
 
-
             if (SortOrder === "older") {
                 FilteredOrders.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
             }
             else if (SortOrder === "newer") {
                 FilteredOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             }
-
             return res.status(200).json({
                 message: "Orders Fetched",
                 data: FilteredOrders,
@@ -1988,9 +2180,14 @@ module.exports = {
 
         } catch (error) {
             console.log("getAllOrdersError:", error.message);
-            return res.status(500).json({ message: "Internal Server Error", error: error.message, success: false });
+            return res.status(500).json({
+                message: "Internal Server Error",
+                error: error.message,
+                success: false
+            });
         }
     }
+
 
 
 };
