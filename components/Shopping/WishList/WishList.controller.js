@@ -24,7 +24,8 @@ module.exports = {
             FolderName = "Your Liked Items",
             ProductServiceId,
             ServiceActive,
-            IsActive
+            IsActive,
+            WishListId
         } = req.body;
 
         if (req.user.UserId) UserId = req.user.UserId;
@@ -42,7 +43,26 @@ module.exports = {
             let FolderQuery = new RegExp(`^${FolderName}$`, "i");
             let FoundWishlist = await Wishlist.findOne({ UserId, companyId, FolderName: FolderQuery });
 
-
+            if (WishListId) {
+                if (!FoundWishlist) {
+                    FoundWishlist = await Wishlist.findOneAndUpdate(
+                        { UserId, companyId, _id: WishListId },
+                        { $set: { FolderName: FolderName.trim() } },
+                        { new: true }
+                    );
+                    return res.status(200).json({
+                        message: `Folder '${FolderName}' Renamed successfully`,
+                        success: true,
+                        data: FoundWishlist
+                    });
+                } else {
+                    return res.status(200).json({
+                        message: `Folder '${FolderName}' already exists`,
+                        success: true,
+                        data: FoundWishlist
+                    });
+                }
+            }
             if (!ProductId || !VariantProductId) {
                 if (!FoundWishlist) {
                     FoundWishlist = new Wishlist({
@@ -76,6 +96,7 @@ module.exports = {
                     await FoundWishlist.save();
                 }
             }
+
             let existingIndex;
             if (FoundWishlist?.Products.length) {
                 existingIndex = FoundWishlist?.Products.findIndex(
@@ -191,6 +212,7 @@ module.exports = {
             }
 
             else if (Operation === "update") {
+
                 if (existingIndex === -1)
                     return res.status(404).json({ message: "Product not found in wishlist", success: false });
 
