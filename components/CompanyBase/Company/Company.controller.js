@@ -1145,7 +1145,6 @@ module.exports = {
         let { companyId } = req.query;
 
         try {
-
             try { await Company.findByIdAndDelete(companyId); }
             catch (err) { console.error("❌ Company delete error:", err.message); }
 

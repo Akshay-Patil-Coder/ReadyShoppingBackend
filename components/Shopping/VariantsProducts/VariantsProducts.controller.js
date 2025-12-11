@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const csvParser = require('csv-parser');
+const { Wishlist } = require('../WishList/WishList.model');
 module.exports = {
     addVariantProduct: async (req, res) => {
         let {
@@ -1563,8 +1564,8 @@ module.exports = {
                 MixedName,
                 ListType,
                 isActive,
-                VariantProductIsActive
-
+                VariantProductIsActive,
+                UserId
             } = req.query;
 
 
@@ -1686,7 +1687,7 @@ module.exports = {
                 filteredData = filteredData
                     .map(product => {
                         let matchedVariants = product.VariantProducts.filter(vp =>
-                            variantPairs.some(pair =>   
+                            variantPairs.some(pair =>
                                 vp.VariantFields.some(
                                     vf => vf.VariantId.equals(pair.VariantId) &&
                                         pair.VariantValue.test(vf.VariantValue)
@@ -1944,6 +1945,7 @@ module.exports = {
                             VariantFields: variant.VariantFields,
                             VariantProductName: variant.VariantProductName,
                             RatingStar: product.RatingStar,
+                            TotalReviews: product.TotalReviews,
                             InventoryBaseStock: variant.InventoryBaseStock,
                             VariantProductImage: variant.VariantProductImage,
                             ProductId: variant.ProductId,
@@ -1955,6 +1957,28 @@ module.exports = {
 
                 if (VariantProductIsActive === true) {
                     variantList = variantList.filter(v => v.isActive === true);
+                }
+                if (UserId) {
+                    const FoundWishList = await Wishlist.find({ UserId, companyId });
+
+                    if (FoundWishList?.length > 0) {
+
+                        let wishlistVariantIds = new Set();
+
+                        FoundWishList.forEach(folder => {
+                            folder?.Products?.forEach(p => {
+                                wishlistVariantIds.add(String(p.VariantProductId));
+                            });
+                        });
+
+                        variantList = variantList.map(variant => {
+                            const isInWishlist = wishlistVariantIds.has(String(variant._id));
+                            return {
+                                ...variant,
+                                WishList: isInWishlist
+                            };
+                        });
+                    }
                 }
 
                 filteredData = variantList;
@@ -1974,8 +1998,34 @@ module.exports = {
                         })
                         .filter(Boolean);
                 }
+                if (UserId) {
+                    const FoundWishList = await Wishlist.find({ UserId, companyId });
 
+                    if (FoundWishList?.length > 0) {
 
+                        const wishlistVariantIds = new Set();
+
+                        FoundWishList.forEach(folder => {
+                            folder?.Products?.forEach(p => {
+                                wishlistVariantIds.add(String(p.VariantProductId));
+                            });
+                        });
+
+                        filteredData = filteredData.map((product) => {
+                            const VariantProducts = product.VariantProducts.map((EachVariant) => {
+
+                                const isInWishlist = wishlistVariantIds.has(String(EachVariant._id));
+
+                                return {
+                                    ...EachVariant,
+                                    WishList: isInWishlist
+                                };
+                            });
+
+                            return { ...product, VariantProducts };
+                        });
+                    }
+                }
             }
 
 
