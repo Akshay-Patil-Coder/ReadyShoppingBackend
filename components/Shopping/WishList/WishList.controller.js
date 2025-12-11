@@ -68,7 +68,7 @@ module.exports = {
                     FoundWishlist = new Wishlist({
                         UserId,
                         companyId,
-                        FolderName,
+                        FolderName: FolderName.trim(),
                         Products: []
                     });
                     await FoundWishlist.save();
@@ -90,7 +90,7 @@ module.exports = {
                     FoundWishlist = new Wishlist({
                         UserId,
                         companyId,
-                        FolderName,
+                        FolderName: FolderName.trim(),
                         Products: []
                     });
                     await FoundWishlist.save();

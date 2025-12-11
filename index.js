@@ -98,7 +98,7 @@ cron.schedule("*/10 * * * *", async () => {
       runningCompanies.add(companyId);
 
       try {
-        await axios.post(`http://localhost:5296/api/v1/nodeCronShopping/processOrders`, { companyId });
+        await axios.post(`${process.env.BASE_URL}nodeCronShopping/processOrders`, { companyId });
       } catch (err) {
         console.error(`❌ Error hitting API for company ${companyId}:`, err.message);
       } finally {
