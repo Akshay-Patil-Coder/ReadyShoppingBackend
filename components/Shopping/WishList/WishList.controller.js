@@ -907,7 +907,7 @@ module.exports = {
 
             let data = await module.exports.getWishListData(matchCondition)
             if (data && data[0]?.Products?.length == 0) {
-                return res.status(200).json({ message: 'Cart is empty', success: false,data:data })
+                return res.status(200).json({ message: 'Cart is empty', success: true,data:data })
             }
             if (data?.length) {
                 data = data.map(cart => {
