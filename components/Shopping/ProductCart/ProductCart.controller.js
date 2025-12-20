@@ -1222,6 +1222,7 @@ module.exports = {
                                                             in: {
                                                                 $mergeObjects: [
                                                                     { $ifNull: ["$$freeDoc", {}] },
+                                                                    { ProductServiceAmount: { $ifNull: ["$$freeMatchedFromProduct.ProductServiceAmount", 0] } },
                                                                     { ExpiryDate: "$$freeMatchedFromProduct.ExpiryDate" }
                                                                 ]
                                                             }

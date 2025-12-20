@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Company = require('./Company.model');
+const DeleteCompanyModal = require('./DeletedCompany.model');
 const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken')
@@ -13,7 +14,11 @@ const BannerModel = require('../../Shopping/ShoppingBanners/ShoppingBanners.mode
 const { Variant } = require('../../Shopping/Variants/Variants.model')
 const { VariantProduct, Product, Batch } = require('../../Shopping/VariantsProducts/VariantsProducts.model')
 const { ProductCart } = require('../../Shopping/ProductCart/ProductCart.model')
-const axios = require('axios')
+const { Wishlist } = require('../../Shopping/WishList/WishList.model')
+const { ProductRating } = require('../../Shopping/ProductRating/ProductRating.model')
+const { User } = require('../../UserBase/User/User.model')
+const axios = require('axios');
+const DeletedCompanyModel = require('./DeletedCompany.model');
 module.exports = {
     addcompanies: async (req, res) => {
         let { CompanyName, CompanyDomain, PredifinedDomain, Latitude, Longitude, Street, City, State, Country, PostalCode, Email, Phone, PanCardNo, GstNo, Contact_person_name, Password } = req.body;
@@ -773,9 +778,13 @@ module.exports = {
             if (!companyId) {
                 return res.status(400).json({ message: 'Company Not Found', success: false });
             }
-            if (isActive !== true || isActive !== false) {
-                return res.status(400).json({ message: 'Provide Status To Update', success: false });
+            if (typeof isActive !== 'boolean') {
+                return res.status(400).json({
+                    message: 'Provide valid status to update',
+                    success: false
+                });
             }
+
             if (!mongoose.Types.ObjectId.isValid(companyId)) {
                 return res.status(400).json({ message: 'Invalid Company ID', success: false });
             }
@@ -1144,86 +1153,200 @@ module.exports = {
     DeleteCompany: async (req, res) => {
         let { companyId } = req.query;
 
+        const deleteFiles = async (files, folder) => {
+            try {
+                if (!Array.isArray(files)) files = [files];
+
+                for (const file of files) {
+                    if (!file) continue;
+
+                    const filePath = path.join(__dirname, "..", "..", "public", folder, file);
+                    if (fs.existsSync(filePath)) {
+                        await fs.promises.unlink(filePath);
+                    }
+                }
+            } catch (err) {
+                console.warn(`⚠️ File delete failed in ${folder}:`, err.message);
+            }
+        };
+
         try {
-            try { await Company.findByIdAndDelete(companyId); }
-            catch (err) { console.error("❌ Company delete error:", err.message); }
-
-            try { await AccessModel.deleteMany({ companyId }); }
-            catch (err) { console.error("❌ Access delete error:", err.message); }
-
-
-
-            try {
-                await CategoryModel.deleteMany({ companyId });
-            } catch (err) {
-                console.error("❌ Categories delete error:", err.message);
+            if (!companyId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "companyId required"
+                });
             }
 
             try {
-                await brandmodel.deleteMany({ companyId });
+                const categories = await CategoryModel.find({ companyId });
+                for (const cat of categories) {
+                    if (cat?.imageName) {
+                        await deleteFiles(cat.imageName, "ProductCategories");
+                    }
+                }
             } catch (err) {
-                console.error("❌ Brands delete error:", err.message);
+                console.error("❌ Category image delete error:", err.message);
             }
 
             try {
-                await BannerModel.deleteMany({ companyId });
+                const brands = await brandmodel.find({ companyId });
+                for (const brand of brands) {
+                    if (brand?.BrandImage) {
+                        await deleteFiles(brand.BrandImage, "BrandImage");
+                    }
+                }
             } catch (err) {
-                console.error("❌ Banners delete error:", err.message);
+                console.error("❌ Brand image delete error:", err.message);
             }
 
             try {
-                await Variant.deleteMany({ companyId });
+                const banners = await BannerModel.find({ companyId });
+                for (const banner of banners) {
+                    if (banner?.BannerImage) {
+                        await deleteFiles(banner.BannerImage, "BannerImage");
+                    }
+                }
             } catch (err) {
-                console.error("❌ Variants delete error:", err.message);
+                console.error("❌ Banner image delete error:", err.message);
             }
 
             try {
-                await ProductService.deleteMany({ companyId });
+                const products = await Product.find({ companyId });
+                await Promise.allSettled(
+                    products.map(p =>
+                        Promise.all([
+                            deleteFiles(p.CommonImages, "ProductImage"),
+                            deleteFiles(p.CommonVideos, "ProductVideo")
+                        ])
+                    )
+                );
             } catch (err) {
-                console.error("❌ Product Services delete error:", err.message);
+                console.error("❌ Product media delete error:", err.message);
             }
 
             try {
-                await Product.deleteMany({ companyId });
+                const variants = await VariantProduct.find({ companyId });
+                for (const vp of variants) {
+                    await deleteFiles(vp.VariantProductImage, "ProductImage");
+                }
             } catch (err) {
-                console.error("❌ Products delete error:", err.message);
+                console.error("❌ Variant product image delete error:", err.message);
             }
 
             try {
-                await VariantProduct.deleteMany({ companyId });
+                const services = await ProductService.find({ companyId });
+                for (const service of services) {
+                    await deleteFiles(service.ServiceImages, "ProductServiceImage");
+                }
             } catch (err) {
-                console.error("❌ Variant Products delete error:", err.message);
+                console.error("❌ Service image delete error:", err.message);
             }
 
             try {
-                await ProductCart.deleteMany({ companyId });
+                const users = await User.find({ companyId });
+                for (const user of users) {
+                    if (user?.ProfileImage) {
+                        await deleteFiles(user.ProfileImage, "UserImage");
+                    }
+                }
             } catch (err) {
-                console.error("❌ Carts delete error:", err.message);
+                console.error("❌ User image delete error:", err.message);
             }
 
             try {
-                await AccessModel.deleteMany({ companyId });
+                const ratings = await ProductRating.find({ companyId });
+                for (const rating of ratings) {
+                    if (rating?.ReviewImages?.length) {
+                        await deleteFiles(rating.ReviewImages, "ProductSRatingImage");
+                    }
+                }
             } catch (err) {
-                console.error("❌ Accesses delete error:", err.message);
+                console.error("❌ Rating image delete error:", err.message);
             }
-            let DeleteCompany = await Company.findByIdAndDelete(companyId);
+
+            try {
+                await Promise.allSettled([
+                    AccessModel.deleteMany({ companyId }),
+                    CategoryModel.deleteMany({ companyId }),
+                    brandmodel.deleteMany({ companyId }),
+                    BannerModel.deleteMany({ companyId }),
+                    Variant.deleteMany({ companyId }),
+                    ProductService.deleteMany({ companyId }),
+                    VariantProduct.deleteMany({ companyId }),
+                    Product.deleteMany({ companyId }),
+                    ProductCart.deleteMany({ companyId }),
+                    Wishlist.deleteMany({ companyId }),
+                    ProductRating.deleteMany({ companyId }),
+                    User.deleteMany({ companyId })
+                ]);
+            } catch (err) {
+                console.error("❌ Bulk DB delete error:", err.message);
+            }
+
+            let deletedCompany;
+
+            try {
+                deletedCompany = await Company.findByIdAndDelete(companyId);
+            } catch (err) {
+                console.error("❌ Company delete error:", err.message);
+            }
+
+            if (deletedCompany) {
+                try {
+                    const DeletedCompanyData = {
+                        companyId: deletedCompany?._id,
+
+                        CompanyName: deletedCompany?.CompanyName,
+                        CompanyDomain: deletedCompany?.CompanyDomain,
+                        PredifinedDomain: deletedCompany?.PredifinedDomain,
+
+                        Street: deletedCompany?.Street,
+                        City: deletedCompany?.City,
+                        State: deletedCompany?.State,
+                        Country: deletedCompany?.Country,
+                        PostalCode: deletedCompany?.PostalCode,
+
+                        Latitude: deletedCompany?.Latitude,
+                        Longitude: deletedCompany?.Longitude,
+
+                        Email: deletedCompany?.Email,
+                        Phone: deletedCompany?.Phone,
+
+                        PanCardNo: deletedCompany?.PanCardNo,
+                        GstNo: deletedCompany?.GstNo,
+
+                        Contact_person_name: deletedCompany?.Contact_person_name,
+
+                        CompanyLogo: deletedCompany?.CompanyLogo,
+                        BankDetails: deletedCompany?.BankDetails,
+
+                        deletedAt: new Date()
+                    };
+
+                    await new DeletedCompanyModel(DeletedCompanyData).save();
+
+                } catch (err) {
+                    console.error("❌ DeletedCompany save error:", err.message);
+                }
+            }
 
             return res.status(200).json({
                 success: true,
-                message: "Company deletion completed. Check logs for failures.",
-                data: DeleteCompany
+                message: "✅ Company, data, images & videos deleted successfully",
+                data: deletedCompany
             });
 
         } catch (error) {
-
-            console.error("❌ DeleteCompany unexpected error:", error);
-
+            console.error("❌ DeleteCompany Fatal Error:", error);
             return res.status(500).json({
                 success: false,
-                message: "Internal Server Error"
+                message: "Internal Server Error",
+                error: error.message
             });
         }
     },
+
 
 
     loginCompnay: async (req, resp) => {
@@ -1260,10 +1383,10 @@ module.exports = {
             let salt = await bcrypt.genSalt(10);
             Password = await bcrypt.hash(Password, salt);
         }
-        let CompanyData = await Company.findByIdAndUpdate(companyId,{
-            $set:{Password:Password}
+        let CompanyData = await Company.findByIdAndUpdate(companyId, {
+            $set: { Password: Password }
         })
-        return resp.status(200).json({data:CompanyData})
+        return resp.status(200).json({ data: CompanyData })
 
     },
     verifyToken: async (req, resp) => {

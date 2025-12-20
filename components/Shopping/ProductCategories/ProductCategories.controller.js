@@ -6,7 +6,7 @@ const { ProductRating } = require('../ProductRating/ProductRating.model')
 const { brandmodel } = require('../ProductsBrand/ProductsBrand.model')
 const { Variant } = require('../Variants/Variants.model')
 const BannerModel = require('../ShoppingBanners/ShoppingBanners.model')
-
+const { ProductService } = require('../ProductServices/ProductServices.model')
 const { default: mongoose } = require("mongoose");
 
 module.exports = {
@@ -436,8 +436,8 @@ module.exports = {
             let { categoryName, companyId } = req.body;
             if (req.user.companyId) companyId = req.user.companyId
 
-            if(!companyId){
-                return res.status(400).json({message:'Company Not Found',success:false})
+            if (!companyId) {
+                return res.status(400).json({ message: 'Company Not Found', success: false })
             }
             let category = await dynamicCategoriesModel.findOne({
                 _id: req.params.id, companyId
@@ -452,7 +452,7 @@ module.exports = {
                 }
                 return res.status(404).send({ success: false, message: "Category not found" });
             }
-            let updatedData = { categoryName:categoryName, updatedAt: new Date() };
+            let updatedData = { categoryName: categoryName, updatedAt: new Date() };
 
             if (req.file?.filename) {
                 if (category?.imageName) {
@@ -492,28 +492,239 @@ module.exports = {
         }
     },
 
-    toggleCategoriesStatus: async (req, res) => {
+   
+    ToggleStatusOfCategory: async (req, res) => {
         try {
-            let id = req.body.id;
-            let details = await dynamicCategoriesModel.findById(id);
-            let data = await dynamicCategoriesModel.findByIdAndUpdate(id, {
-                $set: {
-                    isActive: !details.isActive
-                }
-            }, { new: true });
+            const { categoryId, companyId, isActive } = req.query;
 
-            res.status(200).send({
+            if (!categoryId || !companyId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "CategoryId and CompanyId are required"
+                });
+            }
+
+            if (typeof isActive !== "boolean") {
+                return res.status(400).json({
+                    success: false,
+                    message: "Provide valid status (true / false)"
+                });
+            }
+
+            if (
+                !mongoose.Types.ObjectId.isValid(categoryId) ||
+                !mongoose.Types.ObjectId.isValid(companyId)
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid CategoryId or CompanyId"
+                });
+            }
+
+            const getAllCategoryIds = async (rootId) => {
+                const ids = [];
+                const stack = [rootId];
+
+                while (stack.length) {
+                    const currentId = stack.pop();
+                    ids.push(currentId);
+
+                    const children = await dynamicCategoriesModel.find(
+                        { parentCategoryId: currentId },
+                        { _id: 1 }
+                    );
+
+                    children.forEach(c => stack.push(c._id));
+                }
+
+                return ids;
+            };
+
+            const categoryIds = await getAllCategoryIds(categoryId);
+
+            const categories = await dynamicCategoriesModel.find({
+                _id: { $in: categoryIds },
+                companyId
+            });
+
+     
+            const rootCategoryId = categoryId.toString(); 
+
+            for (const cat of categories) {
+                const isSelf = cat._id.toString() === rootCategoryId;
+                const nextActiveBy = isSelf ? "Self" : "Parent";
+
+                if (isActive === false) {
+                    if (cat.isActive !== false) {
+                        await dynamicCategoriesModel.findByIdAndUpdate(cat._id, {
+                            $set: {
+                                isActive: false,
+                                isActiveBy: nextActiveBy
+                            }
+                        });
+                    }
+                } else if (isActive === true) {
+                    if (
+                        cat.isActive === false &&
+                        ["Self", "Parent"].includes(cat.isActiveBy)
+                    ) {
+                        await dynamicCategoriesModel.findByIdAndUpdate(cat._id, {
+                            $set: {
+                                isActive: isActive,
+                                isActiveBy: nextActiveBy
+                            }
+                        });
+                    }
+
+                    if (!cat.isActiveBy) {
+                        await dynamicCategoriesModel.findByIdAndUpdate(cat._id, {
+                            $set: {
+                                isActive: true,
+                                isActiveBy: nextActiveBy
+                            }
+                        });
+                    }
+                }
+            }
+
+            const brands = await brandmodel.find({
+                $or: [
+                    { HeadCategoryId: { $in: categoryIds } },
+                    { SubCategoryId: { $in: categoryIds } }
+                ]
+            });
+
+            for (const brand of brands) {
+                if (brand.isActiveBy === "Self" && brand.isActive && !isActive) {
+                    await brandmodel.findByIdAndUpdate(brand._id, {
+                        $set: { isActive: false, isActiveBy: "Category" }
+                    });
+                }
+                else if (brand.isActiveBy === "Category" && isActive) {
+                    await brandmodel.findByIdAndUpdate(brand._id, {
+                        $set: { isActive: true, isActiveBy: "Category" }
+                    });
+                }
+                else if (!brand.isActiveBy) {
+                    await brandmodel.findByIdAndUpdate(brand._id, {
+                        $set: { isActive, isActiveBy: "Category" }
+                    });
+                }
+            }
+
+            const banners = await BannerModel.find({
+                SubCategoryId: { $in: categoryIds }
+            });
+
+            for (const banner of banners) {
+                if (banner.isActiveBy === "Self" && banner.isActive && !isActive) {
+                    await BannerModel.findByIdAndUpdate(banner._id, {
+                        $set: { isActive: false, isActiveBy: "Category" }
+                    });
+                }
+                else if (banner.isActiveBy === "Category" && isActive) {
+                    await BannerModel.findByIdAndUpdate(banner._id, {
+                        $set: { isActive: true, isActiveBy: "Category" }
+                    });
+                }
+                else if (!banner.isActiveBy) {
+                    await BannerModel.findByIdAndUpdate(banner._id, {
+                        $set: { isActive, isActiveBy: "Category" }
+                    });
+                }
+            }
+
+            const variants = await Variant.find({
+                $or: [
+                    { HeadCategoryId: { $in: categoryIds } },
+                    { SubCategoryId: { $in: categoryIds } }
+                ]
+            });
+
+            for (const variant of variants) {
+                if (variant.isActiveBy === "Self" && variant.isActive && !isActive) {
+                    await Variant.findByIdAndUpdate(variant._id, {
+                        $set: { isActive: false, isActiveBy: "Category" }
+                    });
+                }
+                else if (variant.isActiveBy === "Category" && isActive) {
+                    await Variant.findByIdAndUpdate(variant._id, {
+                        $set: { isActive: true, isActiveBy: "Category" }
+                    });
+                }
+                else if (!variant.isActiveBy) {
+                    await Variant.findByIdAndUpdate(variant._id, {
+                        $set: { isActive, isActiveBy: "Category" }
+                    });
+                }
+            }
+
+            const services = await ProductService.find({
+                $or: [
+                    { HeadCategoryId: { $in: categoryIds } },
+                    { SubCategoryId: { $in: categoryIds } }
+                ]
+            });
+
+            for (const service of services) {
+                if (service.isActiveBy === "Self" && service.isActive && !isActive) {
+                    await ProductService.findByIdAndUpdate(service._id, {
+                        $set: { isActive: false, isActiveBy: "Category" }
+                    });
+                }
+                else if (service.isActiveBy === "Category" && isActive) {
+                    await ProductService.findByIdAndUpdate(service._id, {
+                        $set: { isActive: true, isActiveBy: "Category" }
+                    });
+                }
+                else if (!service.isActiveBy) {
+                    await ProductService.findByIdAndUpdate(service._id, {
+                        $set: { isActive, isActiveBy: "Category" }
+                    });
+                }
+            }
+
+            const products = await Product.find({
+                $or: [
+                    { HeadCategoryId: { $in: categoryIds } },
+                    { SubCategoryId: { $in: categoryIds } }
+                ]
+            });
+
+            for (const product of products) {
+                if (product.isActiveBy === "Self" && product.isActive && !isActive) {
+                    await Product.findByIdAndUpdate(product._id, {
+                        $set: { isActive: false, isActiveBy: "Category" }
+                    });
+                }
+                else if (product.isActiveBy === "Category" && isActive) {
+                    await Product.findByIdAndUpdate(product._id, {
+                        $set: { isActive: true, isActiveBy: "Category" }
+                    });
+                }
+                else if (!product.isActiveBy) {
+                    await Product.findByIdAndUpdate(product._id, {
+                        $set: { isActive, isActiveBy: "Category" }
+                    });
+                }
+
+                await VariantProduct.updateMany(
+                    { ProductId: product._id },
+                    { $set: { isActive, isActiveBy: "Category" } }
+                );
+            }
+
+            return res.status(200).json({
                 success: true,
-                message: "success",
-                data
+                message: "Category status updated successfully",
+                affectedCategories: categoryIds.length
             });
 
         } catch (error) {
-            console.error("error", error);
-            return res.status(500).send({
+            console.error("ToggleStatusOfCategory error:", error);
+            return res.status(500).json({
                 success: false,
-                message: "Something went wrong",
-                error: error.message,
+                message: "Internal Server Error"
             });
         }
     },
@@ -676,6 +887,46 @@ module.exports = {
                 }
 
                 try {
+                    let productServices = await ProductService.find({
+                        $or: [
+                            { HeadCategoryId: categoryId },
+                            { SubCategoryId: categoryId }
+                        ]
+                    })
+                    for (let EachService of productServices) {
+                        try {
+                            if (EachService?.ServiceImages) await deleteFiles(EachService.ServiceImages, "ProductServiceImage");
+
+                            await ProductService.deleteOne({ _id: EachService._id })
+
+                        } catch (err) {
+                            console.error(`Error deleting productService ${EachService._id}:`, err.message);
+                        }
+                    }
+                } catch (err) {
+                    console.error(`Error fetching product services for category ${categoryId}:`, err.message);
+
+                }
+                try {
+                    let variants = await Variant.find({
+                        $or: [
+                            { HeadCategoryId: categoryId },
+                            { SubCategoryId: categoryId }
+                        ]
+                    })
+                    for (let EachVariant of variants) {
+                        try {
+                            await Variant.deleteOne({ _id: EachVariant._id })
+
+                        } catch (err) {
+                            console.error(`Error deleting Variant ${EachService._id}:`, err.message);
+                        }
+                    }
+                } catch (err) {
+                    console.error(`Error fetching Variant for category ${categoryId}:`, err.message);
+
+                }
+                try {
                     let currentCategory = await dynamicCategoriesModel.findById(categoryId);
                     if (currentCategory?.imageName) {
                         await deleteFiles([currentCategory.imageName], "ProductCategories");
@@ -707,130 +958,173 @@ module.exports = {
             });
         }
     },
+
     previewDeleteCategory: async (req, res) => {
         try {
-            let { _id, companyId } = req.query;
-            let category = await dynamicCategoriesModel.findOne({ _id, companyId });
-            if (!category) return res.status(404).json({ success: false, message: "Category not found" });
-            if (category.categoryLevel == 0) {
-                return res.status(404).json({ success: false, message: "Category Level 0 Not Deleteable" });
-            }
-            let preview = {
-                categories: [],
-                products: [],
-                variantProducts: [],
-                reviews: [],
-                reviewResponses: [],
-                brands: [],
-                banners: [],
-                files: []
-            };
+            let { categoryId, companyId } = req.query;
 
-            let gatherCategoryRecursive = async (categoryId) => {
-                let currentCategory = await dynamicCategoriesModel.findById(categoryId);
-                if (!currentCategory) return;
-
-                preview.categories.push({
-                    _id: currentCategory._id,
-                    categoryName: currentCategory.categoryName,
-                    imageName: currentCategory.imageName
+            if (!categoryId || !companyId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "CategoryId and CompanyId are required"
                 });
-                if (currentCategory.imageName) preview.files.push({ folder: "ProductCategories", file: currentCategory.imageName });
+            }
 
-                let subCategories = await dynamicCategoriesModel.find({ parentCategoryId: categoryId });
-                for (let sub of subCategories) {
-                    await gatherCategoryRecursive(sub._id);
+            if (
+                !mongoose.Types.ObjectId.isValid(categoryId) ||
+                !mongoose.Types.ObjectId.isValid(companyId)
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid CategoryId or CompanyId"
+                });
+            }
+
+            const getAllCategoryIds = async (rootId) => {
+                const ids = [];
+                const stack = [rootId];
+
+                while (stack.length) {
+                    const currentId = stack.pop();
+                    ids.push(currentId);
+
+                    const children = await dynamicCategoriesModel.find(
+                        { parentCategoryId: currentId },
+                        { _id: 1 }
+                    );
+
+                    children.forEach(c => stack.push(c._id));
                 }
 
-                let products = await Product.find({ $or: [{ HeadCategoryId: categoryId }, { SubCategoryId: categoryId }] });
-                for (let product of products) {
-                    preview.products.push({
-                        _id: product._id,
-                        ProductName: product.ProductName,
-                        CommonImages: product.CommonImages,
-                        CommonVideos: product.CommonVideos
-                    });
-
-                    if (Array.isArray(product.CommonImages)) product.CommonImages.forEach(img => preview.files.push({ folder: "ProductImage", file: img }));
-                    if (Array.isArray(product.CommonVideos)) product.CommonVideos.forEach(v => preview.files.push({ folder: "ProductVideo", file: v }));
-
-                    if (Array.isArray(product.VariantProductIds)) {
-                        for (let variantId of product.VariantProductIds) {
-                            let variant = await VariantProduct.findById(variantId);
-                            if (!variant) continue;
-                            preview.variantProducts.push({
-                                _id: variant._id,
-                                VariantProductName: variant.VariantProductName,
-                                VariantImages: variant.VariantProductImage
-                            });
-                            if (Array.isArray(variant.VariantProductImage)) variant.VariantProductImage.forEach(img => preview.files.push({ folder: "ProductImage", file: img }));
-                        }
-                    }
-
-                    if (Array.isArray(product.RatingIds)) {
-                        for (let reviewId of product.RatingIds) {
-                            let review = await ProductRating.findById(reviewId);
-                            if (!review) continue;
-                            preview.reviews.push({
-                                _id: review._id,
-                                ReviewText: review.ReviewText,
-                                ReviewImages: review.ReviewImages
-                            });
-                            if (Array.isArray(review.ReviewImages)) review.ReviewImages.forEach(img => preview.files.push({ folder: "ProductSRatingImage", file: img }));
-
-                            if (Array.isArray(review.ResponseOnReview)) {
-                                let responses = await ProductReviewResponse.find({ _id: { $in: review.ResponseOnReview } });
-                                for (let resp of responses) {
-                                    preview.reviewResponses.push({
-                                        _id: resp._id,
-                                        LikeOrDislike: resp.LikeOrDislike,
-                                        createdAt: resp.createdAt
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-
-                let brandsWithSub = await brandmodel.find({ SubCategoryId: categoryId });
-                for (let brand of brandsWithSub) {
-                    preview.brands.push({ _id: brand._id, BrandName: brand.BrandName, SubCategoryId: brand.SubCategoryId });
-                    if (brand.BrandImage) preview.files.push({ folder: "BrandImage", file: brand.BrandImage });
-
-                    let banners = await BannerModel.find({ BrandId: brand._id, SubCategoryId: categoryId });
-                    for (let banner of banners) {
-                        preview.banners.push({ _id: banner._id, BannerName: banner.BannerName, BannerImage: banner.BannerImage });
-                        if (banner.BannerImage) preview.files.push({ folder: "BannerImage", file: banner.BannerImage });
-                    }
-                }
-
-                let brandsToDelete = await brandmodel.find({ HeadCategoryId: categoryId });
-                for (let brand of brandsToDelete) {
-                    preview.brands.push({ _id: brand._id, BrandName: brand.BrandName, HeadCategoryId: brand.HeadCategoryId });
-                    if (brand.BrandImage) preview.files.push({ folder: "BrandImage", file: brand.BrandImage });
-
-                    let banners = await BannerModel.find({ BrandId: brand._id });
-                    for (let banner of banners) {
-                        preview.banners.push({ _id: banner._id, BannerName: banner.BannerName, BannerImage: banner.BannerImage });
-                        if (banner.BannerImage) preview.files.push({ folder: "BannerImage", file: banner.BannerImage });
-                    }
-                }
+                return ids;
             };
 
-            await gatherCategoryRecursive(_id);
+            const categoryIds = await getAllCategoryIds(categoryId);
 
-            res.status(200).json({
+            const categoriesRaw = await dynamicCategoriesModel.find({
+                _id: { $in: categoryIds },
+                companyId
+            }).select("categoryName categoryLevel Description imageName parentCategoryId _id");
+
+            const brands = await brandmodel.find({
+                $or: [
+                    { HeadCategoryId: { $in: categoryIds } },
+                    { SubCategoryId: { $in: categoryIds } }
+                ]
+            }).select("BrandName BrandImage HeadCategoryId SubCategoryId _id");
+
+            const banners = await BannerModel.find({
+                SubCategoryId: { $in: categoryIds }
+            }).select("BannerName BannerImage BannerType Position OfferPercentage SubCategoryId _id");
+
+            const variants = await Variant.find({
+                $or: [
+                    { HeadCategoryId: { $in: categoryIds } },
+                    { SubCategoryId: { $in: categoryIds } }
+                ]
+            }).select("VariantName VariantType HeadCategoryId SubCategoryId _id");
+
+            const productServices = await ProductService.find({
+                $or: [
+                    { HeadCategoryId: { $in: categoryIds } },
+                    { SubCategoryId: { $in: categoryIds } }
+                ]
+            }).select("ServiceName ServiceImages Description HeadCategoryId SubCategoryId _id");
+
+            const productsRaw = await Product.find({
+                $or: [
+                    { HeadCategoryId: { $in: categoryIds } },
+                    { SubCategoryId: { $in: categoryIds } }
+                ]
+            }).select(
+                "ProductName CommonImages CommonVideos CommonDescription VariantProductIds HeadCategoryId SubCategoryId _id"
+            );
+
+            const variantProductIds = productsRaw
+                .flatMap(p => p.VariantProductIds || [])
+                .filter(Boolean);
+
+            const variantProducts = await VariantProduct.find({
+                _id: { $in: variantProductIds }
+            }).select(
+                "VariantProductName Price VariantProductImage OfferPercentage VariantFields _id"
+            );
+            const buildCategoryTree = (categories, rootCategoryId) => {
+                const map = {};
+                const roots = [];
+
+                const rootId = rootCategoryId.toString();
+
+                categories.forEach(cat => {
+                    map[cat._id.toString()] = {
+                        ...cat.toObject(),
+                        subcategories: []
+                    };
+                });
+
+                categories.forEach(cat => {
+                    const id = cat._id.toString();
+                    const parentId = cat.parentCategoryId?.toString();
+
+                    if (id === rootId) {
+                        roots.push(map[id]);
+                    }
+                    else if (parentId && map[parentId]) {
+                        map[parentId].subcategories.push(map[id]);
+                    }
+                });
+
+                return roots;
+            };
+
+
+            const mergeVariantProductsIntoProducts = (products, variantProducts) => {
+                const vpMap = {};
+
+                variantProducts.forEach(vp => {
+                    vpMap[vp._id.toString()] = vp.toObject();
+                });
+
+                return products.map(product => ({
+                    ...product.toObject(),
+                    VariantProducts: (product.VariantProductIds || [])
+                        .map(id => vpMap[id.toString()])
+                        .filter(Boolean)
+                }));
+            };
+
+            const categories = buildCategoryTree(categoriesRaw, categoryId);
+            const products = mergeVariantProductsIntoProducts(productsRaw, variantProducts);
+
+            return res.status(200).json({
                 success: true,
-                message: "Preview of all deletable data",
-                data: preview
+                data: {
+                    summary: {
+                        categories: categoriesRaw.length,
+                        brands: brands.length,
+                        banners: banners.length,
+                        variants: variants.length,
+                        productServices: productServices.length,
+                        products: products.length
+                    },
+                    categories,
+                    brands,
+                    banners,
+                    variants,
+                    productServices,
+                    products
+                }
             });
 
         } catch (error) {
-            console.error("previewDeleteCategoryError:", error);
-            res.status(500).json({ success: false, message: "Something went wrong", error: error.message });
+            console.error("previewDeleteCategory error:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Internal Server Error",
+                error: error.message
+            });
         }
-    }
-
+    },
 
 
 };

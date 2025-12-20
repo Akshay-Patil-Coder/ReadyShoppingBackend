@@ -67,7 +67,6 @@ router.delete('/deleteBanner',authentication, (req, res) => {
    if (req.user.role == 'Company' || req.user.role == 'Admin') {
       return bannersController.deleteBanner(req, res);
     }
-  
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
  
  })

@@ -226,4 +226,118 @@ module.exports = {
         }
     },
 
+
+    toggleProductService: async (req, res) => {
+        try {
+            let { serviceId, isActive, companyId } = req.body;
+            if (req.user.companyId) companyId = req.user.companyId;
+
+            if (!serviceId || typeof isActive !== "boolean" || !companyId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "ServiceId,companyId and valid isActive required"
+                });
+            }
+
+            const service = await ProductService.findOne({
+                _id: serviceId,
+                companyId
+            });
+
+            if (!service) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Product service not found"
+                });
+            }
+
+            await ProductService.updateOne(
+                { _id: serviceId },
+                {
+                    $set: {
+                        isActive,
+                        isActiveBy: "Self"
+                    }
+                }
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: `Product service ${isActive ? "activated" : "deactivated"} successfully`
+            });
+
+        } catch (error) {
+            console.error("toggleProductService error:", error);
+            res.status(500).json({
+                success: false,
+                message: "Something went wrong",
+                error: error.message
+            });
+        }
+    },
+    deleteProductService: async (req, res) => {
+        try {
+            let { serviceId, companyId } = req.query;
+            if (req.user.companyId) companyId = req.user.companyId;
+
+            if (!serviceId || !companyId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "ServiceId and CompanyId required"
+                });
+            }
+
+            const service = await ProductService.findOne({
+                _id: serviceId,
+                companyId
+            });
+
+            if (!service) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Product service not found"
+                });
+            }
+
+            const deleteFiles = async (files, folder) => {
+                for (const file of files) {
+                    const filePath = path.join(
+                        __dirname,
+                        "..",
+                        "..",
+                        "public",
+                        folder,
+                        file
+                    );
+                    try {
+                        await fs.promises.unlink(filePath);
+                    } catch (err) {
+                        if (err.code !== "ENOENT") {
+                            console.error(`File delete error: ${filePath}`, err.message);
+                        }
+                    }
+                }
+            };
+
+            if (Array.isArray(service.ServiceImages) && service.ServiceImages.length) {
+                await deleteFiles(service.ServiceImages, "ProductServiceImage");
+            }
+
+            await ProductService.deleteOne({ _id: serviceId });
+
+            return res.status(200).json({
+                success: true,
+                message: "Product service deleted successfully"
+            });
+
+        } catch (error) {
+            console.error("deleteProductService error:", error);
+            res.status(500).json({
+                success: false,
+                message: "Something went wrong",
+                error: error.message
+            });
+        }
+    },
+
 };

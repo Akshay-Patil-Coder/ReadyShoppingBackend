@@ -39,7 +39,7 @@ router.post("/addProductService", authentication, upload.array('ProductServiceIm
   if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return ProductServiceController.addProductService(req, res)
   }
- 
+
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 
@@ -53,7 +53,7 @@ router.put('/updateProductsService', authentication, upload.array('ProductServic
   if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return ProductServiceController.updateProductsService(req, res)
   }
- 
+
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 })
@@ -61,11 +61,25 @@ router.delete('/deleteProductServiceImage/:id', authentication, (req, res) => {
   if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return ProductServiceController.deleteProductServiceImage(req, res)
   }
-  
+
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 })
+router.post('/toggleProductService', authentication, (req, res) => {
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
+    return ProductServiceController.toggleProductService(req, res)
+  }
 
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
+})
+router.delete('/deleteProductService', authentication, (req, res) => {
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
+    return ProductServiceController.deleteProductService(req, res)
+  }
+
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
+})
 
 module.exports = router

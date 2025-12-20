@@ -25,7 +25,8 @@ module.exports = {
             ProductServiceId,
             ServiceActive,
             IsActive,
-            WishListId
+            WishListId,
+            WishlistProductIds
         } = req.body;
 
         if (req.user.UserId) UserId = req.user.UserId;
@@ -300,6 +301,44 @@ module.exports = {
                 }
                 return res.status(200).json({
                     message: "Product removed from wishlist",
+                    success: true,
+                    data: saved
+                });
+            }
+            else if (Operation === "removeAll") {
+
+                if (!Array.isArray(WishlistProductIds) || WishlistProductIds.length === 0) {
+                    return res.status(400).json({
+                        message: "WishlistProductIds array is required",
+                        success: false
+                    });
+                }
+
+                const initialLength = FoundWishlist.Products.length;
+
+                FoundWishlist.Products = FoundWishlist.Products.filter(
+                    product => !WishlistProductIds.includes(String(product._id))
+                );
+
+                if (FoundWishlist.Products.length === initialLength) {
+                    return res.status(404).json({
+                        message: "No matching products found in wishlist",
+                        success: false
+                    });
+                }
+
+                recalcTotals(FoundWishlist);
+
+                const saved = await FoundWishlist.save();
+
+                try {
+                    await module.exports.ValidateWishlist(req, res);
+                } catch (e) {
+                    console.warn("wishlist validation failed:", e.message);
+                }
+
+                return res.status(200).json({
+                    message: "Selected products removed from wishlist",
                     success: true,
                     data: saved
                 });
@@ -907,7 +946,7 @@ module.exports = {
 
             let data = await module.exports.getWishListData(matchCondition)
             if (data && data[0]?.Products?.length == 0) {
-                return res.status(200).json({ message: 'Cart is empty', success: true,data:data })
+                return res.status(200).json({ message: 'Cart is empty', success: true, data: data })
             }
             if (data?.length) {
                 data = data.map(cart => {

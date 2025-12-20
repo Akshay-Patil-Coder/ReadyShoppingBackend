@@ -80,14 +80,27 @@ router.post('/logincompany', (req, res) => {
 router.post('/verifyToken', (req, res) => {
   companiesController.verifyToken(req, res);
 })
-router.get('/previewDeleteCompany', (req, res) => {
-  companiesController.previewDeleteCompany(req, res)
+router.get('/previewDeleteCompany', authentication, (req, res) => {
+  if (req.user.role == 'Admin') {
+    return companiesController.previewDeleteCompany(req, res)
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 })
-router.get('/ToggleStatusOfCompany', (req, res) => {
-  companiesController.ToggleStatusOfCompany(req, res)
+router.get('/ToggleStatusOfCompany', authentication, (req, res) => {
+  if (req.user.role == 'Admin') {
+    return companiesController.ToggleStatusOfCompany(req, res)
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
 })
-router.delete('/DeleteCompany', (req, res) => {
-  companiesController.DeleteCompany(req, res)
+router.delete('/DeleteCompany', authentication, (req, res) => {
+  if (req.user.role == 'Admin') {
+    return companiesController.DeleteCompany(req, res)
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
+
 })
 router.get('/resetPassword', (req, res) => {
   companiesController.resetPassword(req, res)

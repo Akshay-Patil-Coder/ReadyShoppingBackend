@@ -49,21 +49,40 @@ router.get('/getBrandsById', (req, res) => {
   brandController.getBrandsById(req, res)
 })
 
-router.put('/updateSubCategoryList',authentication, (req, res) => {
-   if (req.user.role == 'Company' || req.user.role == 'Admin') {
+router.put('/updateSubCategoryList', authentication, (req, res) => {
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return brandController.updateSubCategoryList(req, res)
   }
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 })
-router.put('/updateBrandDetails',authentication, upload.single('BrandImage'), (req, res) => {
+router.put('/updateBrandDetails', authentication, upload.single('BrandImage'), (req, res) => {
   if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return brandController.updateBrandDetails(req, res)
   }
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 })
+router.get('/previewDeleteBrand', authentication, (req, res) => {
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
+    return brandController.previewDeleteBrand(req, res)
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
+})
+router.get('/ToggleStatusOfBrand', authentication, (req, res) => {
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
+    return brandController.ToggleStatusOfBrand(req, res)
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
+})
+router.get('/deleteBrand', authentication, (req, res) => {
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
+    return brandController.deleteBrand(req, res)
+  }
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
+})
 
 module.exports = router

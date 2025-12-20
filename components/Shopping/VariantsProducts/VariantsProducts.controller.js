@@ -1054,203 +1054,244 @@ module.exports = {
             });
         }
     },
-    DeleteProductWithVariant: async (req, res) => {
-        let { ProductId, companyId } = req.body;
-        if (req.user.companyId) companyId = req.user.companyId
 
-        let clearFiles = async (files) => {
-            if (!Array.isArray(files) || files.length === 0) return;
-            for (let file of files) {
-                try {
-                    let filePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', file);
-                    if (fs.existsSync(filePath)) {
-                        fs.unlinkSync(filePath);
-                    }
-                } catch (error) {
-                    console.warn('⚠️ Image not deleted:', error.message);
-                }
-            }
-        };
-
-        let clearVideos = async (files) => {
-            if (!Array.isArray(files) || files.length === 0) return;
-            for (let file of files) {
-                try {
-                    let filePath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', file);
-                    if (fs.existsSync(filePath)) {
-                        fs.unlinkSync(filePath);
-                    }
-                } catch (error) {
-                    console.warn('⚠️ Video not deleted:', error.message);
-                }
-            }
-        };
-
+    DeleteProductOrVariants: async (req, res) => {
         try {
-            if (!ProductId || !companyId) {
+            let { ProductId, VariantIds, deleteType, companyId } = req.body;
+            if (req.user.companyId) companyId = req.user.companyId;
+
+            if (!ProductId || !companyId || !deleteType) {
                 return res.status(400).json({
-                    message: "Please provide both ProductId and companyId",
                     success: false,
+                    message: "ProductId, companyId and deleteType are required"
                 });
             }
 
-            let FindedProduct = await Product.findOne({ _id: ProductId, companyId });
-            if (!FindedProduct) {
+            const product = await Product.findOne({ _id: ProductId, companyId });
+            if (!product) {
                 return res.status(404).json({
-                    message: "Product not found",
                     success: false,
+                    message: "Product not found"
                 });
             }
 
-            if (Array.isArray(FindedProduct.VariantProductIds) && FindedProduct.VariantProductIds.length > 0) {
-                for (let EachVariantId of FindedProduct.VariantProductIds) {
-                    let FindedVariantProduct = await VariantProduct.findOne({
-                        _id: EachVariantId,
-                        companyId,
-                        ProductId,
+            const deleteFiles = async (files, folder) => {
+                if (!Array.isArray(files)) return;
+                for (const file of files) {
+                    const filePath = path.join(__dirname, "..", "..", "public", folder, file);
+                    try {
+                        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                    } catch (err) {
+                        console.warn("File delete failed:", err.message);
+                    }
+                }
+            };
+
+
+            if (deleteType === "VARIANT") {
+                if (!VariantIds || VariantIds.length === 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "VariantIds required for VARIANT delete"
                     });
+                }
 
-                    if (!FindedVariantProduct) continue;
+                const ids = Array.isArray(VariantIds) ? VariantIds : [VariantIds];
 
-                    if (Array.isArray(FindedVariantProduct.VariantProductImage) && FindedVariantProduct.VariantProductImage.length > 0) {
-                        await clearFiles(FindedVariantProduct.VariantProductImage);
+                const variants = await VariantProduct.find({
+                    _id: { $in: ids },
+                    ProductId,
+                    companyId
+                });
+
+                for (const variant of variants) {
+                    if (variant.VariantProductImage?.length) {
+                        await deleteFiles(variant.VariantProductImage, "ProductImage");
                     }
 
-                    if (Array.isArray(FindedVariantProduct.VariantFields)) {
-                        for (let EachVariant of FindedVariantProduct.VariantFields) {
-                            try {
-                                await Variant.findOneAndUpdate(
-                                    {
-                                        _id: EachVariant.VariantId,
-                                        "VariantValues.Value": EachVariant.VariantValue,
-                                        "VariantValues.Count": { $gt: 0 },
-                                    },
-                                    { $inc: { "VariantValues.$.Count": -1 } },
-                                    { new: true }
-                                );
-                            } catch (error) {
-                                console.warn('⚠️ Variant count decrement failed:', error.message);
-                            }
+                    if (Array.isArray(variant.VariantFields)) {
+                        for (const v of variant.VariantFields) {
+                            await Variant.findOneAndUpdate(
+                                {
+                                    _id: v.VariantId,
+                                    "VariantValues.Value": v.VariantValue,
+                                    "VariantValues.Count": { $gt: 0 }
+                                },
+                                { $inc: { "VariantValues.$.Count": -1 } }
+                            );
                         }
                     }
 
-                    await VariantProduct.deleteOne({
-                        _id: EachVariantId,
-                        companyId,
-                        ProductId,
-                    });
+                    await VariantProduct.deleteOne({ _id: variant._id });
+
+                    await Product.updateOne(
+                        { _id: ProductId },
+                        { $pull: { VariantProductIds: variant._id } }
+                    );
                 }
-            }
 
-            if (Array.isArray(FindedProduct.CommonImages) && FindedProduct.CommonImages.length > 0) {
-                await clearFiles(FindedProduct.CommonImages);
-            }
-            if (Array.isArray(FindedProduct.CommonVideos) && FindedProduct.CommonVideos.length > 0) {
-                await clearVideos(FindedProduct.CommonVideos);
-            }
-
-            try {
-                await ProductRating.deleteMany({ ProductId });
-            } catch (error) {
-                console.warn('⚠️ Rating and review not deleted:', error.message);
-            }
-
-            let DeleteProduct = await Product.deleteOne({ _id: ProductId, companyId });
-
-            if (DeleteProduct.deletedCount === 0) {
-                return res.status(400).json({
-                    message: "Product not deleted",
-                    success: false,
+                return res.status(200).json({
+                    success: true,
+                    message: "✅ Selected variant products deleted successfully"
                 });
             }
 
-            return res.status(200).json({
-                message: "✅ Product and its variants deleted successfully",
-                success: true,
+            if (deleteType === "PRODUCT") {
+
+                if (Array.isArray(product.VariantProductIds)) {
+                    const variants = await VariantProduct.find({
+                        _id: { $in: product.VariantProductIds },
+                        ProductId,
+                        companyId
+                    });
+
+                    for (const variant of variants) {
+                        if (variant.VariantProductImage?.length) {
+                            await deleteFiles(variant.VariantProductImage, "ProductImage");
+                        }
+
+                        if (Array.isArray(variant.VariantFields)) {
+                            for (const v of variant.VariantFields) {
+                                await Variant.findOneAndUpdate(
+                                    {
+                                        _id: v.VariantId,
+                                        "VariantValues.Value": v.VariantValue,
+                                        "VariantValues.Count": { $gt: 0 }
+                                    },
+                                    { $inc: { "VariantValues.$.Count": -1 } }
+                                );
+                            }
+                        }
+
+                        await VariantProduct.deleteOne({ _id: variant._id });
+                    }
+                }
+
+                await deleteFiles(product.CommonImages, "ProductImage");
+                await deleteFiles(product.CommonVideos, "ProductVideo");
+
+                await ProductRating.deleteMany({ ProductId });
+
+                await Product.deleteOne({ _id: ProductId });
+
+                return res.status(200).json({
+                    success: true,
+                    message: "✅ Product and all its variants deleted successfully"
+                });
+            }
+
+            return res.status(400).json({
+                success: false,
+                message: "Invalid deleteType (use PRODUCT or VARIANT)"
             });
 
         } catch (error) {
-            console.error("❌ DeleteProductError:", error);
-            return res.status(500).json({
-                message: "Internal Server Error",
+            console.error("DeleteProductOrVariants error:", error);
+            res.status(500).json({
                 success: false,
-                error: error.message,
+                message: "Internal Server Error",
+                error: error.message
             });
         }
     },
 
-    HideAndShowVariantProduct: async (req, res) => {
-        let { ProductId, VariantIds, companyId, isActive } = req.body;
 
+    ToggleProductOrVariants: async (req, res) => {
         try {
-            if (!ProductId || !companyId || typeof isActive === 'undefined') {
+            let {
+                ProductId,
+                VariantIds,
+                toggleType, 
+                companyId,
+                isActive
+            } = req.body;
+
+            if (req.user.companyId) companyId = req.user.companyId;
+
+            if (!ProductId || !companyId || typeof isActive !== "boolean" || !toggleType) {
                 return res.status(400).json({
-                    message: "Provide all required fields: ProductId, companyId, and isActive",
                     success: false,
+                    message: "ProductId, companyId, isActive and toggleType are required"
                 });
             }
 
-            let FindedProduct = await Product.findOne({ _id: ProductId, companyId });
-            if (!FindedProduct) {
+            const product = await Product.findOne({ _id: ProductId, companyId });
+            if (!product) {
                 return res.status(404).json({
-                    message: "Product not found",
                     success: false,
+                    message: "Product not found"
                 });
             }
 
-            if (VariantIds && VariantIds.length > 0) {
-                let ArrayIds = Array.isArray(VariantIds) ? VariantIds : [VariantIds];
-                try {
+         
+            if (toggleType === "VARIANT") {
+                if (!VariantIds || VariantIds.length === 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "VariantIds required for VARIANT toggle"
+                    });
+                }
+
+                const ids = Array.isArray(VariantIds) ? VariantIds : [VariantIds];
+
+                await VariantProduct.updateMany(
+                    { _id: { $in: ids }, ProductId, companyId },
+                    {
+                        $set: {
+                            isActive,
+                            isActiveBy: "Self"
+                        }
+                    }
+                );
+
+                return res.status(200).json({
+                    success: true,
+                    message: `✅ Selected variant products ${isActive ? "activated" : "deactivated"} successfully`
+                });
+            }
+
+           
+            if (toggleType === "PRODUCT") {
+
+                await Product.updateOne(
+                    { _id: ProductId, companyId },
+                    {
+                        $set: {
+                            isActive,
+                            isActiveBy: "Self"
+                        }
+                    }
+                );
+
+                if (Array.isArray(product.VariantProductIds) && product.VariantProductIds.length > 0) {
                     await VariantProduct.updateMany(
-                        { _id: { $in: ArrayIds }, companyId },
-                        { $set: { isActive } }
+                        { _id: { $in: product.VariantProductIds }, companyId },
+                        {
+                            $set: {
+                                isActive,
+                                isActiveBy: "Parent"
+                            }
+                        }
                     );
-                } catch (error) {
-                    console.warn(`Variants Not ${isActive ? 'activated' : 'deactivated'} `)
                 }
 
                 return res.status(200).json({
-                    message: `Variants ${isActive ? 'activated' : 'deactivated'} successfully`,
                     success: true,
+                    message: `✅ Product and all its variants ${isActive ? "activated" : "deactivated"} successfully`
                 });
             }
 
-            if (Array.isArray(FindedProduct.VariantProductIds) && FindedProduct.VariantProductIds.length > 0) {
-                try {
-                    await VariantProduct.updateMany(
-                        { _id: { $in: FindedProduct.VariantProductIds }, companyId },
-                        { $set: { isActive } }
-                    );
-                } catch (error) {
-                    console.warn(`Variants Not ${isActive ? 'activated' : 'deactivated'} `)
-
-                }
-            }
-
-            let UpdatedProduct = await Product.findOneAndUpdate(
-                { _id: ProductId, companyId },
-                { $set: { isActive } },
-                { new: true }
-            );
-
-            if (!UpdatedProduct) {
-                return res.status(400).json({
-                    message: "Product not updated",
-                    success: false,
-                });
-            }
-
-            return res.status(200).json({
-                message: `Product and its variants ${isActive ? 'activated' : 'deactivated'} successfully`,
-                success: true,
+            return res.status(400).json({
+                success: false,
+                message: "Invalid toggleType (use PRODUCT or VARIANT)"
             });
 
         } catch (error) {
-            console.error("❌ HideAndShowVariantProduct Error:", error);
+            console.error("ToggleProductOrVariants error:", error);
             return res.status(500).json({
-                message: "Internal Server Error",
                 success: false,
-                error: error.message,
+                message: "Internal Server Error",
+                error: error.message
             });
         }
     },
@@ -2272,5 +2313,5 @@ module.exports = {
             });
         }
     }
-    
+
 };

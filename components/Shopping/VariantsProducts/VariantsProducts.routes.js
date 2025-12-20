@@ -127,11 +127,17 @@ router.put("/UpdateCommonVideos", authentication, upload.array('ProductVideos', 
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 });
-router.delete("/DeleteProductWithVariant", authentication, (req, res) => {
+router.delete("/DeleteProductOrVariants", authentication, (req, res) => {
   if (req.user.role == 'Company' || req.user.role == 'Admin') {
-    return VariantProductController.DeleteProductWithVariant(req, res);
+    return VariantProductController.DeleteProductOrVariants(req, res);
   }
- 
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
+});
+router.post("/ToggleProductOrVariants", authentication, (req, res) => {
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
+    return VariantProductController.ToggleProductOrVariants(req, res);
+  }
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 });
