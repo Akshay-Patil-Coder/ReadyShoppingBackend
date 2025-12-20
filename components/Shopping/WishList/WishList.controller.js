@@ -43,7 +43,44 @@ module.exports = {
 
             let FolderQuery = new RegExp(`^${FolderName}$`, "i");
             let FoundWishlist = await Wishlist.findOne({ UserId, companyId, FolderName: FolderQuery });
+            let calculateProductTotals = (variant, qty, activePaidServices = []) => {
+                let total = variant.Price * qty;
+                let discount = 0;
 
+                if (variant.OfferPercentage > 0)
+                    discount = (total * variant.OfferPercentage) / 100;
+
+                let final = total - discount;
+
+                if (activePaidServices.length > 0) {
+                    let servicePrice = activePaidServices.reduce(
+                        (sum, s) => sum + (s.ProductServiceAmount || 0),
+                        0
+                    );
+                    total += servicePrice;
+                    final += servicePrice;
+                }
+
+                return { total, discount, final };
+            };
+
+            let recalcTotals = (wl) => {
+                let total = 0,
+                    discount = 0,
+                    final = 0;
+
+                for (let p of wl.Products) {
+                    if (p.IsActive !== false) {
+                        total += p.TotalPrice || 0;
+                        discount += p.DiscountPrice || 0;
+                        final += p.FinalPrice || 0;
+                    }
+                }
+
+                wl.TotalCartPrice = total;
+                wl.DiscountCartPrice = discount;
+                wl.FinalCartPrice = final;
+            };
             if (Operation === "removeAll") {
 
                 if (!Array.isArray(WishlistProductIds) || WishlistProductIds.length === 0) {
@@ -164,44 +201,7 @@ module.exports = {
                 return res.status(404).json({ message: "Variant not found", success: false });
 
 
-            let calculateProductTotals = (variant, qty, activePaidServices = []) => {
-                let total = variant.Price * qty;
-                let discount = 0;
 
-                if (variant.OfferPercentage > 0)
-                    discount = (total * variant.OfferPercentage) / 100;
-
-                let final = total - discount;
-
-                if (activePaidServices.length > 0) {
-                    let servicePrice = activePaidServices.reduce(
-                        (sum, s) => sum + (s.ProductServiceAmount || 0),
-                        0
-                    );
-                    total += servicePrice;
-                    final += servicePrice;
-                }
-
-                return { total, discount, final };
-            };
-
-            let recalcTotals = (wl) => {
-                let total = 0,
-                    discount = 0,
-                    final = 0;
-
-                for (let p of wl.Products) {
-                    if (p.IsActive !== false) {
-                        total += p.TotalPrice || 0;
-                        discount += p.DiscountPrice || 0;
-                        final += p.FinalPrice || 0;
-                    }
-                }
-
-                wl.TotalCartPrice = total;
-                wl.DiscountCartPrice = discount;
-                wl.FinalCartPrice = final;
-            };
 
             if (Operation === "add") {
                 if (Quantity <= 0) Quantity = 1;
