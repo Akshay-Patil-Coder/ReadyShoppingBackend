@@ -14,7 +14,7 @@ module.exports = {
                         fs.unlinkSync(newImagePath);
                     }
                 }
-                res.status(400).json({ message: 'please filled all fields', success: false })
+               return res.status(400).json({ message: 'please filled all fields', success: false })
             }
             let FunctionallityData = {
                 FunctionallityName

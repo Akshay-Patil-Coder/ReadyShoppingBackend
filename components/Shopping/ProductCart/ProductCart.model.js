@@ -28,6 +28,10 @@ const cartSchema = new mongoose.Schema({
                     ProductServiceId: {
                         type: mongoose.Schema.Types.ObjectId
                     },
+                    ServiceCount: {
+                        type: Number,
+                        default: 1
+                    },
                     ServiceActive: {
                         type: Boolean,
                         default: true

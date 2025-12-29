@@ -27,10 +27,10 @@ const couponSchema = mongoose.Schema(
             Head: {
                 type: String
             },
-            Points: [{
-                type: String,
+            Points: {
+                type: [String],
                 default: []
-            }],
+            },
             TextDescription: {
                 type: String
             }
@@ -43,21 +43,21 @@ const couponSchema = mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             default: null
         },
-        HeadCategoryIds: [{
-            type: mongoose.Schema.Types.ObjectId,
+        HeadCategoryIds: {
+            type: [mongoose.Schema.Types.ObjectId],
             default: []
-        }],
-        SubCategoryIds: [{
-            type: mongoose.Schema.Types.ObjectId,
-            default: []
-        }],
-        StartDate:{
-            type:Date,
-            default:Date.now()
         },
-        EndDate:{
-            type:Date,
-            default:null
+        SubCategoryIds: {
+            type: [mongoose.Schema.Types.ObjectId],
+            default: []
+        },
+        StartDate: {
+            type: Date,
+            default: Date.now
+        },
+        EndDate: {
+            type: Date,
+            default: null
         },
         ProductIds: [
             {
@@ -80,11 +80,16 @@ const couponSchema = mongoose.Schema(
         Conditions: [{
             ConditionName: {
                 type: String,
+                enum:['USER-SPECIFIC',"CATEGORY-SPECIFIC","BRAND-SPECIFIC","MINIMUM-AMOUNT","MINIMUM-PREVIOUS-SHOPPING","HOW-OLD-USER","NEW-USER","SPECIFIC-USER-COUNT"],
                 required: true
             },
             ActiveCondition: {
                 type: Boolean,
                 default: true
+            },
+            MaximumAmount: {
+                type: Number,
+                default: 0
             }
         }],
         UserSpecific: {
@@ -97,14 +102,18 @@ const couponSchema = mongoose.Schema(
                 default: []
             }]
         },
-        BuyXGetYData:{
-            BuyCount:{
-                type:Number
+        BuyXGetYData: {
+            BuyCount: {
+                type: Number
             },
-            GetCount:{
-                type:Number
+            GetCount: {
+                type: Number
             }
         },
+        UsageHistory: [{
+            UserId: mongoose.Schema.Types.ObjectId,
+            UsedAt: Date
+        }],
         isActive: {
             type: Boolean,
             default: true,

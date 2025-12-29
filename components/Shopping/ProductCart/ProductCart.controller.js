@@ -1836,7 +1836,7 @@ module.exports = {
             try {
                 const FoundCompany = companyId ? await CompanyModel.findById(companyId) : null;
                 if (FoundCompany) {
-                    if (RenderingDomain === 'Private' && FoundCompany.PredifinedDomain) {
+                    if (RenderingDomain == 'Private' && FoundCompany.PredifinedDomain) {
                         FrontendRenderDomain = `${FoundCompany.PredifinedDomain.replace(/\/+$/, '')}/shopping`;
                     } else if (FoundCompany.CompanyDomain) {
                         FrontendRenderDomain = `http://${FoundCompany.CompanyDomain}:4200/shopping`;

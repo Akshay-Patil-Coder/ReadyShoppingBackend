@@ -8,11 +8,24 @@ const path = require('path');
 
 module.exports = {
     addVariant: async (req, res) => {
+        const cleanFile = async () => {
+            try {
+                if (req?.file) {
+                    let filepath = path.join(__dirname, "..", "..", "VariantImage", req.file);
+                    if (fs.existsSync(filepath)) {
+                        fs.unlinkSync(filepath)
+                    }
+                }
+            } catch (error) {
+                console.warn('error at deleting variant image:', error.message)
+            }
+        }
         try {
             let { companyId, HeadCategoryId, SubCategoryId, VariantName, VariantType, VariantValues, Extension } = req.body;
             if (req.user.companyId) companyId = req.user.companyId
 
             if (!companyId || !HeadCategoryId || !SubCategoryId || !VariantName || !VariantType) {
+                await cleanFile();
                 return res.status(400).json({
                     success: false,
                     message: 'Please fill in all required fields'
@@ -21,6 +34,7 @@ module.exports = {
 
             let allowedTypes = ["String", "Number", "Date"];
             if (!allowedTypes.includes(VariantType)) {
+                await cleanFile();
                 return res.status(400).json({
                     success: false,
                     message: `Variant Type must be one of: ${allowedTypes.join(", ")}`
@@ -46,6 +60,7 @@ module.exports = {
                     let val = v.Value;
 
                     if (VariantType === "Number" && isNaN(Number(val))) {
+                        await cleanFile();
                         return res.status(400).json({
                             success: false,
                             message: `Invalid value '${val}' — must be a Number`
@@ -55,6 +70,7 @@ module.exports = {
                         val = Number(val)
                     }
                     if (VariantType === "Date" && isNaN(new Date(val).getTime())) {
+                        await cleanFile();
                         return res.status(400).json({
                             success: false,
                             message: `Invalid value '${val}' — must be a valid Date`
@@ -62,6 +78,7 @@ module.exports = {
                     }
 
                     if (VariantType === "String" && typeof val !== "string") {
+                        await cleanFile();
                         return res.status(400).json({
                             success: false,
                             message: `Invalid value '${val}' — must be a String`
@@ -72,6 +89,9 @@ module.exports = {
 
             if (Extension && Extension !== 'undefined') {
                 VariantData.Extension = Extension;
+            }
+            if (req?.file) {
+                VariantData.VariantImage = req.file
             }
 
             let newVariant = new Variant(VariantData);
@@ -84,6 +104,7 @@ module.exports = {
             });
 
         } catch (error) {
+            await cleanFile();
             console.error("VariantAddError:", error);
             return res.status(500).json({
                 success: false,
@@ -166,17 +187,31 @@ module.exports = {
         }
     },
     updateVariantDetails: async (req, res) => {
+        const cleanFile = async () => {
+            try {
+                if (req?.file) {
+                    let filepath = path.join(__dirname, "..", "..", "VariantImage", req.file);
+                    if (fs.existsSync(filepath)) {
+                        fs.unlinkSync(filepath)
+                    }
+                }
+            } catch (error) {
+                console.warn('error at deleting variant image:', error.message)
+            }
+        }
         try {
             let { VariantId, VariantName, VariantValues, Extension } = req.body;
             let companyId = req.query.companyId;
             if (req.user.companyId) companyId = req.user.companyId
 
             if (!VariantId || !companyId) {
+                await cleanFile();
                 return res.status(400).json({ message: 'Please insert valid data', success: false });
             }
 
             let FoundVariant = await Variant.findOne({ _id: VariantId, companyId });
             if (!FoundVariant) {
+                await cleanFile();
                 return res.status(404).json({ message: 'Variant not found', success: false });
             }
 
@@ -186,6 +221,7 @@ module.exports = {
                     let val = v.Value;
 
                     if (FoundVariant.VariantType === "Number" && isNaN(Number(val))) {
+                        await cleanFile();
                         return res.status(400).json({
                             success: false,
                             message: `Invalid value '${val}' — must be a Number`
@@ -195,6 +231,7 @@ module.exports = {
                         val = Number(val)
                     }
                     if (FoundVariant.VariantType === "Date" && isNaN(new Date(val).getTime())) {
+                        await cleanFile();
                         return res.status(400).json({
                             success: false,
                             message: `Invalid value '${val}' — must be a valid Date`
@@ -202,6 +239,7 @@ module.exports = {
                     }
 
                     if (FoundVariant.VariantType === "String" && typeof val !== "string") {
+                        await cleanFile();
                         return res.status(400).json({
                             success: false,
                             message: `Invalid value '${val}' — must be a String`
@@ -229,6 +267,19 @@ module.exports = {
             if (VariantName && VariantName !== 'undefined' && VariantName !== null && VariantName !== '') {
                 FoundVariant.VariantName = VariantName;
             }
+            if (req?.file) {
+                try {
+                    if (FoundVariant?.VariantImage) {
+                        let existingImage = path.join(__dirname, "..", "..", "VariantImage", FoundVariant.VariantImage);
+                        if (fs.existsSync(existingImage)) {
+                            fs.unlinkSync(existingImage)
+                        }
+                    }
+                    FoundVariant.VariantImage = req.file
+                } catch (error) {
+                    console.warn('error at update variant image:', error.message)
+                }
+            }
 
             await FoundVariant.save();
 
@@ -239,6 +290,7 @@ module.exports = {
             });
 
         } catch (error) {
+            await cleanFile();
             console.error(error);
             return res.status(500).json({
                 message: "Internal Server Error",
@@ -247,165 +299,11 @@ module.exports = {
             });
         }
     },
-    // getAvailableFilters: async (req, res) => {
-    //     try {
-    //         let { SubCategoryId, companyId } = req.query;
-    //         if (!companyId) {
-    //             return res.status(400).json({ message: 'company not found', success: false });
-    //         }
-    //         if (!SubCategoryId) {
-    //             return res.status(400).json({ message: 'category not found', success: false });
-    //         }
 
-    //         let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
-
-    //         if (SubCategoryId) {
-    //             if (!mongoose.Types.ObjectId.isValid(SubCategoryId)) {
-    //                 return res.status(400).json({ message: 'Invalid SubCategoryId format', success: false });
-    //             }
-    //             matchCondition.SubCategoryId = mongoose.Types.ObjectId.createFromHexString(SubCategoryId);
-    //         }
-
-    //         let data = await module.exports.getVariantData(matchCondition);
-    //         let Filter = {};
-
-    //         if (data?.length) {
-    //             data = data
-    //                 .map((eachData) => {
-    //                     eachData.VariantValues = (eachData.VariantValues || []).filter(
-    //                         (eachValue) => eachValue.Value && eachValue.Count > 0
-    //                     );
-    //                     return eachData;
-    //                 })
-    //                 .filter((eachData) => eachData.VariantValues.length > 0);
-
-    //             if (data.length) Filter.VariantFilter = data;
-    //         }
-
-    //         try {
-    //             let BrandData = await brandmodel
-    //                 .find({
-    //                     companyId,
-    //                     SubCategoryId,
-    //                     isActive: true,
-    //                 })
-    //                 .select('_id BrandName BrandImage');
-
-    //             if (BrandData?.length) {
-    //                 let FilteredBrands = await Promise.all(
-    //                     BrandData.map(async (EachBrand) => {
-    //                         let EachVariantProduct = await VariantProduct.find({
-    //                             BrandId: EachBrand._id,
-    //                             companyId,
-    //                             SubCategoryId,
-    //                         });
-    //                         return EachVariantProduct.length !== 0 ? EachBrand : null;
-    //                     })
-    //                 );
-
-    //                 let ValidBrands = FilteredBrands.filter((b) => b !== null);
-
-    //                 if (ValidBrands.length) Filter.BrandFilter = ValidBrands;
-    //             }
-    //         } catch (error) {
-    //             console.error('Error fetching brand data:', error);
-    //         }
-
-    //         try {
-    //             let BadgesData = await Batch.find({ isActive: true }).select('_id BatchName BatchLogo');
-
-    //             if (BadgesData?.length) {
-    //                 let FilteredBadges = await Promise.all(
-    //                     BadgesData.map(async (EachBadge) => {
-    //                         let EachVariantProduct = await VariantProduct.find({
-    //                             BatchIds: EachBadge._id,
-    //                             companyId,
-    //                             SubCategoryId,
-    //                         });
-    //                         return EachVariantProduct.length !== 0 ? EachBadge : null;
-    //                     })
-    //                 );
-
-    //                 let ValidBadges = FilteredBadges.filter((b) => b !== null);
-
-    //                 if (ValidBadges.length) Filter.BadgeFilter = ValidBadges;
-    //             }
-    //         } catch (error) {
-    //             console.error('Error fetching Badges data:', error);
-    //         }
-
-    //         try {
-    //             let PriceRange = await VariantProduct.aggregate([
-    //                 {
-    //                     $match: {
-    //                         companyId: new mongoose.Types.ObjectId(String(companyId)),
-    //                         SubCategoryId: new mongoose.Types.ObjectId(String(SubCategoryId)),
-    //                     },
-    //                 },
-    //                 {
-    //                     $group: {
-    //                         _id: null,
-    //                         minPrice: { $min: '$Price' },
-    //                         maxPrice: { $max: '$Price' },
-    //                     },
-    //                 },
-    //             ]);
-
-    //             if (PriceRange?.length) {
-    //                 Filter.PriceFilter = {
-    //                     minPrice: PriceRange[0].minPrice || 0,
-    //                     maxPrice: PriceRange[0].maxPrice || 0,
-    //                 };
-    //                 Filter.PriceSort = {
-    //                     lowToHigh: 'lowToHigh',
-    //                     highToLow: 'highToLow'
-    //                 }
-
-    //             }
-
-
-    //         } catch (error) {
-    //             console.error('Error fetching price range:', error);
-    //         }
-    //         try {
-    //             let FoundProducts = await VariantProduct.find({ companyId, SubCategoryId })
-    //             if (FoundProducts && FoundProducts.length !== 0) {
-    //                 Filter.SortByArrivalsFilter = {
-    //                     Newer: 'Newer',
-    //                     Older: 'Older'
-    //                 }
-    //             }
-    //         } catch (error) {
-    //             console.error('Error fetching sort by arrivals:', error);
-    //         }
-    //         if (!Object.keys(Filter).length) {
-    //             return res.status(404).json({
-    //                 message: 'No filters found for this criteria',
-    //                 success: false,
-    //             });
-    //         }
-
-
-
-    //         return res.status(200).json({
-    //             data: Filter,
-    //             success: true,
-    //             message: 'Filters fetched successfully',
-    //         });
-    //     } catch (error) {
-    //         console.error('getAvailableFilters error:', error);
-    //         return res.status(500).json({
-    //             message: 'Internal Server Error',
-    //             error: error.message,
-    //             success: false,
-    //         });
-    //     }
-    // },
     getAvailableFilters: async (req, res) => {
         try {
             let { SubCategoryId, companyId } = req.query;
 
-            // --------------------- VALIDATION ---------------------
             if (!companyId)
                 return res.status(400).json({ message: "company not found", success: false });
 
@@ -415,10 +313,8 @@ module.exports = {
             if (!mongoose.Types.ObjectId.isValid(companyId))
                 return res.status(400).json({ message: "Invalid companyId format", success: false });
 
-            // Convert companyId
-            let companyObj = new mongoose.Types.ObjectId(companyId);
+            let companyObj = new mongoose.Types.ObjectId(String(companyId));
 
-            // --------------------- HANDLE MULTIPLE SUBCATEGORY IDS ---------------------
             let SubCatArray = [];
 
             if (Array.isArray(SubCategoryId)) {
@@ -429,7 +325,6 @@ module.exports = {
                 SubCatArray = [SubCategoryId];
             }
 
-            // Validate all ids
             for (let id of SubCatArray) {
                 if (!mongoose.Types.ObjectId.isValid(id)) {
                     return res.status(400).json({ message: "Invalid SubCategoryId format", success: false });
@@ -438,7 +333,6 @@ module.exports = {
 
             let SubCategoryIds = SubCatArray.map(id => new mongoose.Types.ObjectId(String(id)));
 
-            // MATCH CONDITION
             let matchCondition = {
                 companyId: companyObj,
                 SubCategoryId: { $in: SubCategoryIds }
@@ -446,7 +340,6 @@ module.exports = {
 
             let Filter = {};
 
-            // --------------------- VARIANT FILTER ---------------------
             let VariantData = await module.exports.getVariantData(matchCondition);
 
             if (VariantData?.length) {
@@ -462,13 +355,15 @@ module.exports = {
                 if (VariantData.length)
                     Filter.VariantFilter = VariantData;
 
-                if(Filter.VariantFilter){
-                    Filter.VariantFilter=Filter.VariantFilter.map(EachVariant=>{return {
-                        _id:EachVariant._id,
-                        VariantName:EachVariant.VariantName,
-                        VariantValues:EachVariant.VariantValues,
-                        Extension:EachVariant.Extension
-                    }})
+                if (Filter.VariantFilter) {
+                    Filter.VariantFilter = Filter.VariantFilter.map(EachVariant => {
+                        return {
+                            _id: EachVariant._id,
+                            VariantName: EachVariant.VariantName,
+                            VariantValues: EachVariant.VariantValues,
+                            Extension: EachVariant.Extension
+                        }
+                    })
                 }
             }
 
@@ -501,7 +396,6 @@ module.exports = {
                 console.error("Brand filter error:", err);
             }
 
-            // --------------------- BADGE FILTER ---------------------
             try {
                 let BadgesData = await Batch.find({ isActive: true })
                     .select("_id BatchName BatchLogo");
@@ -526,7 +420,6 @@ module.exports = {
                 console.error("Badge filter error:", err);
             }
 
-            // --------------------- PRICE FILTER ---------------------
             try {
                 let PriceRange = await VariantProduct.aggregate([
                     {
@@ -559,7 +452,6 @@ module.exports = {
                 console.error("Price range error:", err);
             }
 
-            // --------------------- SORT BY ARRIVALS ---------------------
             try {
                 let hasProducts = await VariantProduct.exists({
                     companyId: companyObj,
@@ -576,7 +468,6 @@ module.exports = {
                 console.error("Sort by arrivals error:", err);
             }
 
-            // --------------------- NO FILTERS FOUND ---------------------
             if (!Object.keys(Filter).length) {
                 return res.status(404).json({
                     message: "No filters found",
@@ -584,7 +475,6 @@ module.exports = {
                 });
             }
 
-            // --------------------- SUCCESS ---------------------
             return res.status(200).json({
                 data: Filter,
                 success: true,

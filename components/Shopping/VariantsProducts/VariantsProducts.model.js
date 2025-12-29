@@ -31,6 +31,10 @@ const VariantProductSchema = new mongoose.Schema({
         },
         VariantValue: {
             type: mongoose.Schema.Types.Mixed
+        },
+        SetImage:{
+            type:String,
+            default:'None'
         }
     }],
     OfferPercentage: {

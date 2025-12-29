@@ -35,7 +35,6 @@ const serviceAppointmentSchema = mongoose.Schema(
                 {
                     ServiceStartTime: {},
                     ServiceEndTime: {},
-                    //pri
                     selected: {
                         type: Boolean,
                         default: false

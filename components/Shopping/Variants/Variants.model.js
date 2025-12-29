@@ -13,6 +13,9 @@ const VariantSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         required: true
     },
+    VariantImage: {
+        type:String
+    },
     VariantName: {
         type: String,
         required: true,
@@ -26,11 +29,11 @@ const VariantSchema = new mongoose.Schema({
     },
     VariantValues: [
         {
-            Value:{
-                type:mongoose.Schema.Types.Mixed
+            Value: {
+                type: mongoose.Schema.Types.Mixed
             },
-            Count:{
-                type:Number
+            Count: {
+                type: Number
             }
         }
     ],
@@ -41,9 +44,9 @@ const VariantSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
-     isActiveBy:{
-        type:String,
-        default:'Self'
+    isActiveBy: {
+        type: String,
+        default: 'Self'
     },
 }, {
     timestamps: true
