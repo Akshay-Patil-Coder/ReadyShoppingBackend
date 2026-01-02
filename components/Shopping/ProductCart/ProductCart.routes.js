@@ -2,7 +2,6 @@ const express = require('express')
 const router = express.Router()
 const cartsController = require('./ProductCart.controller')
 const { authentication } = require('../../Middleware/Middleware.controller')
-const { authenticate } = require('passport')
 
 
 router.post('/addtocart', authentication, (req, res) => {

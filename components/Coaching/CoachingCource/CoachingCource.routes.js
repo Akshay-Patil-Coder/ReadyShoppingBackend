@@ -96,37 +96,4 @@ router.get('/getVideoContent',authentication,(req,res)=>{
 })
 
 
-
-
-// router.get('/getServiceProductByData', (req, res) => {
-//     CoachingCourseController.getServiceProductByData(req, res);
-// });
-
-
-// router.put('/updateSericeParts', authentication, (req, res) => {
-//     if (req.user.role === 'Admin' || req.user.role === 'Company' || req.user.role === 'Service Provider') {
-//         return CoachingCourseController.updateServiceParts(req, res)
-//     }
-//     res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
-
-// })
-
-// router.delete('/deleteServiceProducts/:id', authentication, (req, res) => {
-//     if (req.user.role === 'Admin' || req.user.role === 'Company' || req.user.role === 'Service Provider') {
-//         return CoachingCourseController.deleteServiceProducts(req, res);
-//     }
-//     res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
-
-// });
-// router.put('/deleteServiceImage/:id', authentication, (req, res) => {
-//     if (req.user.role === 'Admin' || req.user.role === 'Company' || req.user.role === 'Service Provider') {
-//         return CoachingCourseController.deleteServiceImage(req, res);
-//     }
-//     res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
-
-// });
-
-// router.get('/getserviceproducts', (req, res) => {
-//     CoachingCourseController.getproducts(req, res);
-// });
 module.exports = router

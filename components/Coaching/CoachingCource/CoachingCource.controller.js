@@ -15,7 +15,7 @@ class CourseService {
         this.privateDir = path.join(__dirname, '..', '..', 'private');
     }
 
-    extractAudio(videoPath, outputPath) {
+    async extractAudio(videoPath, outputPath) {
         return new Promise((resolve, reject) => {
             const timeout = setTimeout(() => reject(new Error('Audio extraction timed out')), 30000);
             ffmpeg(videoPath)
@@ -27,22 +27,10 @@ class CourseService {
                 .run();
         });
     }
-    // extractSubtitles(videoPath, outputPath) {
-    //     return new Promise((resolve, reject) => {
-    //         const timeout = setTimeout(() => reject(new Error('Subtitle extraction timed out')), 30000);
-    //         ffmpeg(videoPath)
-    //             .outputOptions('-map 0:s:0')
-    //             .output(outputPath)
-    //             .on('end', () => { clearTimeout(timeout); resolve(outputPath); })
-    //             .on('error', (error) => { clearTimeout(timeout); reject(error); })
-    //             .run();
-    //     });
-    // }
     async extractSubtitles(videoPath, outputPath) {
         return new Promise((resolve, reject) => {
             const timeout = setTimeout(() => reject(new Error('Subtitle extraction timed out')), 30000);
 
-            // First check if the video actually has subtitles
             ffmpeg.ffprobe(videoPath, (err, metadata) => {
                 if (err) {
                     clearTimeout(timeout);
@@ -55,9 +43,8 @@ class CourseService {
                     return reject(new Error('No subtitles found in video'));
                 }
 
-                // If subtitles exist, extract them
                 ffmpeg(videoPath)
-                    .outputOptions('-map 0:s:0') // Map first subtitle stream
+                    .outputOptions('-map 0:s:0') 
                     .output(outputPath)
                     .on('end', () => {
                         clearTimeout(timeout);
@@ -75,7 +62,7 @@ class CourseService {
         try { await fs.access(filePath); return true; }
         catch { return false; }
     }
-    getVideoDuration(videoPath) {
+    async getVideoDuration(videoPath) {
         return new Promise((resolve, reject) => {
             ffmpeg.ffprobe(videoPath, (error, metadata) => {
                 if (error) return reject(new Error(`Video duration extraction failed: ${error.message}`));
@@ -85,8 +72,7 @@ class CourseService {
             });
         });
     }
-
-    cleanFiles(files) {
+    async cleanFiles(files) {
         return Promise.all(
             files.map(file => {
                 const filePath = path.join(this.tempDir, file);
@@ -94,7 +80,7 @@ class CourseService {
             })
         ).catch(error => console.error('Error cleaning files:', error));
     }
-    validateCourseData(courseData, files) {
+    async validateCourseData(courseData, files) {
         const requiredFields = [
             'CourseName', 'ProviderId', 'companyId',
             'HeadCourseCatId', 'SubCourseCatId', 'ProviderType', 'ContentData'
@@ -118,8 +104,7 @@ class CourseService {
             }
         }
     }
-
-    processQuizData(quizData, courseInfo) {
+    async processQuizData(quizData, courseInfo) {
         const quizIds = [];
         for (const quiz of quizData) {
             if (!quiz || !quiz.QuizType) continue;
@@ -181,7 +166,6 @@ class CourseService {
         }
         return results;
     }
-
     async normalizeSubtitlesToVtt(subtitleFiles, outDir, publicRoot) {
         const out = [];
         for (const s of subtitleFiles) {
@@ -223,29 +207,6 @@ class CourseService {
         const lines = [
             '#EXTM3U',
             '#EXT-X-VERSION:3',
-
-            // Add audio tracks
-            ...audioPlaylistsRel.map(a =>
-                `#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_grp",NAME="${a.label}",DEFAULT=${a.default ? 'YES' : 'NO'},AUTOSELECT=YES,URI="${a.uri}"`
-            ),
-
-            // Add subtitle tracks
-            ...subtitlePlaylistsRel.map(s =>
-                `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs_grp",NAME="${s.label}",DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,URI="${s.uri}"`
-            ),
-
-            // Video stream reference (with audio + subtitles)
-            `#EXT-X-STREAM-INF:BANDWIDTH=2500000,CODECS="avc1.4d401f",AUDIO="audio_grp",SUBTITLES="subs_grp"`,
-            `${videoPlRel}`
-        ];
-
-        await fs.writeFile(path.join(outDir, 'master.m3u8'), lines.join('\n'), 'utf8');
-    }
-
-    async writeMasterM3U8(outDir, videoPlRel, audioPlaylistsRel, subtitlePlaylistsRel) {
-        const lines = [
-            '#EXTM3U',
-            '#EXT-X-VERSION:3',
             '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_grp",NAME="Original",DEFAULT=YES,AUTOSELECT=YES'
         ];
 
@@ -275,7 +236,6 @@ class CourseService {
 
         await fs.writeFile(path.join(outDir, 'master.m3u8'), lines.join('\n'), 'utf8');
     }
-    
     async packageToHls({ inputVideo, inputAudios = [], inputSubtitles = [], outDirAbs, publicBaseUrl }) {
         // Ensure output folder exists
         if (!fssync.existsSync(outDirAbs)) {
@@ -835,523 +795,7 @@ class CourseService {
         }
     }
 
-    // extractAudio(videoPath, outputPath) {
-    //     return new Promise((resolve, reject) => {
-    //         const timeout = setTimeout(() => {
-    //             reject(new Error('Audio extraction timed out'));
-    //         }, 30000);
-
-    //         ffmpeg(videoPath)
-    //             .noVideo()
-    //             .audioCodec('aac')
-    //             .output(outputPath)
-    //             .on('end', () => {
-    //                 clearTimeout(timeout);
-    //                 resolve(outputPath);
-    //             })
-    //             .on('error', (error) => {
-    //                 clearTimeout(timeout);
-    //                 reject(error);
-    //             })
-    //             .run();
-    //     });
-    // }
-
-    // extractSubtitles(videoPath, outputPath) {
-    //     return new Promise((resolve, reject) => {
-    //         const timeout = setTimeout(() => {
-    //             reject(new Error('Subtitle extraction timed out'));
-    //         }, 30000);
-
-    //         ffmpeg(videoPath)
-    //             .outputOptions('-map 0:s:0')
-    //             .output(outputPath)
-    //             .on('end', () => {
-    //                 clearTimeout(timeout);
-    //                 resolve(outputPath);
-    //             })
-    //             .on('error', (error) => {
-    //                 clearTimeout(timeout);
-    //                 reject(error);
-    //             })
-    //             .run();
-    //     });
-    // }
-    // async fileExists(filePath) {
-    //     try {
-    //         await fs.access(filePath);
-    //         return true;
-    //     } catch (err) {
-    //         return false;
-    //     }
-    // }
-    // getVideoDuration(videoPath) {
-    //     return new Promise((resolve, reject) => {
-    //         ffmpeg.ffprobe(videoPath, (error, metadata) => {
-    //             if (error) {
-    //                 return reject(new Error(`Video duration extraction failed: ${error.message}`));
-    //             }
-    //             const duration = metadata.format && metadata.format.duration;
-    //             if (!duration) {
-    //                 return reject(new Error('Unable to extract video duration.'));
-    //             }
-    //             resolve(duration);
-    //         });
-    //     });
-    // }
-
-    // cleanFiles(files) {
-    //     return Promise.all(
-    //         files.map(file => {
-    //             const filePath = path.join(this.tempDir, file);
-    //             return fs.unlink(filePath).catch(err => {
-    //                 if (err.code !== 'ENOENT') throw err;
-    //             });
-    //         })
-    //     ).catch(error => {
-    //         console.error('Error cleaning files:', error);
-    //     });
-    // }
-
-    // validateCourseData(courseData, files) {
-    //     const requiredFields = [
-    //         'CourseName',
-    //         'ProviderId',
-    //         'companyId',
-    //         'HeadCourseCatId',
-    //         'SubCourseCatId',
-    //         'ProviderType',
-    //         'ContentData'
-    //     ];
-
-    //     const missingFields = requiredFields.filter(field => !courseData[field]);
-    //     if (missingFields.length > 0) {
-    //         throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-    //     }
-
-    //     if (!courseData.ContentData || courseData.ContentData.length === 0) {
-    //         throw new Error('Course content is required');
-    //     }
-
-    //     if (!files.CourseThumbnail || !files.CourseThumbnail[0] ||
-    //         !files.CertificateTemplate || !files.CertificateTemplate[0]) {
-    //         throw new Error('Thumbnail and certificate template are required');
-    //     }
-
-    //     if (courseData.ConnectedWith) {
-    //         for (const connection of courseData.ConnectedWith) {
-    //             if (connection.connectedType &&
-    //                 (!connection.connectedIds || connection.connectedIds.length === 0)) {
-    //                 throw new Error('If connected with someone then select them');
-    //             }
-    //         }
-    //     }
-    // }
-    // validateCourseDataForUpdateTheCourseDetails(courseData, filesToClean) {
-    //     const requiredFields = [
-    //         'CourseName',
-    //         'companyId',
-    //         'HeadCourseCatId',
-    //         'SubCourseCatId',
-    //     ];
-
-    //     const missingFields = requiredFields.filter(field => !courseData[field]);
-    //     if (missingFields.length > 0) {
-    //         if (filesToClean.length !== 0) {
-    //             this.cleanFiles(filesToClean);
-    //         }
-    //         throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-    //     }
-    //     if (courseData.ConnectedWith) {
-    //         for (const connection of courseData.ConnectedWith) {
-    //             if (connection.connectedType &&
-    //                 (!connection.connectedIds || connection.connectedIds.length === 0)) {
-    //                 if (filesToClean.length !== 0) {
-    //                     this.cleanFiles(filesToClean);
-    //                 }
-    //                 throw new Error('If connected with someone then select them');
-    //             }
-    //         }
-    //     }
-    // }
-    // processQuizData(quizData, courseInfo) {
-    //     const quizIds = [];
-
-    //     for (const quiz of quizData) {
-    //         if (!quiz || !quiz.QuizType) continue;
-
-    //         const newQuiz = Object.assign({}, courseInfo, {
-    //             QuizType: quiz.QuizType
-    //         });
-
-    //         if (quiz.QuizType === 'Coding') {
-    //             if (!quiz.CodingData || !quiz.CodingData.CodingQuestion || !quiz.CodingData.CodingAnswer) {
-    //                 throw new Error('Coding quiz requires both question and answer');
-    //             }
-    //             newQuiz.CodingQuiz = {
-    //                 CodingQuestion: quiz.CodingData.CodingQuestion,
-    //                 CodingAnswer: quiz.CodingData.CodingAnswer
-    //             };
-    //         }
-    //         else if (quiz.QuizType === 'PractiseTest') {
-    //             if (!quiz.PractiseTestData || quiz.PractiseTestData.length === 0) {
-    //                 throw new Error('Practise test requires at least one question');
-    //             }
-    //             newQuiz.PractiseTestQuiz = quiz.PractiseTestData;
-    //         }
-    //         else if (quiz.QuizType === 'Mcq') {
-    //             if (!quiz.McqData || quiz.McqData.length === 0) {
-    //                 throw new Error('MCQ quiz requires at least one question');
-    //             }
-    //             newQuiz.McqQuiz = quiz.McqData;
-    //         }
-
-    //         const result = new QuizModel(newQuiz);
-    //         quizIds.push(result.save());
-    //     }
-
-    //     return Promise.all(quizIds).then(results => results.map(r => r._id));
-    // }
-
-    // async processVideoContent(content, coursePath, uploadedFiles) {
-
-    //     const courseContentFinal = [];
-    //     let totalDuration = 0;
-
-    //     for (const section of content.ContentData) {
-    //         if (!section || !section.Heading || !section.ContainedData || section.length === 0) {
-    //             continue;
-    //         }
-
-    //         const sectionPath = path.join(coursePath, section.Heading);
-    //         await fs.mkdir(sectionPath, { recursive: true });
-
-    //         const audioPath = path.join(sectionPath, 'VideoAudioFiles');
-    //         const subtitlesPath = path.join(sectionPath, 'VideoSubtitlesFile');
-    //         const videoPath = path.join(sectionPath, 'VideoFiles');
-
-    //         await Promise.all([
-    //             fs.mkdir(audioPath, { recursive: true }),
-    //             fs.mkdir(subtitlesPath, { recursive: true }),
-    //             fs.mkdir(videoPath, { recursive: true })
-    //         ]);
-
-    //         let videoDataIds = [];
-
-    //         for (const item of section.ContainedData) {
-    //             if (!item) continue;
-
-    //             const quizIds = item.QuizData
-    //                 ? await this.processQuizData(item.QuizData, {
-    //                     HeadCourseCatId: content.HeadCourseCatId,
-    //                     SubCourseCatId: content.SubCourseCatId,
-    //                     ProviderType: content.ProviderType,
-    //                     ProviderId: content.ProviderId,
-    //                     companyId: content.companyId,
-    //                     ConnectedWith: content.ConnectedWith
-    //                 })
-    //                 : [];
-
-    //             if (item.VideoData) {
-    //                 if (!item.VideoData.videoFile || !item.VideoData.title ||
-    //                     !item.VideoData.description || !item.VideoData.order) {
-    //                     throw new Error('Please provide all required video data');
-    //                 }
-
-    //                 const videoInfo = {
-    //                     HeadCourseCatId: content.HeadCourseCatId,
-    //                     SubCourseCatId: content.SubCourseCatId,
-    //                     ProviderType: content.ProviderType,
-    //                     ProviderId: content.ProviderId,
-    //                     companyId: content.companyId,
-    //                     title: item.VideoData.title,
-    //                     description: item.VideoData.description,
-    //                     order: item.VideoData.order,
-    //                     ConnectedWith: content.ConnectedWith,
-    //                     Quizes: quizIds
-    //                 };
-
-    //                 if (item.VideoData.paid !== undefined) {
-    //                     videoInfo.paid = item.VideoData.paid;
-    //                 }
-
-    //                 const videoFilename = item.VideoData.videoFile;
-    //                 const oldVideoPath = path.join(this.tempDir, videoFilename);
-    //                 const newVideoPath = path.join(videoPath, videoFilename);
-
-    //                 if (!uploadedFiles.ContentVideos || !uploadedFiles.ContentVideos.includes(videoFilename)) {
-    //                     throw new Error(`Video file not found: ${videoFilename}`);
-    //                 }
-
-    //                 await fs.rename(oldVideoPath, newVideoPath);
-    //                 videoInfo.videoFile = videoFilename;
-
-    //                 const duration = await this.getVideoDuration(newVideoPath);
-    //                 videoInfo.VideoDuration = duration;
-    //                 totalDuration += duration;
-
-    //                 const videoAudios = [];
-    //                 const videoSubtitles = [];
-
-    //                 try {
-    //                     const extractedAudioPath = path.join(audioPath, videoFilename + 'Extracted.aac');
-    //                     await this.extractAudio(newVideoPath, extractedAudioPath);
-    //                     videoAudios.push({
-    //                         Language: 'Extracted',
-    //                         VideoLanguagesFile: videoFilename + 'Extracted.aac'
-    //                     });
-    //                 } catch (err) {
-    //                     console.error('Audio extraction failed:', err);
-    //                 }
-
-    //                 try {
-    //                     const extractedSubtitlePath = path.join(subtitlesPath, videoFilename + 'Extracted.srt');
-    //                     await this.extractSubtitles(newVideoPath, extractedSubtitlePath);
-    //                     videoSubtitles.push({
-    //                         Language: 'Extracted',
-    //                         SubtitleFile: videoFilename + 'Extracted.srt'
-    //                     });
-    //                 } catch (err) {
-    //                     console.error('Subtitle extraction failed:', err);
-    //                 }
-
-    //                 if (item.VideoData.VideoLanguages) {
-    //                     for (const audio of item.VideoData.VideoLanguages) {
-    //                         if (audio && audio.VideoLanguagesFile) {
-    //                             const audioFilename = audio.VideoLanguagesFile;
-    //                             const oldAudioPath = path.join(this.tempDir, audioFilename);
-    //                             const newAudioPath = path.join(audioPath, audioFilename);
-
-    //                             if (uploadedFiles.VideoAudioLanguages &&
-    //                                 uploadedFiles.VideoAudioLanguages.includes(audioFilename)) {
-    //                                 await fs.rename(oldAudioPath, newAudioPath);
-    //                                 videoAudios.push({
-    //                                     Language: audio.Language || 'Unknown',
-    //                                     VideoLanguagesFile: audioFilename
-    //                                 });
-    //                             }
-    //                         }
-    //                     }
-    //                 }
-
-    //                 if (item.VideoData.Subtitles) {
-    //                     for (const subtitle of item.VideoData.Subtitles) {
-    //                         if (subtitle && subtitle.SubtitleFile) {
-    //                             const subtitleFilename = subtitle.SubtitleFile;
-    //                             const oldSubtitlePath = path.join(this.tempDir, subtitleFilename);
-    //                             const newSubtitlePath = path.join(subtitlesPath, subtitleFilename);
-
-    //                             if (uploadedFiles.VideoSubtitles &&
-    //                                 uploadedFiles.VideoSubtitles.includes(subtitleFilename)) {
-    //                                 await fs.rename(oldSubtitlePath, newSubtitlePath);
-    //                                 videoSubtitles.push({
-    //                                     Language: subtitle.Language || 'Unknown',
-    //                                     SubtitleFile: subtitleFilename
-    //                                 });
-    //                             }
-    //                         }
-    //                     }
-    //                 }
-
-    //                 if (videoAudios.length > 0) videoInfo.VideoLanguages = videoAudios;
-    //                 if (videoSubtitles.length > 0) videoInfo.Subtitles = videoSubtitles;
-
-    //                 const video = new CoachingVideoModel(videoInfo);
-    //                 const savedVideo = await video.save();
-    //                 videoDataIds.push(savedVideo._id);
-    //             }
-    //         }
-
-    //         if (videoDataIds.length > 0) {
-    //             courseContentFinal.push({
-    //                 Heading: section.Heading,
-    //                 CourseData: videoDataIds
-    //             });
-    //         }
-    //     }
-
-    //     return { courseContentFinal, totalDuration };
-    // }
-    //   async resolveVideoOrders(CourseId, PlayListId, currentVideoData, Operation, VideoDuration) {
-    //     try {
-    //         const courseData = await CoachingCourseModel.findOne({ _id: CourseId });
-    //         if (!courseData) throw new Error("Course not found");
-
-    //         const playlist = courseData.CourseContent.find(each => each._id.toString() === PlayListId.toString());
-    //         if (!playlist) throw new Error("Playlist not found");
-
-    //         const videoIds = playlist.CourseData || [];
-    //         const allVideos = await CoachingVideoModel.find({ _id: { $in: videoIds } });
-
-    //         let orderedVideos = allVideos
-    //             .map(video => ({ _id: video._id.toString(), order: video.order }))
-    //             .sort((a, b) => a.order - b.order);
-
-    //         if (Operation === 'add') {
-    //             const newOrder = currentVideoData.order;
-
-    //             orderedVideos = orderedVideos.map(video =>
-    //                 video.order >= newOrder ? { ...video, order: video.order + 1 } : video
-    //             );
-
-    //             orderedVideos.push({ _id: currentVideoData._id.toString(), order: newOrder });
-
-    //         } else if (Operation === 'delete') {
-    //             const deletedOrder = currentVideoData.order;
-
-    //             orderedVideos = orderedVideos
-    //                 .filter(video => video._id !== currentVideoData._id.toString())
-    //                 .map(video =>
-    //                     video.order > deletedOrder ? { ...video, order: video.order - 1 } : video
-    //                 );
-    //         }
-
-    //         orderedVideos.sort((a, b) => a.order - b.order);
-
-    //         await Promise.all(orderedVideos.map(async (EachVideoId) => {
-    //             if (EachVideoId._id) {
-    //                 await CoachingVideoModel.findOneAndUpdate(
-    //                     { _id: EachVideoId._id },
-    //                     { $set: { order: EachVideoId.order } },
-    //                     { new: true }
-    //                 );
-    //             }
-    //         }));
-
-    //         const videoIdList = orderedVideos.map(v => v._id);
-    //         console.log(videoIdList, PlayListId, CourseId, VideoDuration, 'hello ')
-    //         await CoachingCourseModel.findOneAndUpdate(
-    //             { _id: CourseId, 'CourseContent._id': PlayListId },
-    //             {
-    //                 $set: {
-    //                     'CourseContent.$.CourseData': videoIdList,
-    //                     CourseDuration: VideoDuration
-    //                 }
-    //             },
-    //             { new: true }
-    //         );
-
-
-    //     } catch (error) {
-    //         console.error("Error in resolveVideoOrders:", error.message);
-    //         throw error;
-    //     }
-    // }
-
-    // async addCoachingCourse(req, res) {
-    //     let uploadedFiles = {};
-    //     try {
-    //            console.log(req.body,'body')
-    //         let courseData = JSON.parse(req.body.coursedata);
-    //         console.log(courseData, 'data', typeof courseData, 'type');
-    //         const files = req.files;
-    //         console.log(req.files,'files')
-    //         uploadedFiles = {
-    //             ContentVideos: files.ContentVideos ? files.ContentVideos.map(f => f.originalname) : [],
-    //             VideoAudioLanguages: files.VideoAudioLanguages ? files.VideoAudioLanguages.map(f => f.originalname) : [],
-    //             VideoSubtitles: files.VideoSubtitles ? files.VideoSubtitles.map(f => f.originalname) : [],
-    //             CourseThumbnail: files.CourseThumbnail && files.CourseThumbnail[0] ? files.CourseThumbnail[0].originalname : null,
-    //             CertificateTemplate: files.CertificateTemplate && files.CertificateTemplate[0] ? files.CertificateTemplate[0].originalname : null
-    //         };
-
-    //         await this.validateCourseData(courseData, files);
-
-    //         const courseDirName = `${courseData.CourseName}-${courseData.ProviderId}`;
-    //         const coursePath = path.join(this.publicDir, courseDirName);
-    //         const PrivateCoursePath = path.join(this.privateDir, courseDirName);
-    //         await fs.mkdir(coursePath, { recursive: true });
-    //         await fs.mkdir(PrivateCoursePath, { recursive: true });
-
-    //         const { courseContentFinal, totalDuration } = await this.processVideoContent(
-    //             courseData,
-    //             PrivateCoursePath,
-    //             uploadedFiles
-    //         );
-
-    //         if (uploadedFiles.CertificateTemplate && courseData.CertificateConfig) {
-    //             const certDir = path.join(PrivateCoursePath, 'Certificate');
-    //             await fs.mkdir(certDir, { recursive: true });
-    //             await fs.rename(
-    //                 path.join(this.tempDir, uploadedFiles.CertificateTemplate),
-    //                 path.join(certDir, uploadedFiles.CertificateTemplate)
-    //             );
-
-    //         }
-
-    //         if (uploadedFiles.CourseThumbnail) {
-    //             const thumbDir = path.join(coursePath, 'CourseThumbnail');
-    //             const privateThumbDir = path.join(PrivateCoursePath, 'CourseThumbnail');
-    //             await fs.mkdir(thumbDir, { recursive: true });
-    //             await fs.mkdir(privateThumbDir, { recursive: true });
-    //             await fs.rename(
-    //                 path.join(this.tempDir, uploadedFiles.CourseThumbnail),
-    //                 path.join(thumbDir, uploadedFiles.CourseThumbnail)
-    //             );
-    //             await fs.copyFile(
-    //                 path.join(thumbDir, uploadedFiles.CourseThumbnail),
-    //                 path.join(privateThumbDir, uploadedFiles.CourseThumbnail)
-    //             );
-    //         }
-    //         const courseDocument = {
-    //             CourseName: courseData.CourseName,
-    //             ProviderId: courseData.ProviderId,
-    //             ProviderType: courseData.ProviderType,
-    //             companyId: courseData.companyId,
-    //             HeadCourseCatId: courseData.HeadCourseCatId,
-    //             SubCourseCatId: courseData.SubCourseCatId,
-    //             CourseDuration: totalDuration,
-    //             CourseThumbnail: uploadedFiles.CourseThumbnail,
-    //             Certificate: uploadedFiles.CertificateTemplate,
-    //             CourseContent: courseContentFinal,
-    //         };
-
-    //         if (courseData.Skills) courseDocument.Skills = courseData.Skills;
-    //         if (courseData.SkillsId) courseDocument.SkillsId = courseData.SkillsId;
-    //         if (courseData.Price) courseDocument.Price = courseData.Price;
-    //         if (courseData.TextAreas) courseDocument.TextAreas = courseData.TextAreas;
-    //         if (courseData.Level) courseDocument.Level = courseData.Level;
-    //         if (courseData.offerPercentage) courseDocument.offerPercentage = courseData.offerPercentage;
-    //         if (courseData.ConnectedWith) courseDocument.ConnectedWith = courseData.ConnectedWith;
-    //         if (courseData.CertificateConfig) courseDocument.CertificateConfig = courseData.CertificateConfig
-
-    //         const result = await CoachingCourseModel.create(courseDocument);
-
-    //         const filesToClean = []
-    //             .concat(uploadedFiles.ContentVideos || [])
-    //             .concat(uploadedFiles.VideoAudioLanguages || [])
-    //             .concat(uploadedFiles.VideoSubtitles || []);
-
-    //         if (uploadedFiles.CourseThumbnail) filesToClean.push(uploadedFiles.CourseThumbnail);
-    //         if (uploadedFiles.CertificateTemplate) filesToClean.push(uploadedFiles.CertificateTemplate);
-
-    //         if (filesToClean.length !== 0) {
-    //             await this.cleanFiles(filesToClean);
-    //         }
-    //         return res.status(200).json({ data: result, success: true });
-
-    //     } catch (error) {
-    //         console.error('Error adding course:', error);
-
-    //         if (uploadedFiles) {
-    //             const filesToClean = []
-    //                 .concat(uploadedFiles.ContentVideos || [])
-    //                 .concat(uploadedFiles.VideoAudioLanguages || [])
-    //                 .concat(uploadedFiles.VideoSubtitles || []);
-
-    //             if (uploadedFiles.CourseThumbnail) filesToClean.push(uploadedFiles.CourseThumbnail);
-    //             if (uploadedFiles.CertificateTemplate) filesToClean.push(uploadedFiles.CertificateTemplate);
-
-    //             if (filesToClean.length !== 0) {
-    //                 await this.cleanFiles(filesToClean);
-    //             }
-    //         }
-
-    //         return res.status(500).json({
-    //             error: error.message,
-    //             success: false
-    //         });
-    //     }
-    // }
+    
     async getCoachingCourseData(matchCondition) {
         return await CoachingCourseModel.aggregate([
             { $match: matchCondition },

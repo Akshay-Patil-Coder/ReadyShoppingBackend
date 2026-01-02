@@ -22,6 +22,10 @@ const serviceCategorySchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    isActiveBy: {
+        type: String,
+        default: 'Self'
+    },
     serviceImage: {
         type: String
     },

@@ -427,10 +427,6 @@ module.exports = {
         }
     },
 
-
-
-
-
     updateCategory: async (req, res) => {
         try {
             let { categoryName, companyId } = req.body;
@@ -492,7 +488,6 @@ module.exports = {
         }
     },
 
-   
     ToggleStatusOfCategory: async (req, res) => {
         try {
             const { categoryId, companyId, isActive } = req.query;

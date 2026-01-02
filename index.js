@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 require('dotenv').config();
 const path = require('path');
 const OtherRoutes = require('./Routes/Other.routes')
+const DoorStepServiceRoutes = require('./Routes/DoorStepService.routes')
 const ShoppingRoutes = require('./Routes/Shopping.routes')
 // const CoachingRoutes = require('./Routes/Coaching.routes')
 const cron = require('node-cron')
@@ -67,6 +68,7 @@ app.use((req, res, next) => {
 
 OtherRoutes.default(app);
 ShoppingRoutes.default(app);
+DoorStepServiceRoutes.default(app);
 // CoachingRoutes.default(app);
 
 

@@ -51,7 +51,12 @@ router.get('/getServiceCategory', (req, res) => {
 router.get('/getServiceCategoryTree', (req, res) => {
     serviceCategoryController.getCategoryTree(req, res);
 });
-
+router.get('/getCategoryWithLeafNodes', (req, res) => {
+    serviceCategoryController.getCategoryWithLeafNodes(req, res);
+});
+router.get('/getCategoryWithHeadAndLeafParentNodes', (req, res) => {
+    serviceCategoryController.getCategoryWithHeadAndLeafParentNodes(req, res);
+});
 router.put('/updateServiceCategory/:id',authentication, upload.single('serviceImage'), (req, res) => {
     if (req.user.role === 'Admin' || req.user.role === 'Company') {
         return serviceCategoryController.updateCategory(req, res);

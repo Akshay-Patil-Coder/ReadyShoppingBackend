@@ -3,96 +3,167 @@ const serviceCategoryModel = require('./ServiceCategory.model')
 const fs = require('fs');
 const path = require('path');
 const { default: mongoose } = require("mongoose");
-const ServiceProductModel = require('../ServiceProducts/ServiceProducts.model')
+const { serviceProductsModel } = require('../ServiceProducts/ServiceProducts.model')
 
 
 module.exports = {
 
 
     addCategory: async (req, res) => {
+        const cleanupServiceImage = async (req) => {
+            if (req.file?.filename) {
+                const imagePath = path.join(
+                    __dirname,
+                    '..',
+                    '..',
+                    'public',
+                    'ServiceCategoryImage',
+                    req.file.filename
+                );
+                if (fs.existsSync(imagePath)) {
+                    fs.unlinkSync(imagePath);
+                }
+            }
+        }
         try {
-            let { companyId, serviceCategoryName, serviceParentCategoryId, serviceLevel, Description } = req.body;
-
-            serviceLevel = Number(serviceLevel);
-
-            if (!companyId || !serviceCategoryName || serviceLevel < 0 || !Description) {
-                if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
-                    }
-                }
-                return res.status(400).json({ message: 'please provide all fields', success: false })
-            }
-
-            if (serviceLevel !== 0 && !serviceParentCategoryId) {
-                if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
-                    }
-                }
-                return res.status(400).send({ message: "Please provide parentCategoryId for subservices" });
-            }
-            const ServiceCategoryData = {
+            let {
                 companyId,
                 serviceCategoryName,
-                serviceLevel,
-                Description,
-            };
+                serviceParentCategoryId,
+                Description
+            } = req.body;
+
+            if (req.user.companyId) companyId = req.user.companyId;
+
+            if (!companyId || !serviceCategoryName || !Description) {
+                await cleanupServiceImage(req);
+                return res.status(400).json({
+                    success: false,
+                    message: "Please provide companyId, serviceCategoryName, and Description"
+                });
+            }
+
+            let serviceLevel = 0;
+
             if (serviceParentCategoryId) {
-                ServiceCategoryData.serviceParentCategoryId = serviceParentCategoryId;
-            }
-            if (req.file) {
-                ServiceCategoryData.serviceImage = req.file.filename;
-            }
-            const newCategory = new serviceCategoryModel(ServiceCategoryData);
+                let parentCategory = await serviceCategoryModel.findOne({
+                    _id: serviceParentCategoryId,
+                    companyId
+                });
 
-            const categoryData = await newCategory.save();
+                if (!parentCategory) {
+                    await cleanupServiceImage(req);
+                    return res.status(404).json({
+                        success: false,
+                        message: "Parent service category not found for this company"
+                    });
+                }
 
-            res.status(200).send({
+                let existingService = await serviceProductsModel.findOne({
+                    companyId,
+                    SubServiceId: serviceParentCategoryId
+                });
+
+                if (existingService) {
+                    await cleanupServiceImage(req);
+                    return res.status(400).json({
+                        success: false,
+                        message: "Category not added because parent is already a leaf category"
+                    });
+                }
+
+                serviceLevel = parentCategory.serviceLevel + 1;
+
+            } else {
+                const existingRoot = await serviceCategoryModel.findOne({
+                    companyId,
+                    serviceLevel: 0
+                });
+
+                if (existingRoot) {
+                    await cleanupServiceImage(req);
+                    return res.status(400).json({
+                        success: false,
+                        message: "Only one root (level-0) service category is allowed per company"
+                    });
+                }
+            }
+
+            let serviceCategoryData = {
+                companyId,
+                serviceCategoryName,
+                Description,
+                serviceLevel
+            };
+
+            if (serviceParentCategoryId) {
+                serviceCategoryData.serviceParentCategoryId = serviceParentCategoryId;
+            }
+
+            if (req.file?.filename) {
+                serviceCategoryData.serviceImage = req.file.filename;
+            }
+
+            const newCategory = new serviceCategoryModel(serviceCategoryData);
+            const savedCategory = await newCategory.save();
+
+            return res.status(200).json({
                 success: true,
-                message: "service category added successfully",
-                data: categoryData,
+                message: "Service category added successfully",
+                data: savedCategory
             });
 
         } catch (error) {
-            console.error("Error:", error);
-            if (req.file?.filename) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
-                }
-            }
-            res.status(500).send({
+            await cleanupServiceImage(req);
+            console.error("addServiceCategoryError:", error);
+            return res.status(500).json({
                 success: false,
-                message: "Something went wrong",
+                message: "Internal server error",
                 error: error.message
             });
         }
     },
 
-
     getCategory: async (req, res) => {
         try {
-            const { serviceParentCategoryId, companyId, serviceCategoryName } = req.query;
+            let { serviceParentCategoryId, companyId, serviceCategoryName } = req.query;
 
-            const query = { isActive: true };
+            let query = { isActive: true };
 
-            if (serviceParentCategoryId) query.serviceParentCategoryId = mongoose.Types.ObjectId.createFromHexString(serviceParentCategoryId);
-            if (companyId) query.companyId = mongoose.Types.ObjectId.createFromHexStringd(companyId);
-            if (serviceCategoryName) query.serviceCategoryName = new RegExp(serviceCategoryName, 'i'); // Case-insensitive regex search
+            if (companyId && mongoose.isValidObjectId(companyId)) {
+                query.companyId = new mongoose.Types.ObjectId(String(companyId));
+            }
 
-            const data = await serviceCategoryModel.find(query);
+            if (serviceParentCategoryId) {
+                if (mongoose.isValidObjectId(serviceParentCategoryId)) {
+                    query.serviceParentCategoryId = new mongoose.Types.ObjectId(
+                        String(serviceParentCategoryId)
+                    );
+                } else if (serviceParentCategoryId === "null") {
+                    query.serviceParentCategoryId = { $exists: false };
+                }
+            }
 
-            res.status(200).send({
+            if (serviceCategoryName) {
+                query.serviceCategoryName = {
+                    $regex: serviceCategoryName,
+                    $options: "i"
+                };
+            }
+
+            let categories = await serviceCategoryModel
+                .find(query)
+                .sort({ createdAt: -1 });
+
+            return res.status(200).json({
                 success: true,
-                message: "Successfully fetched",
-                data: data.length ? data : null
+                message: "Successfully fetched service categories",
+                data: categories.length ? categories : []
             });
+
         } catch (error) {
-            console.log("error", error);
-            res.status(500).send({
+            console.error("getServiceCategoryError:", error);
+            return res.status(500).json({
                 success: false,
                 message: "Unsuccessful fetch",
                 error: error.message
@@ -121,7 +192,7 @@ module.exports = {
                 categories = await serviceCategoryModel.find({ companyId, serviceParentCategoryId: null, isActive: true });
             }
 
-            const buildCategoryTree = async (categories) => {
+            let buildCategoryTree = async (categories) => {
                 return Promise.all(
                     categories.map(async (category) => ({
                         ...category._doc,
@@ -130,7 +201,7 @@ module.exports = {
                 );
             };
 
-            const getCategoryTreeRecursive = async (companyId, serviceParentCategoryId) => {
+            let getCategoryTreeRecursive = async (companyId, serviceParentCategoryId) => {
                 const subCategories = await serviceCategoryModel.find({ companyId, serviceParentCategoryId, isActive: true });
                 if (!subCategories || subCategories.length === 0) {
                     return [];
@@ -138,7 +209,7 @@ module.exports = {
                 return buildCategoryTree(subCategories);
             };
 
-            const categoryTree = await buildCategoryTree(categories);
+            let categoryTree = await buildCategoryTree(categories);
 
             return res.status(200).send({
                 success: true,
@@ -155,34 +226,276 @@ module.exports = {
         }
     },
 
+getCategoryWithLeafNodes: async (req, res) => {
+    try {
+        let { companyId, HeadServiceCategoryId, selectedServiceCategoryIds } = req.query;
+
+        if (!companyId) {
+            return res.status(400).send({
+                success: false,
+                message: "Please send companyId",
+            });
+        }
+
+        let categories = await serviceCategoryModel.find({
+            companyId,
+            isActive: true
+        });
+
+        let parentMap = {};
+        categories.forEach(cat => {
+            let parentId = cat.serviceParentCategoryId
+                ? cat.serviceParentCategoryId.toString()
+                : null;
+
+            if (!parentMap[parentId]) parentMap[parentId] = [];
+            parentMap[parentId].push(cat);
+        });
+
+        const getLeafNodes = (categoryId) => {
+            let children = parentMap[categoryId] || [];
+            if (children.length === 0) return [];
+
+            let leaves = [];
+            for (let child of children) {
+                let subLeaves = getLeafNodes(child._id.toString());
+                if (subLeaves.length === 0) {
+                    leaves.push(child);
+                } else {
+                    leaves = leaves.concat(subLeaves);
+                }
+            }
+            return leaves;
+        };
+
+        let headCategories = [];
+
+        if (HeadServiceCategoryId) {
+            headCategories = categories.filter(
+                cat => cat._id.toString() === HeadServiceCategoryId
+            );
+        } else {
+            let rootCategories = categories.filter(
+                cat => !cat.serviceParentCategoryId
+            );
+
+            let secondLevel = [];
+            for (let root of rootCategories) {
+                let children = parentMap[root._id.toString()] || [];
+                secondLevel = secondLevel.concat(children);
+            }
+            headCategories = secondLevel;
+        }
+
+        let result = headCategories.map(head => ({
+            _id: head._id,
+            serviceCategoryName: head.serviceCategoryName,
+            Description: head.Description,
+            serviceImage: head.serviceImage,
+            serviceParentCategoryId: head.serviceParentCategoryId,
+            leafCategories: getLeafNodes(head._id.toString())
+        }));
+
+        let selectedIds = [];
+        if (selectedServiceCategoryIds) {
+            if (typeof selectedServiceCategoryIds === "string") {
+                selectedIds = selectedServiceCategoryIds
+                    .split(",")
+                    .map(id => id.trim());
+            } else if (Array.isArray(selectedServiceCategoryIds)) {
+                selectedIds = selectedServiceCategoryIds.map(id =>
+                    id.toString()
+                );
+            }
+        }
+
+        let selectedCategories = [];
+        result.forEach(cat => {
+            let matched = cat.leafCategories.filter(leaf =>
+                selectedIds.includes(leaf._id.toString())
+            );
+            selectedCategories = selectedCategories.concat(matched);
+        });
+
+        let filteredResult = result.map(head => ({
+            ...head,
+            leafCategories: head.leafCategories.filter(
+                leaf => !selectedIds.includes(leaf._id.toString())
+            )
+        }));
+
+        return res.status(200).send({
+            success: true,
+            message: "Service categories fetched successfully",
+            data: filteredResult,
+            selectedCategories
+        });
+
+    } catch (error) {
+        console.error("getServiceCategoryWithLeafNodesError:", error);
+        return res.status(500).send({
+            success: false,
+            message: "Something went wrong",
+            error: error.message
+        });
+    }
+},
+
+getCategoryWithHeadAndLeafParentNodes: async (req, res) => {
+    try {
+        let { companyId, HeadServiceCategoryId } = req.query;
+
+        if (!companyId) {
+            return res.status(400).send({
+                success: false,
+                message: "Please send companyId",
+            });
+        }
+
+        let categories = await serviceCategoryModel.find({
+            companyId,
+            isActive: true
+        });
+
+        let parentMap = {};
+        categories.forEach(cat => {
+            let parentId = cat.serviceParentCategoryId
+                ? cat.serviceParentCategoryId.toString()
+                : null;
+
+            if (!parentMap[parentId]) parentMap[parentId] = [];
+            parentMap[parentId].push(cat);
+        });
+
+        let getLeafNodesWithParents = (categoryId) => {
+            let children = parentMap[categoryId] || [];
+            if (children.length === 0) return [];
+
+            let leaves = [];
+            for (let child of children) {
+                let subLeaves = getLeafNodesWithParents(child._id.toString());
+                if (subLeaves.length === 0) {
+                    leaves.push(child);
+                } else {
+                    leaves = leaves.concat(subLeaves);
+                }
+            }
+            return leaves;
+        };
+
+        let roots;
+        if (HeadServiceCategoryId) {
+            roots = categories.filter(
+                cat => cat._id.toString() === HeadServiceCategoryId
+            );
+        } else {
+            roots = categories.filter(
+                cat => !cat.serviceParentCategoryId
+            );
+        }
+
+        let result = [];
+
+        for (let root of roots) {
+            let leafData = getLeafNodesWithParents(root._id.toString());
+            let parentCategoryMap = {};
+
+            leafData.forEach(leaf => {
+                let parentCategoryId = leaf.serviceParentCategoryId.toString();
+
+                if (!parentCategoryMap[parentCategoryId]) {
+                    let parentCategory = categories.find(
+                        c => c._id.toString() === parentCategoryId
+                    );
+
+                    parentCategoryMap[parentCategoryId] = {
+                        parentCategory,
+                        leafCategories: []
+                    };
+                }
+
+                parentCategoryMap[parentCategoryId].leafCategories.push(leaf);
+            });
+
+            result.push({
+                headCategory: {
+                    _id: root._id,
+                    serviceCategoryName: root.serviceCategoryName,
+                    Description: root.Description,
+                    serviceImage: root.serviceImage,
+                    serviceParentCategoryId: root.serviceParentCategoryId || null
+                },
+                leafHierarchy: Object.values(parentCategoryMap).map(
+                    ({ parentCategory, leafCategories }) => ({
+                        parentCategory: {
+                            _id: parentCategory._id,
+                            serviceCategoryName: parentCategory.serviceCategoryName,
+                            Description: parentCategory.Description,
+                            serviceImage: parentCategory.serviceImage,
+                            serviceParentCategoryId:
+                                parentCategory.serviceParentCategoryId || null
+                        },
+                        leafCategories: leafCategories.map(leaf => ({
+                            _id: leaf._id,
+                            serviceCategoryName: leaf.serviceCategoryName,
+                            Description: leaf.Description,
+                            serviceImage: leaf.serviceImage,
+                            serviceParentCategoryId:
+                                leaf.serviceParentCategoryId || null
+                        }))
+                    })
+                )
+            });
+        }
+
+        return res.status(200).send({
+            success: true,
+            message: "Service categories fetched successfully",
+            data: result
+        });
+
+    } catch (error) {
+        console.error(
+            "getServiceCategoryWithHeadAndLeafParentNodes Error:",
+            error
+        );
+        return res.status(500).send({
+            success: false,
+            message: "Something went wrong",
+            error: error.message
+        });
+    }
+},
+
     updateCategory: async (req, res) => {
         try {
-            console.log(req.body, 'body')
 
-            const { serviceCategoryName } = req.body;
-            const category = await serviceCategoryModel.findOne({
-                $or: [
-                    { _id: req.params.id },
-                    { serviceCategoryName: serviceCategoryName }
-                ]
+            let { serviceCategoryName, companyId } = req.body;
+            if (req.user.companyId) companyId = req.user.companyId
+
+            if (!companyId) {
+                return res.status(400).json({ message: 'Company Not Found', success: false })
+            }
+
+            let category = await serviceCategoryModel.findOne({
+                _id: req.params.id, companyId
             });
-            console.log(category, 'category')
+
             if (!category) {
                 if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
+                    let newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
                     }
                 }
                 return res.status(404).send({ success: false, message: "Category not found" });
             }
+            let updatedData = { serviceCategoryName: serviceCategoryName, updatedAt: new Date() };
 
-            let updatedData = { ...req.body, updatedAt: new Date() };
-            console.log(updatedData, 'updated data')
 
             if (req.file?.filename) {
-                if (category && category.serviceImage) {
-                    const oldImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', category.serviceImage);
+                if (category?.serviceImage) {
+                    let oldImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', category.serviceImage);
                     if (fs.existsSync(oldImagePath)) {
                         fs.unlinkSync(oldImagePath);
                     }
@@ -193,7 +506,7 @@ module.exports = {
 
 
 
-            const updatedCategory = await serviceCategoryModel.findOneAndUpdate(
+            let updatedCategory = await serviceCategoryModel.findOneAndUpdate(
                 { _id: category._id },
                 { $set: updatedData },
                 { new: true }
@@ -208,7 +521,7 @@ module.exports = {
         } catch (error) {
             console.log("error", error);
             if (req.file?.filename) {
-                const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
+                let newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceCategoryImage', req.file.filename);
                 if (fs.existsSync(newImagePath)) {
                     fs.unlinkSync(newImagePath);
                 }
@@ -217,33 +530,6 @@ module.exports = {
                 success: false,
                 message: "Something went wrong",
                 error: error.message
-            });
-        }
-    },
-
-    toggleCategoriesStatus: async (req, res) => {
-        try {
-            let id = req.body.id
-            const details = await serviceCategoryModel.findById(id)
-            const data = await serviceCategoryModel.findByIdAndUpdate(id, {
-                $set: {
-                    isActive: !details.isActive
-                }
-            }, { new: true })
-
-            res.status(200).send({
-                success: true,
-                message: "success",
-                data
-            })
-
-
-        } catch (error) {
-            console.error("error", error);
-            return res.status(500).send({
-                success: false,
-                message: "Something went wrong",
-                error: error.message,
             });
         }
     },
@@ -294,7 +580,7 @@ module.exports = {
                 return res.status(400).json({ message: 'CATEGORY NOT DELETED', success: false })
             }
 
-            res.status(200).json({ success: true, message: "category and services both deleted", data: result,deletedServices: deletedProduct });
+            res.status(200).json({ success: true, message: "category and services both deleted", data: result, deletedServices: deletedProduct });
 
         } catch (error) {
             console.error("error", error);
@@ -305,6 +591,10 @@ module.exports = {
             });
         }
     },
+
+
+
+
 
 }
 

@@ -1201,7 +1201,7 @@ module.exports = {
             let {
                 ProductId,
                 VariantIds,
-                toggleType, 
+                toggleType,
                 companyId,
                 isActive
             } = req.body;
@@ -1223,7 +1223,7 @@ module.exports = {
                 });
             }
 
-         
+
             if (toggleType === "VARIANT") {
                 if (!VariantIds || VariantIds.length === 0) {
                     return res.status(400).json({
@@ -1250,7 +1250,7 @@ module.exports = {
                 });
             }
 
-           
+
             if (toggleType === "PRODUCT") {
 
                 await Product.updateOne(
@@ -1819,11 +1819,37 @@ module.exports = {
                         product.HeadCategory.some(head => regex.test(head.categoryName)))
                 );
             }
+            // if (MixedName) {
+            //     let keywords = MixedName.split(/[\s,\.]+/).filter(Boolean);
+
+            //     let regexList = keywords.map(k => new RegExp(k, 'i'));
+
+            //     let matchesAny = str => str && regexList.some(r => r.test(str));
+
+            //     filteredData = filteredData.filter(product => {
+            //         let productMatch =
+            //             matchesAny(product.ProductName) ||
+            //             (product.Brands && product.Brands.some(b => matchesAny(b.BrandName))) ||
+            //             (product.SubCategories && product.SubCategories.some(sub => matchesAny(sub.categoryName))) ||
+            //             (product.HeadCategory && product.HeadCategory.some(head => matchesAny(head.categoryName)));
+
+            //         let variantMatch = product.VariantProducts.some(vp =>
+            //             matchesAny(vp.VariantProductName) ||
+            //             (vp.BatchesInfo && vp.BatchesInfo.some(b => matchesAny(b.BatchName)))
+            //         );
+
+            //         return productMatch || variantMatch;
+            //     });
+            // }
+            let AllRelatedData = {
+                allRelatedBrands: [],
+                allRelatedSubCategories: [],
+                allRelatedHeadCategories: []
+            };
+
             if (MixedName) {
                 let keywords = MixedName.split(/[\s,\.]+/).filter(Boolean);
-
                 let regexList = keywords.map(k => new RegExp(k, 'i'));
-
                 let matchesAny = str => str && regexList.some(r => r.test(str));
 
                 filteredData = filteredData.filter(product => {
@@ -1840,7 +1866,59 @@ module.exports = {
 
                     return productMatch || variantMatch;
                 });
+
+                const checkMatch = str => {
+                    if (!str) return false;
+                    str = str.toLowerCase();
+                    return keywords.some(kw => str.includes(kw.toLowerCase()));
+                };
+
+                const existsById = (arr, id) => arr.some(item => String(item.id) === String(id));
+
+                filteredData.forEach(product => {
+
+                    if (product.Brands) {
+                        product.Brands.forEach(b => {
+                            if (checkMatch(b.BrandName) && !existsById(AllRelatedData.allRelatedBrands, b._id)) {
+                                AllRelatedData.allRelatedBrands.push({
+                                    id: b._id,
+                                    name: b.BrandName,
+                                    image: b.BrandImage
+                                });
+                            }
+                        });
+                    }
+
+                    if (product.SubCategories) {
+                        product.SubCategories.forEach(sub => {
+                            if (checkMatch(sub.categoryName) && !existsById(AllRelatedData.allRelatedSubCategories, sub._id)) {
+                                AllRelatedData.allRelatedSubCategories.push({
+                                    id: sub._id,
+                                    name: sub.categoryName,
+                                    image: sub.imageName
+                                });
+                            }
+                        });
+                    }
+
+                    if (product.HeadCategory) {
+                        product.HeadCategory.forEach(head => {
+                            if (checkMatch(head.categoryName) && !existsById(AllRelatedData.allRelatedHeadCategories, head._id)) {
+                                AllRelatedData.allRelatedHeadCategories.push({
+                                    id: head._id,
+                                    name: head.categoryName,
+                                    image: head.imageName
+                                });
+                            }
+                        });
+                    }
+
+                });
             }
+
+
+
+
             if (VariantProductId) {
                 let variantObjectIds = Array.isArray(VariantProductId)
                     ? VariantProductId.map(id => new mongoose.Types.ObjectId(String(id)))
@@ -2069,12 +2147,12 @@ module.exports = {
                 }
             }
 
-
             return res.status(200).json({
                 success: true,
                 message: 'Products fetched successfully',
                 data: filteredData,
-                ActiveSubCategoryIds
+                ActiveSubCategoryIds,
+                AllRelatedData
             });
 
         } catch (error) {
