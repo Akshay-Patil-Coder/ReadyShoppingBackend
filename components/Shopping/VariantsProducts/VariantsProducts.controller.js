@@ -1819,28 +1819,7 @@ module.exports = {
                         product.HeadCategory.some(head => regex.test(head.categoryName)))
                 );
             }
-            // if (MixedName) {
-            //     let keywords = MixedName.split(/[\s,\.]+/).filter(Boolean);
-
-            //     let regexList = keywords.map(k => new RegExp(k, 'i'));
-
-            //     let matchesAny = str => str && regexList.some(r => r.test(str));
-
-            //     filteredData = filteredData.filter(product => {
-            //         let productMatch =
-            //             matchesAny(product.ProductName) ||
-            //             (product.Brands && product.Brands.some(b => matchesAny(b.BrandName))) ||
-            //             (product.SubCategories && product.SubCategories.some(sub => matchesAny(sub.categoryName))) ||
-            //             (product.HeadCategory && product.HeadCategory.some(head => matchesAny(head.categoryName)));
-
-            //         let variantMatch = product.VariantProducts.some(vp =>
-            //             matchesAny(vp.VariantProductName) ||
-            //             (vp.BatchesInfo && vp.BatchesInfo.some(b => matchesAny(b.BatchName)))
-            //         );
-
-            //         return productMatch || variantMatch;
-            //     });
-            // }
+           
             let AllRelatedData = {
                 allRelatedBrands: [],
                 allRelatedSubCategories: [],
