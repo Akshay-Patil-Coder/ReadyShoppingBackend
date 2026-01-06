@@ -471,7 +471,14 @@ module.exports = {
 
             let VariantData = FoundVariantAgg?.[0];
             if (!VariantData) return res.status(404).json({ message: "Variant not found", success: false });
-
+           
+            if (VariantData.InventoryBaseStock?.InventoryBase) {
+                let stock = VariantData.InventoryBaseStock.AvailableStock || 0;
+                if (stock <= 0)
+                    return res.status(400).json({ message: "Out of stock", success: false });
+                if (stock < Quantity) Quantity = stock;
+            }
+            
             let paidServices = (ProductData.ProductServices || []).filter(s => s.Paid);
             let freeServices = (ProductData.ProductServices || []).filter(s => !s.Paid);
 
