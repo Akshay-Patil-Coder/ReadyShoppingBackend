@@ -8,6 +8,7 @@ const path = require('path');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const csvParser = require('csv-parser');
 const { Wishlist } = require('../WishList/WishList.model');
+const client = require("../ElasticSearch/elasticsearchClient");
 module.exports = {
     addVariantProduct: async (req, res) => {
         let {
@@ -2369,6 +2370,62 @@ module.exports = {
                 error: error.message
             });
         }
-    }
+    },
+    serchProduct:async(req,res)=>{
+  try {
+    const { q } = req.query;
+    if (!q || q.trim() === "") return res.json({ suggestions: [] });
+
+    const { body } = await client.search({
+      index: "products_search",
+      body: {
+        size: 10,
+        query: {
+          multi_match: {
+            query: q,
+            fields: [
+              "productName^3",
+              "variantProductName^2",
+              "brandName^2",
+              "headCategoryName",
+              "subCategoryName",
+              "variantValues",
+              "batchNames"
+            ],
+            fuzziness: "AUTO"
+          }
+        },
+        highlight: {
+          fields: {
+            productName: {},
+            variantProductName: {},
+            brandName: {},
+            headCategoryName: {},
+            subCategoryName: {},
+            variantValues: {},
+            batchNames: {}
+          }
+        }
+      }
+    });
+
+    const suggestions = body.hits.hits.map(hit => ({
+      variantProductId: hit._source.variantProductId,
+      productId: hit._source.productId,
+      productName: hit._source.productName,
+      variantProductName: hit._source.variantProductName,
+      brandName: hit._source.brandName,
+      headCategoryName: hit._source.headCategoryName,
+      subCategoryName: hit._source.subCategoryName,
+      variantValues: hit._source.variantValues,
+      batchNames: hit._source.batchNames
+    }));
+
+    res.json({ suggestions });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+}
 
 };

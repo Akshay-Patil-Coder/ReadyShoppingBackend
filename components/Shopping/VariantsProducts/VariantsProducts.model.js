@@ -202,7 +202,8 @@ const Product = mongoose.model('Product', ProductSchema);
 
 const BatchSchema = new mongoose.Schema({
     BatchName: {
-        type: String
+        type: String,
+        unique:true
     },
     BatchLogo: {
         type: String

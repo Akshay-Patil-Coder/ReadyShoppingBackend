@@ -358,149 +358,164 @@ module.exports = {
     },
 
 
+
     ValidateWishlist: async (req, res) => {
-        let { UserId, companyId } = req.body;
-
         try {
-            if (!UserId || !companyId)
-                return res.status(400).json({ message: 'User or Company Not Found', success: false });
+            let { UserId, companyId, WishListId } = req.body;
 
-            let FoundUser = await User.findOne({ _id: UserId, companyId });
-            if (!FoundUser)
-                return res.status(400).json({ message: 'User Not Found', success: false });
+            if (!UserId || !companyId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "User or Company Not Found"
+                });
+            }
 
-            let FoundWishlist = await Wishlist.findOne({ UserId, companyId });
-            if (!FoundWishlist)
-                return res.status(404).json({ message: 'Wishlist is Empty', success: false });
+            let user = await User.findOne({ _id: UserId, companyId });
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    message: "User Not Found"
+                });
+            }
 
+            let wishlists = [];
 
-            let calculateProductTotals = (variant, qty, activeServices = []) => {
+            if (WishListId) {
+                let wl = await Wishlist.findOne({ _id: WishListId, UserId, companyId });
+                if (wl) wishlists.push(wl);
+            } else {
+                wishlists = await Wishlist.find({ UserId, companyId });
+            }
+
+            if (!wishlists.length) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Wishlist is Empty"
+                });
+            }
+
+            let calculateTotals = (variant, qty, services = []) => {
                 let total = variant.Price * qty;
-                let discount = 0;
-
-                if (variant.OfferPercentage > 0)
-                    discount = (total * variant.OfferPercentage) / 100;
+                let discount = variant.OfferPercentage
+                    ? (total * variant.OfferPercentage) / 100
+                    : 0;
 
                 let final = total - discount;
 
-                if (activeServices.length) {
-                    let serviceTotal = activeServices.reduce(
-                        (sum, s) => sum + (s.ProductServiceAmount || 0),
-                        0
-                    );
-                    total += serviceTotal;
-                    final += serviceTotal;
-                }
+                let serviceTotal = services.reduce(
+                    (sum, s) => sum + (s.ProductServiceAmount || 0), 0
+                );
 
-                return { total, discount, final };
+                return {
+                    total: total + serviceTotal,
+                    discount,
+                    final: final + serviceTotal
+                };
             };
 
-            let updatedProducts = [];
+            for (let wishlist of wishlists) {
+                let updatedProducts = [];
 
-            for (let EachProduct of FoundWishlist.Products) {
-                let FoundProduct = await Product.findOne({
-                    _id: EachProduct.ProductId,
-                    companyId,
-                    isActive: true,
-                });
+                for (let item of wishlist.Products) {
 
-                let FoundVariantProduct = await VariantProduct.findOne({
-                    ProductId: EachProduct.ProductId,
-                    _id: EachProduct.VariantProductId,
-                    companyId,
-                    isActive: true,
-                });
-
-                if (!FoundProduct || !FoundVariantProduct)
-                    continue;
-
-                if (FoundVariantProduct.InventoryBaseStock?.InventoryBase === true) {
-                    let availableStock = FoundVariantProduct.InventoryBaseStock.AvailableStock || 0;
-
-                    if (availableStock <= 0) continue;
-
-                    if (EachProduct.Quantity > availableStock) {
-                        EachProduct.Quantity = availableStock;
-                    }
-                }
-
-                let ProductServicesList = FoundProduct.ProductServices || [];
-                let PaidServices = ProductServicesList.filter(s => s.Paid === true);
-                let FreeServices = ProductServicesList.filter(s => s.Paid === false);
-
-                let activePaidServices = [];
-                let NewProductServices = [];
-                let NewFreeServices = [];
-
-                for (let EachService of EachProduct.ProductServices || []) {
-                    let serviceData = await ProductService.findOne({
-                        _id: EachService.ProductServiceId,
+                    let product = await Product.findOne({
+                        _id: item.ProductId,
                         companyId,
                         isActive: true
                     });
 
-                    if (
-                        serviceData &&
-                        PaidServices.some(
-                            (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
-                        )
-                    ) {
-                        if (EachService.ServiceActive === true) {
-                            let matchedConfig = PaidServices.find(
-                                ps => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
-                            );
+                    let variant = await VariantProduct.findOne({
+                        _id: item.VariantProductId,
+                        ProductId: item.ProductId,
+                        companyId,
+                        isActive: true
+                    });
 
-                            if (matchedConfig) {
-                                activePaidServices.push({
-                                    ...serviceData.toObject(),
-                                    ProductServiceAmount: matchedConfig.ProductServiceAmount || 0
-                                });
-                            }
+                    if (!product || !variant) continue;
 
-                            NewProductServices.push(EachService);
-                        }
+                    if (variant.InventoryBaseStock?.InventoryBase) {
+                        let stock = variant.InventoryBaseStock.AvailableStock || 0;
+                        if (stock <= 0) continue;
+                        if (item.Quantity > stock) item.Quantity = stock;
                     }
+
+                    let paidConfigs = (product.ProductServices || []).filter(s => s.Paid);
+                    let freeConfigs = (product.ProductServices || []).filter(s => !s.Paid);
+
+                    let activePaid = [];
+                    let activePaidRefs = [];
+
+                    for (let srv of item.ProductServices || []) {
+                        let srvData = await ProductService.findOne({
+                            _id: srv.ProductServiceId,
+                            companyId,
+                            isActive: true
+                        });
+
+                        if (!srvData || !srv.ServiceActive) continue;
+
+                        let match = paidConfigs.find(
+                            p => p.ProductServiceId.toString() === srv.ProductServiceId.toString()
+                        );
+
+                        if (!match) continue;
+
+                        activePaid.push({
+                            ...srvData.toObject(),
+                            ProductServiceAmount: match.ProductServiceAmount || 0
+                        });
+
+                        activePaidRefs.push(srv);
+                    }
+
+                    item.ProductServices = activePaidRefs;
+                    item.ProductFreeServices = freeConfigs.map(f => f.ProductServiceId);
+
+                    let { total, discount, final } = calculateTotals(
+                        variant,
+                        item.Quantity,
+                        activePaid
+                    );
+
+                    item.TotalPrice = total;
+                    item.DiscountPrice = discount;
+                    item.FinalPrice = final;
+
+                    updatedProducts.push(item);
                 }
 
-                for (let EachService of FreeServices || []) {
-                    NewFreeServices.push({ ProductServiceId: EachService.ProductServiceId });
-                }
+                wishlist.Products = updatedProducts;
 
-                EachProduct.ProductServices = NewProductServices;
-                EachProduct.ProductFreeServices = NewFreeServices.map(s => s.ProductServiceId);
-
-                let { total, discount, final } = calculateProductTotals(
-                    FoundVariantProduct,
-                    EachProduct.Quantity,
-                    activePaidServices
+                wishlist.TotalCartPrice = Number(
+                    updatedProducts.reduce((s, p) => s + (p.TotalPrice || 0), 0).toFixed(2)
                 );
 
-                EachProduct.TotalPrice = total;
-                EachProduct.DiscountPrice = discount;
-                EachProduct.FinalPrice = final;
+                wishlist.DiscountCartPrice = Number(
+                    updatedProducts.reduce((s, p) => s + (p.DiscountPrice || 0), 0).toFixed(2)
+                );
 
-                updatedProducts.push(EachProduct);
+                wishlist.FinalCartPrice = Number(
+                    updatedProducts.reduce((s, p) => s + (p.FinalPrice || 0), 0).toFixed(2)
+                );
+
+                await wishlist.save();
             }
 
-            FoundWishlist.Products = updatedProducts;
-
-            let activeProducts = updatedProducts.filter(p => p.IsActive !== false);
-
-            FoundWishlist.TotalCartPrice = parseFloat(activeProducts.reduce((sum, p) => sum + (p.TotalPrice || 0), 0).toFixed(2));
-            FoundWishlist.DiscountCartPrice = parseFloat(activeProducts.reduce((sum, p) => sum + (p.DiscountPrice || 0), 0).toFixed(2));
-            FoundWishlist.FinalCartPrice = parseFloat(activeProducts.reduce((sum, p) => sum + (p.FinalPrice || 0), 0).toFixed(2));
-
-            await FoundWishlist.save();
+            return res.status(200).json({
+                success: true,
+                message: "Wishlist validated successfully"
+            });
 
         } catch (error) {
-            console.warn("ValidateWishlist Error:", error.message);
+            console.error("ValidateWishlist Error:", error);
             return res.status(500).json({
+                success: false,
                 message: "Internal Server Error",
-                error: error.message,
-                success: false
+                error: error.message
             });
         }
     },
+
 
     getWishListData: async (matchCondition) => {
         try {
@@ -1088,7 +1103,8 @@ module.exports = {
 
             let matchCondition = {
                 companyId: new mongoose.Types.ObjectId(String(companyId)),
-                UserId: new mongoose.Types.ObjectId(String(UserId))
+                UserId: new mongoose.Types.ObjectId(String(UserId)),
+                _id: new mongoose.Types.ObjectId(String(WishListId))
             };
 
             let data = await module.exports.getWishListData(matchCondition);
