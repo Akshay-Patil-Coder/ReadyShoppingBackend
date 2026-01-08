@@ -8,7 +8,7 @@ const path = require('path');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const csvParser = require('csv-parser');
 const { Wishlist } = require('../WishList/WishList.model');
-const client = require("../ElasticSearch/elasticsearchClient");
+
 module.exports = {
     addVariantProduct: async (req, res) => {
         let {

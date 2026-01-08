@@ -11,7 +11,8 @@ const {  ProductOrder } = require('./components/Shopping/ProductCart/ProductCart
 const staticPaths = require('./Routes/StaticPath.routes');
 const cors = require('cors')
 const clc = require('cli-color');
-
+// require('./components/Shopping/ElasticSearch/elastic/createindex.js');
+// require('./components/Shopping/ElasticSearch/elastic/reindexAll.js');
 const axios = require('axios')
 const app = express();
 app.use(express.json());
