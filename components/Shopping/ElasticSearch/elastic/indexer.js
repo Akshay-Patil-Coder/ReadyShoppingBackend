@@ -1,13 +1,9 @@
 const client = require('./client');
 
-const normalize = (v) =>
-  v ? String(v).toLowerCase().trim() : "";
+const normalize = v => v ? String(v).toLowerCase().trim() : "";
 
+// ---------- BRAND ----------
 exports.indexBrand = async (brand) => {
-  const text = [
-    brand.BrandName,
-  ].map(normalize).join(" ");
-
   await client.index({
     index: 'search_suggestions',
     id: `brand_${brand._id}`,
@@ -15,18 +11,16 @@ exports.indexBrand = async (brand) => {
       companyId: brand.companyId,
       type: 'brand',
       label: brand.BrandName,
-      searchText: text,
+      searchText: normalize(brand.BrandName),
       image: brand.BrandImage,
+      popularity: { views: 0, clicks: 0, orders: 0, score: 0 },
       ids: { brandId: brand._id }
     }
   });
 };
 
+// ---------- CATEGORY ----------
 exports.indexCategory = async (cat) => {
-  const text = [
-    cat.categoryName
-  ].map(normalize).join(" ");
-
   await client.index({
     index: 'search_suggestions',
     id: `cat_${cat._id}`,
@@ -34,8 +28,9 @@ exports.indexCategory = async (cat) => {
       companyId: cat.companyId,
       type: cat.level === 1 ? 'headCategory' : 'subCategory',
       label: cat.categoryName,
-      searchText: text,
+      searchText: normalize(cat.categoryName),
       image: cat.imageName,
+      popularity: { views: 0, clicks: 0, orders: 0, score: 0 },
       ids: {
         headCategoryId: cat.level === 1 ? cat._id : cat.ParentId,
         subCategoryId: cat.level === 2 ? cat._id : null
@@ -44,8 +39,9 @@ exports.indexCategory = async (cat) => {
   });
 };
 
+// ---------- PRODUCT ----------
 exports.indexProduct = async (product) => {
-  const text = [
+  const searchText = [
     product.ProductName,
     product.BrandName,
     product.categoryName,
@@ -59,8 +55,9 @@ exports.indexProduct = async (product) => {
       companyId: product.companyId,
       type: 'product',
       label: product.ProductName,
-      searchText: text,
+      searchText,
       image: product.CommonImages?.[0],
+      popularity: { views: 0, clicks: 0, orders: 0, score: 0 },
       ids: {
         productId: product._id,
         brandId: product.BrandId,
@@ -71,28 +68,20 @@ exports.indexProduct = async (product) => {
   });
 };
 
+// ---------- VARIANT ----------
+const popularityScore = (v) =>
+  (v.views || 0) * 0.2 +
+  (v.clicks || 0) * 0.5 +
+  (v.orders || 0) * 2;
+
 exports.indexVariant = async (variant, product) => {
-  const normalize = (v) =>
-    v ? String(v).toLowerCase().trim() : "";
-
-  let variantFields = {};
-
-  (variant.VariantFields || []).forEach(v => {
-    if (!v?.VariantName) return;
-
-    variantFields[v.VariantName] = normalize(
-      `${v.VariantValue ?? ""}${v.Extension ?? ""}`
-    );
-  });
-
-  const variantText = Object.entries(variantFields)
-    .map(([k, v]) => `${normalize(k)} ${v}`)
+  const variantFieldsText = (variant.VariantFields || [])
+    .map(v => `${v.VariantName} ${v.VariantValue}${v.Extension || ""}`)
+    .map(normalize)
     .join(" ");
 
   const batchText = (variant.BatchesInfo || [])
-    .map(b => b?.BatchName)
-    .filter(Boolean)
-    .map(normalize)
+    .map(b => normalize(b.BatchName))
     .join(" ");
 
   const searchText = [
@@ -101,12 +90,9 @@ exports.indexVariant = async (variant, product) => {
     product.BrandName,
     product.categoryName,
     product.headCategoryName,
-    variantText,
+    variantFieldsText,
     batchText
-  ]
-    .map(normalize)
-    .filter(Boolean)
-    .join(" ");
+  ].map(normalize).join(" ");
 
   await client.index({
     index: 'search_suggestions',
@@ -116,10 +102,16 @@ exports.indexVariant = async (variant, product) => {
       type: 'variant',
       label: variant.VariantProductName,
       searchText,
-      price: variant.Price,
+      variantFields: variantFieldsText,
+      price: variant.Price || 0,
       image: variant.VariantProductImage?.[0],
-      variantFields,
       batchInfo: variant.BatchesInfo || [],
+      popularity: {
+        views: variant.views || 0,
+        clicks: variant.clicks || 0,
+        orders: variant.orders || 0,
+        score: popularityScore(variant)
+      },
       ids: {
         productId: variant.ProductId,
         variantProductId: variant._id,
@@ -130,4 +122,3 @@ exports.indexVariant = async (variant, product) => {
     }
   });
 };
-

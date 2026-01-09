@@ -46,11 +46,11 @@ module.exports = {
         } catch (err) {
           console.log("Dialer API error", err.message);
         }
-        let otpResponse = await module.exports.OtpSend(phone);
+        let otpResponse = await module.exports.OtpSend(phone,companyId);
         return res.status(201).json({ success: true, message: "Otp Sended", data: otpResponse, firstTimeLogin: true });
 
       } else {
-        let otpResponse = await module.exports.OtpSend(phone);
+        let otpResponse = await module.exports.OtpSend(phone,companyId);
         return res.status(201).json({ success: true, message: "Otp Sended", data: otpResponse });
       }
 
@@ -61,7 +61,7 @@ module.exports = {
   },
 
 
-  OtpSend: async (phoneno) => {
+  OtpSend: async (phoneno,companyId) => {
     if (!phoneno) {
       console.log("data not found");
       return null;
@@ -94,7 +94,7 @@ module.exports = {
     }
     let hashedOtp = bcrypt.hashSync(OTP.toString(), 10);
     let updatedUser = await User.findOneAndUpdate(
-      { Phone: phoneno },
+      { Phone: phoneno,companyId },
       { $set: { ActiveOtp: hashedOtp, OtpTime: Date.now() + 5 * 60 * 1000 } },
       { new: true }
     );

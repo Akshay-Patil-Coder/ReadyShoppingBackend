@@ -7,6 +7,7 @@ const { brandmodel } = require('../ProductsBrand/ProductsBrand.model')
 const { Variant } = require('../Variants/Variants.model')
 const BannerModel = require('../ShoppingBanners/ShoppingBanners.model')
 const { ProductService } = require('../ProductServices/ProductServices.model')
+const { updateElasticById, deleteElasticById,syncElasticByStatus } = require('../ElasticSearch/elastic/CRUD.js')
 const { default: mongoose } = require("mongoose");
 
 module.exports = {
@@ -466,6 +467,13 @@ module.exports = {
                 { new: true }
             );
 
+            try {
+                await updateElasticById({ type: 'category', id: updatedCategory._id })
+                console.log(`✅ Successfully updated Elasticsearch for category: ${updatedCategory._id}`);
+            } catch (error) {
+                console.error(`❌ Failed to update Elasticsearch for category ${updatedCategory._id}:`, error.message);
+            }
+
             res.status(200).send({
                 success: true,
                 message: "Successfully updated category",
@@ -488,6 +496,7 @@ module.exports = {
         }
     },
 
+   
     ToggleStatusOfCategory: async (req, res) => {
         try {
             const { categoryId, companyId, isActive } = req.query;
@@ -529,64 +538,72 @@ module.exports = {
                         { _id: 1 }
                     );
 
-                    children.forEach(c => stack.push(c._id));
+                    children.forEach(child => stack.push(child._id));
                 }
-
                 return ids;
             };
 
             const categoryIds = await getAllCategoryIds(categoryId);
+            const rootCategoryId = categoryId.toString();
 
             const categories = await dynamicCategoriesModel.find({
                 _id: { $in: categoryIds },
                 companyId
             });
 
-     
-            const rootCategoryId = categoryId.toString(); 
-
             for (const cat of categories) {
-                const isSelf = cat._id.toString() === rootCategoryId;
-                const nextActiveBy = isSelf ? "Self" : "Parent";
+                const isRoot = cat._id.toString() === rootCategoryId;
+                const nextActiveBy = isRoot ? "Self" : "Parent";
 
                 if (isActive === false) {
                     if (cat.isActive !== false) {
                         await dynamicCategoriesModel.findByIdAndUpdate(cat._id, {
-                            $set: {
-                                isActive: false,
-                                isActiveBy: nextActiveBy
-                            }
+                            $set: { isActive: false, isActiveBy: nextActiveBy }
                         });
+
+                        try {
+                            await deleteElasticById({ type: "category", id: cat._id });
+                            console.log(`✅ Deleted ES category: ${cat._id}`);
+                        } catch (err) {
+                            console.error(`❌ ES delete failed category ${cat._id}`, err.message);
+                        }
                     }
-                } else if (isActive === true) {
+                }
+
+                if (isActive === true) {
                     if (
                         cat.isActive === false &&
                         ["Self", "Parent"].includes(cat.isActiveBy)
                     ) {
                         await dynamicCategoriesModel.findByIdAndUpdate(cat._id, {
-                            $set: {
-                                isActive: isActive,
-                                isActiveBy: nextActiveBy
-                            }
+                            $set: { isActive: true, isActiveBy: nextActiveBy }
                         });
+
+                        try {
+                            await updateElasticById({ type: "category", id: cat._id });
+                            console.log(`✅ Added ES category: ${cat._id}`);
+                        } catch (err) {
+                            console.error(`❌ ES add failed category ${cat._id}`, err.message);
+                        }
                     }
 
                     if (!cat.isActiveBy) {
                         await dynamicCategoriesModel.findByIdAndUpdate(cat._id, {
-                            $set: {
-                                isActive: true,
-                                isActiveBy: nextActiveBy
-                            }
+                            $set: { isActive: true, isActiveBy: nextActiveBy }
                         });
+
+                        try {
+                            await updateElasticById({ type: "category", id: cat._id });
+                            console.log(`✅ Added ES category: ${cat._id}`);
+                        } catch (err) {
+                            console.error(`❌ ES add failed category ${cat._id}`, err.message);
+                        }
                     }
                 }
             }
 
             const brands = await brandmodel.find({
-                $or: [
-                    { HeadCategoryId: { $in: categoryIds } },
-                    { SubCategoryId: { $in: categoryIds } }
-                ]
+                HeadCategoryId: { $in: categoryIds }
             });
 
             for (const brand of brands) {
@@ -594,16 +611,40 @@ module.exports = {
                     await brandmodel.findByIdAndUpdate(brand._id, {
                         $set: { isActive: false, isActiveBy: "Category" }
                     });
+
+                    try {
+                        await deleteElasticById({ type: "brand", id: brand._id });
+                        console.log(`✅ Deleted ES brand: ${brand._id}`);
+                    } catch (err) {
+                        console.error(`❌ ES delete failed brand ${brand._id}`, err.message);
+                    }
                 }
+
                 else if (brand.isActiveBy === "Category" && isActive) {
                     await brandmodel.findByIdAndUpdate(brand._id, {
                         $set: { isActive: true, isActiveBy: "Category" }
                     });
+
+                    try {
+                        await updateElasticById({ type: "brand", id: brand._id });
+                        console.log(`✅ Added ES brand: ${brand._id}`);
+                    } catch (err) {
+                        console.error(`❌ ES add failed brand ${brand._id}`, err.message);
+                    }
                 }
+
                 else if (!brand.isActiveBy) {
                     await brandmodel.findByIdAndUpdate(brand._id, {
                         $set: { isActive, isActiveBy: "Category" }
                     });
+
+                    try {
+                        isActive
+                            ? await updateElasticById({ type: "brand", id: brand._id })
+                            : await deleteElasticById({ type: "brand", id: brand._id });
+                    } catch (err) {
+                        console.error(`❌ ES brand failed ${brand._id}`, err.message);
+                    }
                 }
             }
 
@@ -691,16 +732,39 @@ module.exports = {
                     await Product.findByIdAndUpdate(product._id, {
                         $set: { isActive: false, isActiveBy: "Category" }
                     });
+
+                    try {
+                        await deleteElasticById({ type: "product", id: product._id });
+                    } catch (err){
+                        console.error(`❌ ES product failed ${product._id}`, err.message);
+                     }
                 }
+
                 else if (product.isActiveBy === "Category" && isActive) {
                     await Product.findByIdAndUpdate(product._id, {
                         $set: { isActive: true, isActiveBy: "Category" }
                     });
+
+                    try {
+                        await updateElasticById({ type: 'product', id: product._id })
+                        console.log(`✅ Successfully added Elasticsearch for product: ${product._id}`);
+                    } catch (error) {
+                        console.error(`❌ Failed to added Elasticsearch for product ${product._id}:`, error.message);
+                    }
                 }
+
                 else if (!product.isActiveBy) {
                     await Product.findByIdAndUpdate(product._id, {
                         $set: { isActive, isActiveBy: "Category" }
                     });
+
+                    try {
+                        isActive
+                            ? await updateElasticById({ type: "product", id: product._id })
+                            : await deleteElasticById({ type: "product", id: product._id });
+                    } catch (error) { 
+                        console.error(`❌ ES product failed ${product._id}`, error.message);
+                    }
                 }
 
                 await VariantProduct.updateMany(
@@ -723,6 +787,8 @@ module.exports = {
             });
         }
     },
+
+
 
     deleteCategories: async (req, res) => {
         try {
@@ -808,6 +874,12 @@ module.exports = {
                                         }
                                     }
                                     await VariantProduct.deleteOne({ _id: variantId });
+                                    try {
+                                        await deleteElasticById({ type: 'variant', id: variantId })
+                                        console.log(`✅ Successfully deleted Elasticsearch for variantProduct: ${variantId}`);
+                                    } catch (error) {
+                                        console.error(`❌ Failed to delete Elasticsearch for variantProduct ${variantId}:`, error.message);
+                                    }
                                 }
                             } catch (err) {
                                 console.error(`Error deleting variant ${variantId}:`, err.message);
@@ -835,6 +907,12 @@ module.exports = {
                         await Product.deleteOne({ _id: product._id });
                     } catch (err) {
                         console.error(`Error deleting product ${product._id}:`, err.message);
+                    }
+                    try {
+                        await deleteElasticById({ type: 'product', id: brand._id })
+                        console.log(`✅ Successfully deleted Elasticsearch for product: ${product._id}`);
+                    } catch (error) {
+                        console.error(`❌ Failed to delete Elasticsearch for product ${product._id}:`, error.message);
                     }
                 }
                 try {
@@ -873,6 +951,12 @@ module.exports = {
                             }
 
                             await brandmodel.deleteOne({ _id: brand._id });
+                            try {
+                                await deleteElasticById({ type: 'brand', id: brand._id })
+                                console.log(`✅ Successfully deleted Elasticsearch for brand: ${brand._id}`);
+                            } catch (error) {
+                                console.error(`❌ Failed to delete Elasticsearch for brand ${brand._id}:`, error.message);
+                            }
                         } catch (err) {
                             console.error(`Error deleting brand ${brand._id}:`, err.message);
                         }
@@ -935,10 +1019,15 @@ module.exports = {
                 } catch (err) {
                     console.error(`Error deleting category ${categoryId}:`, err.message);
                 }
+                try {
+                    await deleteElasticById({ type: 'category', id: categoryId })
+                    console.log(`✅ Successfully deleted Elasticsearch for category: ${categoryId}`);
+                } catch (error) {
+                    console.error(`❌ Failed to delete Elasticsearch for category ${categoryId}:`, error.message);
+                }
             };
 
             await deleteCategoryRecursive(_id);
-
             res.status(200).json({
                 success: true,
                 message: "Category, subcategories, and all associated products, variant products, images, videos, and reviews deleted successfully"

@@ -5,7 +5,8 @@ const path = require('path');
 const { Product, VariantProduct } = require('../VariantsProducts/VariantsProducts.model')
 const { ProductRating } = require('../ProductRating/ProductRating.model')
 const { brandmodel } = require('./ProductsBrand.model')
-const BannerModel = require('../ShoppingBanners/ShoppingBanners.model')
+const BannerModel = require('../ShoppingBanners/ShoppingBanners.model');
+const { updateElasticById, deleteElasticById } = require('../ElasticSearch/elastic/CRUD');
 module.exports = {
   addbrands: async (req, resp) => {
     try {
@@ -209,6 +210,13 @@ module.exports = {
       if (!updatedResult) {
         return resp.status(400).json({ message: 'Not updated', success: false, message: "Brand detail not updated" });
       }
+      try {
+        await updateElasticById({ type: 'brand', id: BrandId });
+        console.log(`✅ Successfully updated Elasticsearch for brand: ${BrandId}`);
+      } catch (error) {
+        console.error(`❌ Failed to update Elasticsearch for brand ${BrandId}:`, error.message);
+      }
+
 
       return resp.status(200).json({ data: updatedResult, success: true, message: "Brand detail updated successfully" });
     } catch (error) {
@@ -435,116 +443,134 @@ module.exports = {
       });
     }
   },
-deleteBrand: async (req, res) => {
+  deleteBrand: async (req, res) => {
     try {
-        let { _id, companyId } = req.query;
-        if (req.user.companyId) companyId = req.user.companyId;
+      let { _id, companyId } = req.query;
+      if (req.user.companyId) companyId = req.user.companyId;
 
-        if (!_id || !companyId) {
-            return res.status(400).json({ success: false, message: "BrandId and CompanyId required" });
+      if (!_id || !companyId) {
+        return res.status(400).json({ success: false, message: "BrandId and CompanyId required" });
+      }
+
+      const brand = await brandmodel.findOne({ _id, companyId });
+      if (!brand) {
+        return res.status(404).json({ success: false, message: "Brand not found" });
+      }
+
+      const deleteFiles = async (files, folder) => {
+        for (let file of files) {
+          const filePath = path.join(__dirname, "..", "..", "public", folder, file);
+          try {
+            await fs.promises.unlink(filePath);
+          } catch (err) {
+            if (err.code !== "ENOENT") {
+              console.error(`File delete error: ${filePath}`, err.message);
+            }
+          }
         }
+      };
 
-        const brand = await brandmodel.findOne({ _id, companyId });
-        if (!brand) {
-            return res.status(404).json({ success: false, message: "Brand not found" });
-        }
+      const products = await Product.find({ BrandId: _id });
 
-        const deleteFiles = async (files, folder) => {
-            for (let file of files) {
-                const filePath = path.join(__dirname, "..", "..", "public", folder, file);
+      for (const product of products) {
+
+        if (Array.isArray(product.CommonImages))
+          await deleteFiles(product.CommonImages, "ProductImage");
+
+        if (Array.isArray(product.CommonVideos))
+          await deleteFiles(product.CommonVideos, "ProductVideo");
+
+        if (Array.isArray(product.VariantProductIds)) {
+          for (const variantId of product.VariantProductIds) {
+            const variantProduct = await VariantProduct.findById(variantId);
+            if (!variantProduct) continue;
+
+            if (Array.isArray(variantProduct.VariantProductImage)) {
+              await deleteFiles(variantProduct.VariantProductImage, "ProductImage");
+            }
+
+            if (Array.isArray(variantProduct.VariantFields)) {
+              for (const field of variantProduct.VariantFields) {
                 try {
-                    await fs.promises.unlink(filePath);
+                  await Variant.findOneAndUpdate(
+                    {
+                      _id: field.VariantId,
+                      "VariantValues.Value": field.VariantValue,
+                      "VariantValues.Count": { $gt: 0 }
+                    },
+                    { $inc: { "VariantValues.$.Count": -1 } }
+                  );
                 } catch (err) {
-                    if (err.code !== "ENOENT") {
-                        console.error(`File delete error: ${filePath}`, err.message);
-                    }
+                  console.warn("Variant count update failed:", err.message);
                 }
-            }
-        };
-
-        const products = await Product.find({ BrandId: _id });
-
-        for (const product of products) {
-
-            if (Array.isArray(product.CommonImages))
-                await deleteFiles(product.CommonImages, "ProductImage");
-
-            if (Array.isArray(product.CommonVideos))
-                await deleteFiles(product.CommonVideos, "ProductVideo");
-
-            if (Array.isArray(product.VariantProductIds)) {
-                for (const variantId of product.VariantProductIds) {
-                    const variantProduct = await VariantProduct.findById(variantId);
-                    if (!variantProduct) continue;
-
-                    if (Array.isArray(variantProduct.VariantProductImage)) {
-                        await deleteFiles(variantProduct.VariantProductImage, "ProductImage");
-                    }
-
-                    if (Array.isArray(variantProduct.VariantFields)) {
-                        for (const field of variantProduct.VariantFields) {
-                            try {
-                                await Variant.findOneAndUpdate(
-                                    {
-                                        _id: field.VariantId,
-                                        "VariantValues.Value": field.VariantValue,
-                                        "VariantValues.Count": { $gt: 0 }
-                                    },
-                                    { $inc: { "VariantValues.$.Count": -1 } }
-                                );
-                            } catch (err) {
-                                console.warn("Variant count update failed:", err.message);
-                            }
-                        }
-                    }
-
-                    await VariantProduct.deleteOne({ _id: variantId });
-                }
+              }
             }
 
-            if (Array.isArray(product.RatingIds)) {
-                for (const reviewId of product.RatingIds) {
-                    const review = await ProductRating.findById(reviewId);
-                    if (!review) continue;
-
-                    if (Array.isArray(review.ReviewImages)) {
-                        await deleteFiles(review.ReviewImages, "ProductSRatingImage");
-                    }
-                    await ProductRating.deleteOne({ _id: reviewId });
-                }
+            await VariantProduct.deleteOne({ _id: variantId });
+            try {
+              await deleteElasticById({type:'variant', id:variantId})
+              console.log(`✅ Successfully deleted Elasticsearch for variant: ${variantId}`);
+            } catch (error) {
+              console.error(`❌ Failed to delete Elasticsearch for variant ${variantId}:`, error.message);
             }
-
-            await Product.deleteOne({ _id: product._id });
+          }
         }
 
-        const banners = await BannerModel.find({ BrandId: _id });
-        for (const banner of banners) {
-            if (banner.BannerImage) {
-                await deleteFiles([banner.BannerImage], "BannerImage");
+        if (Array.isArray(product.RatingIds)) {
+          for (const reviewId of product.RatingIds) {
+            const review = await ProductRating.findById(reviewId);
+            if (!review) continue;
+
+            if (Array.isArray(review.ReviewImages)) {
+              await deleteFiles(review.ReviewImages, "ProductSRatingImage");
             }
-            await BannerModel.deleteOne({ _id: banner._id });
+            await ProductRating.deleteOne({ _id: reviewId });
+          }
         }
 
-        if (brand.BrandImage) {
-            await deleteFiles([brand.BrandImage], "BrandImage");
+        await Product.deleteOne({ _id: product._id });
+        try {
+          await deleteElasticById({type:'product', id:product._id})
+          console.log(`✅ Successfully deleted Elasticsearch for product: ${product._id}`);
+        } catch (error) {
+          console.error(`❌ Failed to delete Elasticsearch for product ${product._id}:`, error.message);
         }
+      }
 
-        await brandmodel.deleteOne({ _id });
+      const banners = await BannerModel.find({ BrandId: _id });
+      for (const banner of banners) {
+        if (banner.BannerImage) {
+          await deleteFiles([banner.BannerImage], "BannerImage");
+        }
+        await BannerModel.deleteOne({ _id: banner._id });
+      }
 
-        return res.status(200).json({
-            success: true,
-            message: "Brand and all related data deleted successfully"
-        });
+      if (brand.BrandImage) {
+        await deleteFiles([brand.BrandImage], "BrandImage");
+      }
+
+      await brandmodel.deleteOne({ _id });
+      try {
+        await deleteElasticById({type:'brand', id:_id})
+        console.log(`✅ Successfully deleted Elasticsearch for brand: ${_id}`);
+      } catch (error) {
+        console.error(`❌ Failed to delete Elasticsearch for brand ${_id}:`, error.message);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Brand and all related data deleted successfully"
+      });
 
     } catch (error) {
-        console.error("deleteBrand error:", error);
-        res.status(500).json({
-            success: false,
-            message: "Something went wrong",
-            error: error.message
-        });
+      console.error("deleteBrand error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Something went wrong",
+        error: error.message
+      });
     }
-},
+  },
 
 
 

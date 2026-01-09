@@ -6,7 +6,7 @@ const path = require('path')
 const fs = require('fs')
 const router = express.Router()
 const { authentication } = require('../../Middleware/Middleware.controller')
-const { searchSuggestions ,autoSuggest} = require('../ElasticSearch/elastic/search.controller')
+const { searchSuggestions} = require('../ElasticSearch/elastic/search.controller')
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     let uploadDir;
@@ -214,6 +214,6 @@ router.post("/EditBatchOfVariantProduct", authentication, (req, res) => {
 });
 
 router.get('/suggest', searchSuggestions);
-router.get('/autoSuggest', autoSuggest);
+// router.get('/autoSuggest', autoSuggest);
 
 module.exports = router

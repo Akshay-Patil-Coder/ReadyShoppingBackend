@@ -8,6 +8,8 @@ const path = require('path');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const csvParser = require('csv-parser');
 const { Wishlist } = require('../WishList/WishList.model');
+const { updateElasticById, deleteElasticById } = require('../ElasticSearch/elastic/CRUD');
+
 
 module.exports = {
     addVariantProduct: async (req, res) => {
@@ -234,7 +236,12 @@ module.exports = {
                     { $set: { VariantProductIds: VariantIds } },
                     { new: true }
                 );
-
+                try {
+                    await updateElasticById({ type: 'product', id: AddProduct._id })
+                    console.log(`✅ Successfully updated Elasticsearch for product: ${AddProduct._id}`);
+                } catch (error) {
+                    console.error(`❌ Failed to update Elasticsearch for product ${AddProduct._id}:`, error.message);
+                }
                 return res.status(201).json({
                     success: true,
                     message: 'Product and variant(s) added successfully.',
@@ -672,6 +679,14 @@ module.exports = {
 
                 let newVariant = await new VariantProduct(VariantProductData).save();
                 await updateVariantCounts(VariantProductData.VariantFields, true);
+
+                try {
+                    await updateElasticById({ type: 'variantProduct', id: newVariant._id })
+                    console.log(`✅ Successfully updated Elasticsearch for variantProduct: ${newVariant._id}`);
+                } catch (error) {
+                    console.error(`❌ Failed to update Elasticsearch for variantProduct ${newVariant._id}:`, error.message);
+                }
+
                 await Product.findOneAndUpdate(
                     { _id: ProductId, companyId },
                     { $addToSet: { VariantProductIds: newVariant._id } },
@@ -708,7 +723,12 @@ module.exports = {
                     { $pull: { VariantProductIds: VariantProductId } },
                     { new: true }
                 );
-
+                try {
+                    await deleteElasticById('variant', VariantProductId)
+                    console.log(`✅ Successfully deleted Elasticsearch for variantProduct: ${VariantProductId}`);
+                } catch (error) {
+                    console.error(`❌ Failed to delete Elasticsearch for variantProduct ${VariantProductId}:`, error.message);
+                }
                 return res.status(200).json({ success: true, message: "Variant product deleted successfully" });
             }
 
@@ -774,7 +794,12 @@ module.exports = {
             if (!UpdateProduct) {
                 return res.status(400).json({ message: 'Product not updated', success: false });
             }
-
+            try {
+                await updateElasticById({ type: 'product', id: ProductId })
+                console.log(`✅ Successfully updated Elasticsearch for product: ${ProductId}`);
+            } catch (error) {
+                console.error(`❌ Failed to update Elasticsearch for product ${ProductId}:`, error.message);
+            }
             return res.status(200).json({
                 message: 'Product updated successfully',
                 success: true,
@@ -856,7 +881,12 @@ module.exports = {
                         let oldImagePath = path.join(__dirname, '..', '..', 'public', 'ProductImage', ImageName);
                         if (fs.existsSync(oldImagePath)) fs.unlinkSync(oldImagePath);
                     }
-
+                    try {
+                        await updateElasticById({ type: 'product', id: ProductId })
+                        console.log(`✅ Successfully updated Elasticsearch for product: ${ProductId}`);
+                    } catch (error) {
+                        console.error(`❌ Failed to update Elasticsearch for product ${ProductId}:`, error.message);
+                    }
                     return res.status(200).json({
                         success: true,
                         message: "Image replaced successfully",
@@ -869,7 +899,12 @@ module.exports = {
                     { $addToSet: { CommonImages: { $each: AllProductImages } } },
                     { new: true }
                 );
-
+                try {
+                    await updateElasticById({ type: 'product', id: ProductId })
+                    console.log(`✅ Successfully updated Elasticsearch for product: ${ProductId}`);
+                } catch (error) {
+                    console.error(`❌ Failed to update Elasticsearch for product ${ProductId}:`, error.message);
+                }
                 return res.status(200).json({
                     success: true,
                     message: "Images added successfully",
@@ -906,7 +941,12 @@ module.exports = {
                         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
                     }
                 }
-
+                try {
+                    await updateElasticById({ type: 'product', id: ProductId })
+                    console.log(`✅ Successfully updated Elasticsearch for product: ${ProductId}`);
+                } catch (error) {
+                    console.error(`❌ Failed to update Elasticsearch for product ${ProductId}:`, error.message);
+                }
                 return res.status(200).json({
                     success: true,
                     message: "Images deleted successfully",
@@ -988,7 +1028,12 @@ module.exports = {
 
                     let oldVideoPath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', VideoName);
                     if (fs.existsSync(oldVideoPath)) fs.unlinkSync(oldVideoPath);
-
+                    try {
+                        await updateElasticById({ type: 'product', id: ProductId })
+                        console.log(`✅ Successfully updated Elasticsearch for product: ${ProductId}`);
+                    } catch (error) {
+                        console.error(`❌ Failed to update Elasticsearch for product ${ProductId}:`, error.message);
+                    }
                     return res.status(200).json({
                         success: true,
                         message: "Video replaced successfully",
@@ -1001,7 +1046,12 @@ module.exports = {
                     { $addToSet: { CommonVideos: { $each: AllProductVideos } } },
                     { new: true }
                 );
-
+                try {
+                    await updateElasticById({ type: 'product', id: ProductId })
+                    console.log(`✅ Successfully updated Elasticsearch for product: ${ProductId}`);
+                } catch (error) {
+                    console.error(`❌ Failed to update Elasticsearch for product ${ProductId}:`, error.message);
+                }
                 return res.status(200).json({
                     success: true,
                     message: "Videos added successfully",
@@ -1030,7 +1080,12 @@ module.exports = {
                     let filePath = path.join(__dirname, '..', '..', 'public', 'ProductVideo', vid);
                     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
                 }
-
+                try {
+                    await updateElasticById({ type: 'product', id: ProductId })
+                    console.log(`✅ Successfully updated Elasticsearch for product: ${ProductId}`);
+                } catch (error) {
+                    console.error(`❌ Failed to update Elasticsearch for product ${ProductId}:`, error.message);
+                }
                 return res.status(200).json({
                     success: true,
                     message: "Videos deleted successfully",
@@ -1124,7 +1179,12 @@ module.exports = {
                     }
 
                     await VariantProduct.deleteOne({ _id: variant._id });
-
+                    try {
+                        await deleteElasticById({ type: 'variant', id: variant._id })
+                        console.log(`✅ Successfully deleted Elasticsearch for variantProduct: ${variant._id}`);
+                    } catch (error) {
+                        console.error(`❌ Failed to delete Elasticsearch for variantProduct ${variant._id}:`, error.message);
+                    }
                     await Product.updateOne(
                         { _id: ProductId },
                         { $pull: { VariantProductIds: variant._id } }
@@ -1165,6 +1225,12 @@ module.exports = {
                         }
 
                         await VariantProduct.deleteOne({ _id: variant._id });
+                        try {
+                            await deleteElasticById({ type: 'variant', id: variant._id })
+                            console.log(`✅ Successfully deleted Elasticsearch for variantProduct: ${variant._id}`);
+                        } catch (error) {
+                            console.error(`❌ Failed to delete Elasticsearch for variantProduct ${variant._id}:`, error.message);
+                        }
                     }
                 }
 
@@ -1174,7 +1240,12 @@ module.exports = {
                 await ProductRating.deleteMany({ ProductId });
 
                 await Product.deleteOne({ _id: ProductId });
-
+                try {
+                    await deleteElasticById({ type: 'product', id: ProductId })
+                    console.log(`✅ Successfully deleted Elasticsearch for product: ${ProductId}`);
+                } catch (error) {
+                    console.error(`❌ Failed to delete Elasticsearch for product ${ProductId}:`, error.message);
+                }
                 return res.status(200).json({
                     success: true,
                     message: "✅ Product and all its variants deleted successfully"
@@ -1627,15 +1698,15 @@ module.exports = {
             let matchCondition = { companyId: validateObjectId(companyId, 'companyId') };
             if (isActive === undefined) {
                 isActive = true;
-                matchCondition = { isActive: true }
+                matchCondition.isActive = true
             } else if (isActive === "true") {
                 isActive = true;
-                matchCondition = { isActive: true }
+                matchCondition.isActive = true
             } else if (isActive === "false") {
                 isActive = false;
             } else {
                 isActive = true;
-                matchCondition = { isActive: true }
+                matchCondition.isActive = true
             }
             if (VariantProductIsActive === undefined) {
                 VariantProductIsActive = true;
@@ -1820,7 +1891,7 @@ module.exports = {
                         product.HeadCategory.some(head => regex.test(head.categoryName)))
                 );
             }
-           
+
             let AllRelatedData = {
                 allRelatedBrands: [],
                 allRelatedSubCategories: [],
@@ -2337,6 +2408,7 @@ module.exports = {
 
                 if (!variantProduct) continue;
                 if (Operation === "add") {
+
                     await VariantProduct.findByIdAndUpdate(variantProductId, {
                         $addToSet: { BatchIds: { $each: validBatchIds } }
                     });
@@ -2355,6 +2427,14 @@ module.exports = {
                     success: false
                 });
             }
+            for (let EachVariantId of VarianProductIds) {
+                try {
+                    await updateElasticById({ type: 'variantProduct', id: EachVariantId })
+                    console.log(`✅ Successfully updated Elasticsearch for variantProduct: ${EachVariantId}`);
+                } catch (error) {
+                    console.error(`❌ Failed to update Elasticsearch for variantProduct ${EachVariantId}:`, error.message);
+                }
+            }
 
             return res.status(200).json({
                 message: `Batches ${Operation === "add" ? "added to" : "removed from"} ${updatedCount} variant product(s) successfully`,
@@ -2371,61 +2451,61 @@ module.exports = {
             });
         }
     },
-    serchProduct:async(req,res)=>{
-  try {
-    const { q } = req.query;
-    if (!q || q.trim() === "") return res.json({ suggestions: [] });
+    serchProduct: async (req, res) => {
+        try {
+            const { q } = req.query;
+            if (!q || q.trim() === "") return res.json({ suggestions: [] });
 
-    const { body } = await client.search({
-      index: "products_search",
-      body: {
-        size: 10,
-        query: {
-          multi_match: {
-            query: q,
-            fields: [
-              "productName^3",
-              "variantProductName^2",
-              "brandName^2",
-              "headCategoryName",
-              "subCategoryName",
-              "variantValues",
-              "batchNames"
-            ],
-            fuzziness: "AUTO"
-          }
-        },
-        highlight: {
-          fields: {
-            productName: {},
-            variantProductName: {},
-            brandName: {},
-            headCategoryName: {},
-            subCategoryName: {},
-            variantValues: {},
-            batchNames: {}
-          }
+            const { body } = await client.search({
+                index: "products_search",
+                body: {
+                    size: 10,
+                    query: {
+                        multi_match: {
+                            query: q,
+                            fields: [
+                                "productName^3",
+                                "variantProductName^2",
+                                "brandName^2",
+                                "headCategoryName",
+                                "subCategoryName",
+                                "variantValues",
+                                "batchNames"
+                            ],
+                            fuzziness: "AUTO"
+                        }
+                    },
+                    highlight: {
+                        fields: {
+                            productName: {},
+                            variantProductName: {},
+                            brandName: {},
+                            headCategoryName: {},
+                            subCategoryName: {},
+                            variantValues: {},
+                            batchNames: {}
+                        }
+                    }
+                }
+            });
+
+            const suggestions = body.hits.hits.map(hit => ({
+                variantProductId: hit._source.variantProductId,
+                productId: hit._source.productId,
+                productName: hit._source.productName,
+                variantProductName: hit._source.variantProductName,
+                brandName: hit._source.brandName,
+                headCategoryName: hit._source.headCategoryName,
+                subCategoryName: hit._source.subCategoryName,
+                variantValues: hit._source.variantValues,
+                batchNames: hit._source.batchNames
+            }));
+
+            res.json({ suggestions });
+        } catch (err) {
+            console.error(err);
+            res.status(500).json({ error: err.message });
         }
-      }
-    });
-
-    const suggestions = body.hits.hits.map(hit => ({
-      variantProductId: hit._source.variantProductId,
-      productId: hit._source.productId,
-      productName: hit._source.productName,
-      variantProductName: hit._source.variantProductName,
-      brandName: hit._source.brandName,
-      headCategoryName: hit._source.headCategoryName,
-      subCategoryName: hit._source.subCategoryName,
-      variantValues: hit._source.variantValues,
-      batchNames: hit._source.batchNames
-    }));
-
-    res.json({ suggestions });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
-  }
-}
+    }
 
 };

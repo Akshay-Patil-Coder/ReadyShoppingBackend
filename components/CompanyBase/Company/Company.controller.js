@@ -19,6 +19,7 @@ const { ProductRating } = require('../../Shopping/ProductRating/ProductRating.mo
 const { User } = require('../../UserBase/User/User.model')
 const axios = require('axios');
 const DeletedCompanyModel = require('./DeletedCompany.model');
+const { deleteElasticByCompanyId, updateElasticById } = require('../../Shopping/ElasticSearch/elastic/CRUD.js')
 module.exports = {
     addcompanies: async (req, res) => {
         let { CompanyName, CompanyDomain, PredifinedDomain, Latitude, Longitude, Street, City, State, Country, PostalCode, Email, Phone, PanCardNo, GstNo, Contact_person_name, Password } = req.body;
@@ -451,32 +452,6 @@ module.exports = {
         }
     },
 
-
-
-    deletecompanies: async (req, res) => {
-        try {
-            let existingCompany = await Company.findOne({ _id: req.params._id })
-            if (existingCompany && existingCompany?.CompanyLogo) {
-                let oldImagePath = path.join(__dirname, '..', '..', 'public', 'CompanyLogos', existingCompany.CompanyLogo);
-                if (fs.existsSync(oldImagePath)) {
-                    fs.unlinkSync(oldImagePath);
-                }
-            }
-            let data = await Company.deleteOne({ _id: req.params._id })
-            res.status(200).send({
-                success: true,
-                message: "Company successfully deleted",
-                data: data
-            });
-        } catch (error) {
-            console.log("error", error)
-            res.status(500).send({
-                success: false,
-                message: "Failed to add company",
-                error: error.message
-            });
-        }
-    },
     addBankDetailOfCompany: async (req, res) => {
         try {
             let { companyId, IFSC, AccountNumber, BankName, BranchName, MICR, Address, BankState } = req.body;
@@ -1135,6 +1110,22 @@ module.exports = {
                     isActiveBy: 'Company'
                 }
             })
+            if (isActive == false) {
+                try {
+                    await deleteElasticByCompanyId({ companyId: companyId })
+                    console.log(`✅ Successfully deleted Elasticsearch by company: ${companyId}`);
+                } catch (error) {
+                    console.error(`❌ Failed to delete Elasticsearch by company ${companyId}:`, error.message);
+                }
+            }
+            else if (isActive == true) {
+                try {
+                    await updateElasticById({ type: 'company', id: companyId })
+                    console.log(`✅ Successfully added Elasticsearch by company: ${companyId}`);
+                } catch (error) {
+                    console.error(`❌ Failed to added Elasticsearch by company ${companyId}:`, error.message);
+                }
+            }
             return res.status(200).json({
                 success: true,
                 data: UpdateCompany,
@@ -1291,7 +1282,12 @@ module.exports = {
             } catch (err) {
                 console.error("❌ Company delete error:", err.message);
             }
-
+            try {
+                await deleteElasticByCompanyId({ companyId: companyId })
+                console.log(`✅ Successfully deleted Elasticsearch by company: ${companyId}`);
+            } catch (error) {
+                console.error(`❌ Failed to delete Elasticsearch by company ${companyId}:`, error.message);
+            }
             if (deletedCompany) {
                 try {
                     const DeletedCompanyData = {
