@@ -7,7 +7,7 @@ const { brandmodel } = require('../ProductsBrand/ProductsBrand.model')
 const { Variant } = require('../Variants/Variants.model')
 const BannerModel = require('../ShoppingBanners/ShoppingBanners.model')
 const { ProductService } = require('../ProductServices/ProductServices.model')
-const { updateElasticById, deleteElasticById,syncElasticByStatus } = require('../ElasticSearch/elastic/CRUD.js')
+const { updateElasticById, deleteElasticById, deleteElasticVariantByProductId } = require('../ElasticSearch/elastic/CRUD.js')
 const { default: mongoose } = require("mongoose");
 
 module.exports = {
@@ -496,10 +496,25 @@ module.exports = {
         }
     },
 
-   
     ToggleStatusOfCategory: async (req, res) => {
+        const toggleElastic = ({ type, id, isActive }) => {
+            if (!type || !id) return Promise.resolve();
+
+            return isActive
+                ? updateElasticById({ type, id })
+                : deleteElasticById({ type, id });
+        };
+        const toggleElasticForVariant = ({ type, id, isActive }) => {
+            if (!type || !id) return Promise.resolve();
+
+            return isActive
+                ? updateElasticById({ type, id })
+                : deleteElasticVariantByProductId({ ProductId: id });
+        };
         try {
             const { categoryId, companyId, isActive } = req.query;
+            let esTasks = []
+
 
             if (!categoryId || !companyId) {
                 return res.status(400).json({
@@ -555,19 +570,17 @@ module.exports = {
                 const isRoot = cat._id.toString() === rootCategoryId;
                 const nextActiveBy = isRoot ? "Self" : "Parent";
 
-                if (isActive === false) {
-                    if (cat.isActive !== false) {
-                        await dynamicCategoriesModel.findByIdAndUpdate(cat._id, {
-                            $set: { isActive: false, isActiveBy: nextActiveBy }
-                        });
-
-                        try {
-                            await deleteElasticById({ type: "category", id: cat._id });
-                            console.log(`✅ Deleted ES category: ${cat._id}`);
-                        } catch (err) {
-                            console.error(`❌ ES delete failed category ${cat._id}`, err.message);
-                        }
-                    }
+                if (isActive === false && cat.isActive !== false) {
+                    await dynamicCategoriesModel.findByIdAndUpdate(cat._id, {
+                        $set: { isActive: false, isActiveBy: nextActiveBy }
+                    });
+                    esTasks.push(
+                        toggleElastic({
+                            type: "category",
+                            id: cat._id,
+                            isActive: false
+                        })
+                    );
                 }
 
                 if (isActive === true) {
@@ -579,12 +592,13 @@ module.exports = {
                             $set: { isActive: true, isActiveBy: nextActiveBy }
                         });
 
-                        try {
-                            await updateElasticById({ type: "category", id: cat._id });
-                            console.log(`✅ Added ES category: ${cat._id}`);
-                        } catch (err) {
-                            console.error(`❌ ES add failed category ${cat._id}`, err.message);
-                        }
+                        esTasks.push(
+                            toggleElastic({
+                                type: "category",
+                                id: cat._id,
+                                isActive: true
+                            })
+                        )
                     }
 
                     if (!cat.isActiveBy) {
@@ -592,12 +606,13 @@ module.exports = {
                             $set: { isActive: true, isActiveBy: nextActiveBy }
                         });
 
-                        try {
-                            await updateElasticById({ type: "category", id: cat._id });
-                            console.log(`✅ Added ES category: ${cat._id}`);
-                        } catch (err) {
-                            console.error(`❌ ES add failed category ${cat._id}`, err.message);
-                        }
+                        esTasks.push(
+                            toggleElastic({
+                                type: "category",
+                                id: cat._id,
+                                isActive: true
+                            })
+                        )
                     }
                 }
             }
@@ -612,46 +627,44 @@ module.exports = {
                         $set: { isActive: false, isActiveBy: "Category" }
                     });
 
-                    try {
-                        await deleteElasticById({ type: "brand", id: brand._id });
-                        console.log(`✅ Deleted ES brand: ${brand._id}`);
-                    } catch (err) {
-                        console.error(`❌ ES delete failed brand ${brand._id}`, err.message);
-                    }
+                    esTasks.push(
+                        toggleElastic({
+                            type: "brand",
+                            id: brand._id,
+                            isActive: false
+                        })
+                    )
                 }
-
                 else if (brand.isActiveBy === "Category" && isActive) {
                     await brandmodel.findByIdAndUpdate(brand._id, {
                         $set: { isActive: true, isActiveBy: "Category" }
                     });
 
-                    try {
-                        await updateElasticById({ type: "brand", id: brand._id });
-                        console.log(`✅ Added ES brand: ${brand._id}`);
-                    } catch (err) {
-                        console.error(`❌ ES add failed brand ${brand._id}`, err.message);
-                    }
+                    esTasks.push(
+                        toggleElastic({
+                            type: "brand",
+                            id: brand._id,
+                            isActive: true
+                        })
+                    )
                 }
-
                 else if (!brand.isActiveBy) {
                     await brandmodel.findByIdAndUpdate(brand._id, {
                         $set: { isActive, isActiveBy: "Category" }
                     });
 
-                    try {
-                        isActive
-                            ? await updateElasticById({ type: "brand", id: brand._id })
-                            : await deleteElasticById({ type: "brand", id: brand._id });
-                    } catch (err) {
-                        console.error(`❌ ES brand failed ${brand._id}`, err.message);
-                    }
+                    esTasks.push(
+                        toggleElastic({
+                            type: "brand",
+                            id: brand._id,
+                            isActive
+                        })
+                    )
                 }
             }
-
             const banners = await BannerModel.find({
                 SubCategoryId: { $in: categoryIds }
             });
-
             for (const banner of banners) {
                 if (banner.isActiveBy === "Self" && banner.isActive && !isActive) {
                     await BannerModel.findByIdAndUpdate(banner._id, {
@@ -669,14 +682,12 @@ module.exports = {
                     });
                 }
             }
-
             const variants = await Variant.find({
                 $or: [
                     { HeadCategoryId: { $in: categoryIds } },
                     { SubCategoryId: { $in: categoryIds } }
                 ]
             });
-
             for (const variant of variants) {
                 if (variant.isActiveBy === "Self" && variant.isActive && !isActive) {
                     await Variant.findByIdAndUpdate(variant._id, {
@@ -694,7 +705,6 @@ module.exports = {
                     });
                 }
             }
-
             const services = await ProductService.find({
                 $or: [
                     { HeadCategoryId: { $in: categoryIds } },
@@ -733,46 +743,60 @@ module.exports = {
                         $set: { isActive: false, isActiveBy: "Category" }
                     });
 
-                    try {
-                        await deleteElasticById({ type: "product", id: product._id });
-                    } catch (err){
-                        console.error(`❌ ES product failed ${product._id}`, err.message);
-                     }
+                    esTasks.push(
+                        toggleElastic({
+                            type: "product",
+                            id: product._id,
+                            isActive: false
+                        })
+                    )
                 }
-
                 else if (product.isActiveBy === "Category" && isActive) {
                     await Product.findByIdAndUpdate(product._id, {
                         $set: { isActive: true, isActiveBy: "Category" }
                     });
 
-                    try {
-                        await updateElasticById({ type: 'product', id: product._id })
-                        console.log(`✅ Successfully added Elasticsearch for product: ${product._id}`);
-                    } catch (error) {
-                        console.error(`❌ Failed to added Elasticsearch for product ${product._id}:`, error.message);
-                    }
+                    esTasks.push(
+                        toggleElastic({
+                            type: "product",
+                            id: product._id,
+                            isActive: true
+                        })
+                    )
                 }
-
                 else if (!product.isActiveBy) {
                     await Product.findByIdAndUpdate(product._id, {
                         $set: { isActive, isActiveBy: "Category" }
                     });
 
-                    try {
-                        isActive
-                            ? await updateElasticById({ type: "product", id: product._id })
-                            : await deleteElasticById({ type: "product", id: product._id });
-                    } catch (error) { 
-                        console.error(`❌ ES product failed ${product._id}`, error.message);
-                    }
+                    esTasks.push(
+                        toggleElastic({
+                            type: "product",
+                            id: product._id,
+                            isActive
+                        })
+                    )
                 }
 
                 await VariantProduct.updateMany(
                     { ProductId: product._id },
                     { $set: { isActive, isActiveBy: "Category" } }
                 );
+                esTasks.push(
+                    toggleElasticForVariant({
+                        type: "product",
+                        id: product._id,
+                        isActive
+                    })
+                )
             }
+            const esResults = await Promise.allSettled(esTasks);
 
+            const failed = esResults.filter(r => r.status === "rejected");
+
+            if (failed.length) {
+                console.error("❌ Some ES operations failed:", failed.length);
+            }
             return res.status(200).json({
                 success: true,
                 message: "Category status updated successfully",

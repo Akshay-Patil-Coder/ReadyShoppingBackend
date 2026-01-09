@@ -8,7 +8,7 @@ const path = require('path');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const csvParser = require('csv-parser');
 const { Wishlist } = require('../WishList/WishList.model');
-const { updateElasticById, deleteElasticById } = require('../ElasticSearch/elastic/CRUD');
+const { updateElasticById, deleteElasticById, deleteElasticVariantByProductId } = require('../ElasticSearch/elastic/CRUD');
 
 
 module.exports = {
@@ -1269,6 +1269,20 @@ module.exports = {
 
 
     ToggleProductOrVariants: async (req, res) => {
+        const toggleElastic = ({ type, id, isActive }) => {
+            if (!type || !id) return Promise.resolve();
+
+            return isActive
+                ? updateElasticById({ type, id })
+                : deleteElasticById({ type, id });
+        };
+        const toggleElasticForVariant = ({ type, id, isActive }) => {
+            if (!type || !id) return Promise.resolve();
+
+            return isActive
+                ? updateElasticById({ type, id })
+                : deleteElasticVariantByProductId({ ProductId: id });
+        };
         try {
             let {
                 ProductId,
@@ -1277,7 +1291,7 @@ module.exports = {
                 companyId,
                 isActive
             } = req.body;
-
+            let esTasks = [];
             if (req.user.companyId) companyId = req.user.companyId;
 
             if (!ProductId || !companyId || typeof isActive !== "boolean" || !toggleType) {
@@ -1315,7 +1329,13 @@ module.exports = {
                         }
                     }
                 );
-
+                esTasks.push(
+                    toggleElasticForVariant({
+                        type: "product",
+                        id: ProductId,
+                        isActive
+                    })
+                )
                 return res.status(200).json({
                     success: true,
                     message: `✅ Selected variant products ${isActive ? "activated" : "deactivated"} successfully`
@@ -1334,7 +1354,13 @@ module.exports = {
                         }
                     }
                 );
-
+                esTasks.push(
+                    toggleElastic({
+                        type: "product",
+                        id: ProductId,
+                        isActive: isActive
+                    })
+                );
                 if (Array.isArray(product.VariantProductIds) && product.VariantProductIds.length > 0) {
                     await VariantProduct.updateMany(
                         { _id: { $in: product.VariantProductIds }, companyId },
@@ -1346,7 +1372,19 @@ module.exports = {
                         }
                     );
                 }
+                esTasks.push(
+                    toggleElasticForVariant({
+                        type: "product",
+                        id: ProductId,
+                        isActive
+                    })
+                )
+                const esResults = await Promise.allSettled(esTasks);
+                const failed = esResults.filter(r => r.status === "rejected");
 
+                if (failed.length) {
+                    console.error("❌ Some ES operations failed:", failed.length);
+                }
                 return res.status(200).json({
                     success: true,
                     message: `✅ Product and all its variants ${isActive ? "activated" : "deactivated"} successfully`

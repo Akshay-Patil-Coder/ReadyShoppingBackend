@@ -168,19 +168,19 @@ async function updateElasticById({ type, id }) {
 
         switch (type) {
             case 'category':
-                matchCondition = { $or: [{ HeadCategoryId: mongoose.Types.ObjectId(id) }, { SubCategoryId: mongoose.Types.ObjectId(id) }] };
+                matchCondition = { $or: [{ HeadCategoryId:new mongoose.Types.ObjectId(String(id)) }, { SubCategoryId:new mongoose.Types.ObjectId(String(id)) }] };
                 break;
             case 'brand':
-                matchCondition = { BrandId: mongoose.Types.ObjectId(id) };
+                matchCondition = { BrandId: new mongoose.Types.ObjectId(String(id)) };
                 break;
             case 'product':
-                matchCondition = { _id: mongoose.Types.ObjectId(id) };
+                matchCondition = { _id:new mongoose.Types.ObjectId(String(id)) };
                 break;
             case 'variantProduct':
-                matchCondition = { VariantProductIds: mongoose.Types.ObjectId(id) };
+                matchCondition = { VariantProductIds: new mongoose.Types.ObjectId(String(id)) };
                 break;
             case 'company':
-                matchCondition = { companyId: mongoose.Types.ObjectId(id) };
+                matchCondition = { companyId: new mongoose.Types.ObjectId(String(id)) };
                 break;
             default:
                 throw new Error('Invalid type provided');
@@ -293,17 +293,42 @@ async function deleteElasticByCompanyId({ companyId }) {
         throw err;
     }
 }
-async function syncElasticByStatus({ type, id, isActive }) {
+async function deleteElasticVariantByProductId({ productId }) {
     try {
-        if (isActive) {
-            await updateElasticById({ type, id });
-        } else {
-            await deleteElasticById({ type, id });
-        }
+        if (!productId) return;
+
+        const response = await client.deleteByQuery({
+            index: 'search_suggestions',
+            body: {
+                query: {
+                    bool: {
+                        must: [
+                            { term: { "ids.productId": productId } },
+                            { term: { type: "variant" } }
+                        ]
+                    }
+                }
+            }
+        });
+
+        console.log(
+            `🗑️ Elasticsearch deleted ${response.deleted || 0} documents for productId: ${productId}`
+        );
+
     } catch (err) {
-        console.error(`❌ ES sync failed [${type}] ${id}`, err.message);
+        if (err.meta?.statusCode === 404) {
+            console.warn(`⚠️ No documents found for productId: ${productId}`);
+            return;
+        }
+
+        console.error(
+            `❌ deleteElasticVariantByProductId failed for productId: ${productId}`,
+            err
+        );
+        throw err;
     }
 }
 
 
-module.exports = { updateElasticById, deleteElasticById, deleteElasticByCompanyId,syncElasticByStatus};
+
+module.exports = { updateElasticById, deleteElasticById, deleteElasticByCompanyId, deleteElasticVariantByProductId };
