@@ -1,0 +1,343 @@
+const { ObjectId } = require('mongodb');
+const { ProductService } = require('./ProductServices.model');
+const mongoose = require('mongoose');
+const fs = require('fs');
+const path = require('path');
+
+module.exports = {
+    addProductService: async (req, res) => {
+        let cleanupFiles = (files) => {
+            if (!files) return;
+            files.forEach(file => {
+                let filePath = path.join(__dirname, '..', '..', 'public', 'ProductServiceImage', file.filename);
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            });
+        };
+
+        try {
+            let { companyId, HeadCategoryId, SubCategoryId, ServiceName, Description } = req.body;
+            if (req.user.companyId) companyId = req.user.companyId
+
+            if (!companyId || !HeadCategoryId || !SubCategoryId || !ServiceName) {
+                cleanupFiles(req.files);
+                return res.status(400).json({
+                    success: false,
+                    message: 'Please fill in all required fields'
+                });
+            }
+
+            let ServiceImages = [];
+            if (req.files?.length) {
+                ServiceImages = req.files.map(file => file.filename);
+            }
+
+            let ProductServiceData = {
+                companyId,
+                HeadCategoryId,
+                SubCategoryId,
+                ServiceName,
+                ...(Description && { Description }),
+                ...(ServiceImages.length && { ServiceImages })
+            };
+
+            let newProductService = new ProductService(ProductServiceData);
+            let result = await newProductService.save();
+
+            if (!result) {
+                cleanupFiles(req.files);
+                return res.status(400).json({
+                    success: false,
+                    message: 'Product Service not added'
+                });
+            }
+
+            return res.status(201).json({
+                success: true,
+                message: 'Product Service added successfully',
+                data: result
+            });
+
+        } catch (error) {
+            console.error("ProductServiceAddError:", error);
+            cleanupFiles(req.files);
+            return res.status(500).json({
+                success: false,
+                message: "Internal Server Error",
+                error: error.message
+            });
+        }
+    },
+
+
+    getProductServicesData: async (matchCondition) => {
+        return await ProductService.aggregate([
+            { $match: matchCondition },
+            {
+                $lookup: {
+                    from: 'categgggories',
+                    localField: 'HeadCategoryId',
+                    foreignField: '_id',
+                    as: 'HeadCategory',
+                },
+            },
+            {
+                $lookup: {
+                    from: 'categgggories',
+                    localField: 'SubCategoryId',
+                    foreignField: '_id',
+                    as: 'SubCategories',
+                },
+            },
+        ]);
+    },
+
+    getProductServicesById: async (req, res) => {
+        try {
+            let { HeadCategoryId, SubCategoryId, companyId, ProductServiceId, ServiceName } = req.query;
+
+            if (!companyId) {
+                return res.status(400).json({ message: 'companyId is required', success: false });
+            }
+
+            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
+
+            if (HeadCategoryId) {
+                if (!mongoose.Types.ObjectId.isValid(HeadCategoryId)) {
+                    return res.status(400).json({ message: 'Invalid HeadCategoryId format', success: false });
+                }
+                matchCondition.HeadCategoryId = mongoose.Types.ObjectId.createFromHexString(HeadCategoryId);
+            }
+
+            if (SubCategoryId) {
+                if (!mongoose.Types.ObjectId.isValid(SubCategoryId)) {
+                    return res.status(400).json({ message: 'Invalid SubCategoryId format', success: false });
+                }
+                matchCondition.SubCategoryId = mongoose.Types.ObjectId.createFromHexString(SubCategoryId);
+            }
+
+            if (ProductServiceId) {
+                if (!mongoose.Types.ObjectId.isValid(ProductServiceId)) {
+                    return res.status(400).json({ message: 'Invalid ProductServiceId format', success: false });
+                }
+                matchCondition._id = mongoose.Types.ObjectId.createFromHexString(ProductServiceId);
+            }
+
+            if (ServiceName) matchCondition.ServiceName = { $regex: ServiceName, $options: 'i' };
+
+            let data = await module.exports.getProductServicesData(matchCondition);
+
+            if (!data || data.length === 0) {
+                return res.status(404).json({ message: 'No Product Service found for this criteria', success: false });
+            }
+
+            return res.status(200).json({ data, success: true, message: 'Product Service fetched successfully' });
+
+        } catch (error) {
+            console.error("getProductServiceByIdError:", error);
+            return res.status(500).json({ message: 'Internal Server Error', error: error.message, success: false });
+        }
+    },
+    updateProductsService: async (req, res) => {
+        let cleanupFiles = (files) => {
+            if (!files) return;
+            files.forEach(file => {
+                let filePath = path.join(__dirname, '..', '..', 'public', 'ProductServiceImage', file.filename);
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            });
+        };
+
+        try {
+            let { ServiceName, Description, ServiceProductId } = req.body;
+            let { companyId } = req.query;
+            if (req.user.companyId) companyId = req.user.companyId
+
+            if (!ServiceProductId || !ServiceName || !companyId) {
+                cleanupFiles(req.files);
+                return res.status(400).json({ message: 'Please insert valid data', success: false });
+            }
+
+            let updateData = { $set: { ServiceName } };
+            if (Description) updateData.$set.Description = Description;
+
+            if (req.files?.length) {
+                let serviceImages = req.files.map(file => file.filename);
+                updateData.$push = { ServiceImages: { $each: serviceImages } };
+            }
+
+            let updatedResult = await ProductService.findOneAndUpdate(
+                { _id: ServiceProductId, companyId },
+                updateData,
+                { new: true }
+            );
+
+            if (!updatedResult) {
+                cleanupFiles(req.files);
+                return res.status(400).json({ message: 'Product Service not updated', success: false });
+            }
+
+            return res.status(200).json({ data: updatedResult, success: true, message: 'Updated successfully' });
+
+        } catch (error) {
+            cleanupFiles(req.files);
+            console.error('UpdateServiceProductError:', error)
+            return res.status(500).json({ error: error.message, success: false, message: 'Internal Server Error' });
+        }
+    },
+    deleteProductServiceImage: async (req, res) => {
+        try {
+            let { ServiceImages, companyId } = req.body;
+            let { id } = req.params;
+            if (req.user.companyId) companyId = req.user.companyId
+
+            if (!companyId) {
+                return res.status(400).json({ message: 'CompanyN Not Found', success: false })
+            }
+            if (!ServiceImages || !id) {
+                return res.status(400).json({ message: "Product Service ID and image(s) are required", success: false });
+            }
+
+            let imagesToDelete = Array.isArray(ServiceImages) ? ServiceImages : [ServiceImages];
+
+            let serviceProduct = await ProductService.findById(id);
+            if (!serviceProduct) {
+                return res.status(404).json({ message: "Product Service not found", success: false });
+            }
+
+            let updatedService = await ProductService.findOneAndUpdate(
+                { _id: id, companyId },
+                { $pull: { ServiceImages: { $in: imagesToDelete } } },
+                { new: true }
+            );
+
+            if (!updatedService) {
+                return res.status(400).json({ message: "Product Service image(s) cannot be deleted", success: false });
+            }
+
+            imagesToDelete.forEach(file => {
+                let imagePath = path.join(__dirname, '..', '..', 'public', 'ProductServiceImage', file);
+                if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
+            });
+
+            return res.status(200).json({ message: "Product Service image(s) deleted successfully", success: true, data: updatedService });
+
+        } catch (error) {
+            console.error('ProductServiceImageDeletingError:', error);
+            return res.status(500).json({ error: error.message, success: false, message: "Internal Server Error" });
+        }
+    },
+
+
+    toggleProductService: async (req, res) => {
+        try {
+            let { serviceId, isActive, companyId } = req.body;
+            if (req.user.companyId) companyId = req.user.companyId;
+
+            if (!serviceId || typeof isActive !== "boolean" || !companyId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "ServiceId,companyId and valid isActive required"
+                });
+            }
+
+            const service = await ProductService.findOne({
+                _id: serviceId,
+                companyId
+            });
+
+            if (!service) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Product service not found"
+                });
+            }
+
+            await ProductService.updateOne(
+                { _id: serviceId },
+                {
+                    $set: {
+                        isActive,
+                        isActiveBy: "Self"
+                    }
+                }
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: `Product service ${isActive ? "activated" : "deactivated"} successfully`
+            });
+
+        } catch (error) {
+            console.error("toggleProductService error:", error);
+            res.status(500).json({
+                success: false,
+                message: "Something went wrong",
+                error: error.message
+            });
+        }
+    },
+    deleteProductService: async (req, res) => {
+        try {
+            let { serviceId, companyId } = req.query;
+            if (req.user.companyId) companyId = req.user.companyId;
+
+            if (!serviceId || !companyId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "ServiceId and CompanyId required"
+                });
+            }
+
+            const service = await ProductService.findOne({
+                _id: serviceId,
+                companyId
+            });
+
+            if (!service) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Product service not found"
+                });
+            }
+
+            const deleteFiles = async (files, folder) => {
+                for (const file of files) {
+                    const filePath = path.join(
+                        __dirname,
+                        "..",
+                        "..",
+                        "public",
+                        folder,
+                        file
+                    );
+                    try {
+                        await fs.promises.unlink(filePath);
+                    } catch (err) {
+                        if (err.code !== "ENOENT") {
+                            console.error(`File delete error: ${filePath}`, err.message);
+                        }
+                    }
+                }
+            };
+
+            if (Array.isArray(service.ServiceImages) && service.ServiceImages.length) {
+                await deleteFiles(service.ServiceImages, "ProductServiceImage");
+            }
+
+            await ProductService.deleteOne({ _id: serviceId });
+
+            return res.status(200).json({
+                success: true,
+                message: "Product service deleted successfully"
+            });
+
+        } catch (error) {
+            console.error("deleteProductService error:", error);
+            res.status(500).json({
+                success: false,
+                message: "Something went wrong",
+                error: error.message
+            });
+        }
+    },
+
+};

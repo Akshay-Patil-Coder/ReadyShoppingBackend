@@ -1,0 +1,63 @@
+const mongoose = require('mongoose');
+
+const paymentSchema = new mongoose.Schema(
+  {
+    tempTxnId: { type: String },
+    token: { type: String },
+    customerAccount: { type: String },
+    orderId: { type: String },
+    dateObj: { type: String },
+    amount: { type: String },
+    transactionType: {
+      type: String,
+      enum: [
+        "appointment",
+        "diagnostic",
+        "home-appointment",
+        "consultancy",
+        "pharmacy",
+        "nursing",
+        "wallet",
+        "package",
+        "package-home",
+        "offernew",
+        "offernew-home",
+        "package-hospital",
+        "offernew-hospital",
+      ],
+    },
+    mmp_txn: { type: String },
+    verified: { type: String },
+    bid: { type: String },
+    reconstatus: { type: String },
+    sdt: { type: String },
+    mer_txn: { type: String },
+    amt: { type: Number },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    bankId: { type: String },
+    prod: { type: String },
+    date: { type: String },
+    bank_txn: { type: String },
+    f_code: { type: String, default: "" },
+    clientcode: { type: String },
+    bank_name: { type: String },
+    merchant_id: { type: String },
+    udf9: { type: String },
+    discriminator: { type: String },
+    surcharge: { type: Number },
+    CardNumber: { type: String },
+    udf1: { type: String },
+    udf2: { type: String },
+    udf3: { type: String },
+    udf4: { type: String },
+    udf5: { type: String },
+    udf6: { type: String },
+    status: {
+      type: String,
+      enum: ["Success", "Failed", "Cancelled", "Pending"],
+    },
+  },
+  { timestamps: true }
+);
+
+module.exports = mongoose.model("Payment", paymentSchema);

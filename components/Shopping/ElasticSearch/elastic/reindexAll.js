@@ -1,0 +1,246 @@
+const mongoose = require('mongoose');
+const client = require('./client');
+
+const {
+  indexBrand,
+  indexCategory,
+  indexProduct,
+  indexVariant
+} = require('./indexer');
+
+const { Product } = require('../../VariantsProducts/VariantsProducts.model');
+
+
+mongoose.connect(process.env.MONGO_URL, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+});
+
+async function getProductData(matchCondition) {
+  return Product.aggregate([
+    { $match: matchCondition },
+
+    {
+      $lookup: {
+        from: 'categgggories',
+        let: { headId: '$HeadCategoryId' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$headId'] } } },
+          { $project: { categoryName: 1, imageName: 1, isActive: 1 } }
+        ],
+        as: 'HeadCategory'
+      }
+    },
+    {
+      $lookup: {
+        from: 'categgggories',
+        let: { subId: '$SubCategoryId' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$subId'] } } },
+          { $project: { categoryName: 1, imageName: 1, isActive: 1 } }
+        ],
+        as: 'SubCategories'
+      }
+    },
+
+    {
+      $lookup: {
+        from: 'brands',
+        let: { brandId: '$BrandId' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$brandId'] } } },
+          { $project: { BrandName: 1, BrandImage: 1, isActive: 1 } }
+        ],
+        as: 'Brands'
+      }
+    },
+
+    {
+      $lookup: {
+        from: 'variantproducts',
+        localField: 'VariantProductIds',
+        foreignField: '_id',
+        as: 'VariantProducts'
+      }
+    },
+
+    {
+      $lookup: {
+        from: 'variants',
+        localField: 'VariantProducts.VariantFields.VariantId',
+        foreignField: '_id',
+        as: 'VariantNames'
+      }
+    },
+
+    {
+      $lookup: {
+        from: 'batches',
+        localField: 'VariantProducts.BatchIds',
+        foreignField: '_id',
+        as: 'Batches'
+      }
+    },
+
+    {
+      $addFields: {
+        VariantProducts: {
+          $map: {
+            input: '$VariantProducts',
+            as: 'vp',
+            in: {
+              $mergeObjects: [
+                '$$vp',
+                {
+                  VariantFields: {
+                    $map: {
+                      input: '$$vp.VariantFields',
+                      as: 'vf',
+                      in: {
+                        VariantName: {
+                          $arrayElemAt: [
+                            {
+                              $map: {
+                                input: {
+                                  $filter: {
+                                    input: '$VariantNames',
+                                    cond: { $eq: ['$$this._id', '$$vf.VariantId'] }
+                                  }
+                                },
+                                as: 'vn',
+                                in: '$$vn.VariantName'
+                              }
+                            },
+                            0
+                          ]
+                        },
+                        VariantValue: '$$vf.VariantValue',
+                        Extension: {
+                          $arrayElemAt: [
+                            {
+                              $map: {
+                                input: {
+                                  $filter: {
+                                    input: '$VariantNames',
+                                    cond: { $eq: ['$$this._id', '$$vf.VariantId'] }
+                                  }
+                                },
+                                as: 'vn',
+                                in: '$$vn.Extension'
+                              }
+                            },
+                            0
+                          ]
+                        }
+                      }
+                    }
+                  },
+
+                  /* ✅ Batch Info Added */
+                  BatchesInfo: {
+                    $map: {
+                      input: {
+                        $filter: {
+                          input: '$Batches',
+                          cond: { $in: ['$$this._id', { $ifNull: ['$$vp.BatchIds', []] }] }
+                        }
+                      },
+                      as: 'b',
+                      in: {
+                        _id: '$$b._id',
+                        BatchName: '$$b.BatchName',
+                        BatchLogo: '$$b.BatchLogo'
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+
+    { $project: { VariantNames: 0, Batches: 0 } }
+  ]);
+}
+
+
+async function clearElasticIndex() {
+  const exists = await client.indices.exists({ index: 'search_suggestions' });
+
+  if (exists) {
+    await client.deleteByQuery({
+      index: 'search_suggestions',
+      body: { query: { match_all: {} } }
+    });
+    console.log('🗑 Old Elastic data deleted');
+  }
+}
+
+
+async function reindexAll() {
+  console.log('🚀 Reindex started...');
+
+  await clearElasticIndex();
+
+  const products = await getProductData({ isActive: true });
+
+  for (let product of products) {
+    const companyId = product.companyId;
+
+    const HeadCategoryData = product.HeadCategory?.[0];
+    const SubCategoryData = product.SubCategories?.[0];
+    const BrandData = product.Brands?.[0];
+    const VariantProductData = product.VariantProducts || [];
+
+    if (BrandData?.isActive) {
+      await indexBrand({ ...BrandData, companyId });
+    }
+
+    if (HeadCategoryData?.isActive) {
+      await indexCategory({
+        ...HeadCategoryData,
+        companyId,
+        level: 1
+      });
+    }
+
+    if (SubCategoryData?.isActive) {
+      await indexCategory({
+        ...SubCategoryData,
+        companyId,
+        level: 2,
+        ParentId: product.HeadCategoryId
+      });
+    }
+
+    const enrichedProduct = {
+      ...product,
+      BrandName: BrandData?.BrandName,
+      categoryName:
+        SubCategoryData?.categoryName || HeadCategoryData?.categoryName,
+      headCategoryName: HeadCategoryData?.categoryName
+    };
+
+    if (product.isActive) {
+      await indexProduct(enrichedProduct);
+    }
+
+    for (let variant of VariantProductData) {
+      if (variant.isActive) {
+        await indexVariant(variant, enrichedProduct);
+      }
+    }
+  }
+
+
+  console.log(`✅ Products indexed: ${products.length}`);
+  console.log('🎉 Reindex completed');
+  process.exit(0);
+}
+
+reindexAll().catch(err => {
+  console.error('❌ Reindex failed:', err);
+  process.exit(1);
+});
