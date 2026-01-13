@@ -67,8 +67,23 @@ exports.indexProduct = async (product) => {
     }
   });
 };
+exports.indexWishlist = async ({ companyId, userId, variantProductIds }) => {
+  if (!companyId || !userId) return;
 
-// ---------- VARIANT ----------
+  await client.index({
+    index: "search_suggestions",
+    id: `wishlist_${companyId}_${userId}`,
+    document: {
+      companyId,
+      userId,
+      type: "wishlist",
+      variantProductIds: variantProductIds.map(String),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+  });
+};
+
 const popularityScore = (v) =>
   (v.views || 0) * 0.2 +
   (v.clicks || 0) * 0.5 +
@@ -102,10 +117,16 @@ exports.indexVariant = async (variant, product) => {
       type: 'variant',
       label: variant.VariantProductName,
       searchText,
-      variantFields: variantFieldsText,
+      variantFields: variant.VariantFields || [],
       price: variant.Price || 0,
       image: variant.VariantProductImage?.[0],
       batchInfo: variant.BatchesInfo || [],
+      ratingStar: product?.RatingStar || 0,
+      totalReviews: product?.TotalReviews || 0,
+      offerPercentage: variant?.OfferPercentage || 0,
+      aboutProduct: variant.AboutProduct,
+      inventoryBaseStock: variant.InventoryBaseStock,
+      createdAt: variant.createdAt,
       popularity: {
         views: variant.views || 0,
         clicks: variant.clicks || 0,

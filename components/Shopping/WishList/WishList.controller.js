@@ -10,6 +10,7 @@ const https = require("https");
 const crypto = require('crypto');
 const cron = require('node-cron');
 const { brandmodel } = require('../ProductsBrand/ProductsBrand.model')
+const { saveWishlist } = require('../ElasticSearch/elastic/CRUD.js')
 module.exports = {
 
     addWishlist: async (req, res) => {
@@ -500,7 +501,12 @@ module.exports = {
 
                 await wishlist.save();
             }
-
+            try {
+                await saveWishlist({ companyId: companyId, userId: UserId })
+                console.log(`✅ Successfully updated Wishlist Es for user: ${UserId}`);
+            } catch (error) {
+                console.error(`❌ Failed to update Wishlist Es for user ${UserId}:`, error.message);
+            }
             return res.status(200).json({
                 success: true,
                 message: "Wishlist validated successfully"
@@ -1397,7 +1403,12 @@ module.exports = {
                     success: false
                 });
             }
-
+            try {
+                await saveWishlist({ companyId: companyId, userId: UserId })
+                console.log(`✅ Successfully updated Wishlist Es for user: ${UserId}`);
+            } catch (error) {
+                console.error(`❌ Failed to update Wishlist Es for user ${UserId}:`, error.message);
+            }
             return res.status(200).json({
                 message: "Wishlist deleted successfully",
                 success: true,

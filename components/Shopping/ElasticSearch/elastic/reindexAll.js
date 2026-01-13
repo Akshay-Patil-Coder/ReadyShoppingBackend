@@ -5,16 +5,15 @@ const {
   indexBrand,
   indexCategory,
   indexProduct,
-  indexVariant
+  indexVariant,
+  indexWishlist
 } = require('./indexer');
 
 const { Product } = require('../../VariantsProducts/VariantsProducts.model');
+const { Wishlist } = require('../../WishList/WishList.model')
 
 
-mongoose.connect(process.env.MONGO_URL, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-});
+mongoose.connect(process.env.MONGO_URL);
 
 async function getProductData(matchCondition) {
   return Product.aggregate([
@@ -81,52 +80,55 @@ async function getProductData(matchCondition) {
         as: 'Batches'
       }
     },
-
     {
       $addFields: {
         VariantProducts: {
           $map: {
-            input: '$VariantProducts',
-            as: 'vp',
+            input: "$VariantProducts",
+            as: "vp",
             in: {
               $mergeObjects: [
-                '$$vp',
+                "$$vp",
                 {
                   VariantFields: {
                     $map: {
-                      input: '$$vp.VariantFields',
-                      as: 'vf',
+                      input: "$$vp.VariantFields",
+                      as: "vf",
                       in: {
+                        VariantId: "$$vf.VariantId",
+
                         VariantName: {
                           $arrayElemAt: [
                             {
                               $map: {
                                 input: {
                                   $filter: {
-                                    input: '$VariantNames',
-                                    cond: { $eq: ['$$this._id', '$$vf.VariantId'] }
+                                    input: "$VariantNames",
+                                    cond: { $eq: ["$$this._id", "$$vf.VariantId"] }
                                   }
                                 },
-                                as: 'vn',
-                                in: '$$vn.VariantName'
+                                as: "vn",
+                                in: "$$vn.VariantName"
                               }
                             },
                             0
                           ]
                         },
-                        VariantValue: '$$vf.VariantValue',
+
+                        VariantValue: "$$vf.VariantValue",
+
                         Extension: {
                           $arrayElemAt: [
                             {
                               $map: {
                                 input: {
                                   $filter: {
-                                    input: '$VariantNames',
-                                    cond: { $eq: ['$$this._id', '$$vf.VariantId'] }
+                                    input: "$VariantNames",
+                                    cond: { $eq: ["$$this._id", "$$vf.VariantId"] }
                                   }
                                 },
-                                as: 'vn',
-                                in: '$$vn.Extension'
+                                as: "vn",
+                                in: "$$vn.Extension"
                               }
                             },
                             0
@@ -136,20 +138,19 @@ async function getProductData(matchCondition) {
                     }
                   },
 
-                  /* ✅ Batch Info Added */
                   BatchesInfo: {
                     $map: {
                       input: {
                         $filter: {
-                          input: '$Batches',
-                          cond: { $in: ['$$this._id', { $ifNull: ['$$vp.BatchIds', []] }] }
+                          input: "$Batches",
+                          cond: { $in: ["$$this._id", { $ifNull: ["$$vp.BatchIds", []] }] }
                         }
                       },
-                      as: 'b',
+                      as: "b",
                       in: {
-                        _id: '$$b._id',
-                        BatchName: '$$b.BatchName',
-                        BatchLogo: '$$b.BatchLogo'
+                        _id: "$$b._id",
+                        BatchName: "$$b.BatchName",
+                        BatchLogo: "$$b.BatchLogo"
                       }
                     }
                   }
@@ -160,6 +161,7 @@ async function getProductData(matchCondition) {
         }
       }
     },
+
 
     { $project: { VariantNames: 0, Batches: 0 } }
   ]);
@@ -242,5 +244,83 @@ async function reindexAll() {
 
 reindexAll().catch(err => {
   console.error('❌ Reindex failed:', err);
+  process.exit(1);
+});
+
+
+
+async function reindexWishlistES() {
+  console.log("🔁 Reindexing Wishlist to Elasticsearch...");
+
+  const wishlists = await Wishlist.find({}).lean();
+
+  if (!wishlists.length) {
+    console.log("⚠️ No wishlist records found");
+    return;
+  }
+
+
+  const wishlistMap = new Map();
+
+  for (const wl of wishlists) {
+    if (!wl.companyId || !wl.UserId) continue;
+
+    const companyId = String(wl.companyId);
+    const userId = String(wl.UserId);
+    const key = `${companyId}_${userId}`;
+
+    if (!wishlistMap.has(key)) {
+      wishlistMap.set(key, {
+        companyId,
+        userId,
+        variantProductIds: new Set()
+      });
+    }
+
+    const entry = wishlistMap.get(key);
+
+    for (const item of wl.Products || []) {
+      if (item?.VariantProductId) {
+        entry.variantProductIds.add(String(item.VariantProductId));
+      }
+    }
+  }
+
+  const body = [];
+
+  for (const [, data] of wishlistMap) {
+    body.push({
+      index: {
+        _index: "search_suggestions",
+        _id: `wishlist_${data.companyId}_${data.userId}`
+      }
+    });
+
+    body.push({
+      companyId: data.companyId,
+      userId: data.userId,
+      type: "wishlist",
+      variantProductIds: [...data.variantProductIds],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+  }
+
+  if (!body.length) {
+    console.log("⚠️ No wishlist documents to index");
+    return;
+  }
+
+  await client.bulk({
+    refresh: true,
+    body
+  });
+
+  console.log(`✅ Wishlist reindexed successfully: ${wishlistMap.size} documents`);
+  process.exit(0);
+};
+
+reindexWishlistES().catch(err => {
+  console.error('❌ Wishlist reindexed failed:', err);
   process.exit(1);
 });

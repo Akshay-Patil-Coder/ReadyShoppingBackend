@@ -31,16 +31,16 @@ exports.searchSuggestions = async (req, res) => {
             bool: {
               must: keyword
                 ? [{
-                    multi_match: {
-                      query: keyword,
-                      fields: [
-                        "searchText^4",
-                        "label^3",
-                        "variantFields^2"
-                      ],
-                      fuzziness: "AUTO"
-                    }
-                  }]
+                  multi_match: {
+                    query: keyword,
+                    fields: [
+                      "searchText^4",
+                      "label^3",
+                      "variantFields^2"
+                    ],
+                    fuzziness: "AUTO"
+                  }
+                }]
                 : [],
               filter: filters
             }
@@ -73,6 +73,757 @@ exports.searchSuggestions = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Internal server error'
+    });
+  }
+};
+
+exports.searchVariantSuggestions = async (req, res) => {
+  try {
+    const { companyId, q } = req.body;
+
+    if (!companyId || !q) {
+      return res.status(400).json({
+        success: false,
+        message: 'companyId and q required'
+      });
+    }
+
+    const { keyword, minPrice, maxPrice } = await parseSearchQuery(q);
+
+    const filters = [
+      { term: { companyId } },
+      { term: { type: "variant" } }
+    ];
+
+    if (minPrice || maxPrice) {
+      const range = {};
+      if (minPrice) range.gte = minPrice;
+      if (maxPrice) range.lte = maxPrice;
+      filters.push({ range: { price: range } });
+    }
+
+    const result = await client.search({
+      index: 'search_suggestions',
+      size: 15,
+      query: {
+        function_score: {
+          query: {
+            bool: {
+              must: keyword
+                ? [{
+                  multi_match: {
+                    query: keyword,
+                    fields: [
+                      "searchText^4",
+                      "label^3",
+                      "variantFields^2"
+                    ],
+                    fuzziness: "AUTO"
+                  }
+                }]
+                : [],
+              filter: filters
+            }
+          },
+          functions: [
+            {
+              field_value_factor: {
+                field: "popularity.score",
+                factor: 1.5,
+                missing: 0
+              }
+            }
+          ],
+          score_mode: "sum",
+          boost_mode: "sum"
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      data: result.hits.hits.map(hit => ({
+        ...hit._source,
+        score: hit._score
+      }))
+    });
+
+  } catch (err) {
+    console.error('Variant search error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+// exports.getProductsById_ES = async (req, res) => {
+
+//   const buildSort = ({ SortOrder, PriceSort }) => {
+//     const sort = [];
+
+//     if (SortOrder === "newer") sort.push({ createdAt: "desc" });
+//     if (SortOrder === "older") sort.push({ createdAt: "asc" });
+//     if (PriceSort === "lowtohigh") sort.push({ price: "asc" });
+//     if (PriceSort === "hightolow") sort.push({ price: "desc" });
+
+//     if (!sort.length) sort.push({ _score: "desc" });
+//     return sort;
+//   };
+
+//   const buildESQuery = ({
+//     companyId,
+//     q,
+//     HeadCategoryId,
+//     SubCategoryId,
+//     BrandId,
+//     ProductId,
+//     VariantProductIds,
+//     BatchIds,
+//     BatchName,
+//     VariantFilters,
+//     MinPrice,
+//     MaxPrice,
+//     StartDate,
+//     EndDate,
+//     derivedProductId
+//   }) => {
+
+//     const filter = [
+//       { term: { companyId } },
+//       { term: { type: "variant" } }
+//     ];
+//     const normalizeToArray = (value) => {
+//       if (!value) return [];
+
+//       if (Array.isArray(value)) return value;
+
+//       if (typeof value === "string") {
+//         if (value.includes(",")) {
+//           return value.split(",").map(v => v.trim()).filter(Boolean);
+//         }
+//         return [value];
+//       }
+
+//       return [];
+//     };
+
+//     if (HeadCategoryId)
+//       filter.push({ term: { "ids.headCategoryId": HeadCategoryId } });
+
+//     const subCategoryIds = normalizeToArray(SubCategoryId);
+//     if (subCategoryIds.length) {
+//       filter.push({
+//         terms: { "ids.subCategoryId": subCategoryIds }
+//       });
+//     }
+
+//     const brandIds = normalizeToArray(BrandId);
+//     if (brandIds.length) {
+//       filter.push({
+//         terms: { "ids.brandId": brandIds }
+//       });
+//     }
+
+//     if (derivedProductId) {
+//       filter.push({ term: { "ids.productId": derivedProductId } });
+//     } else if (VariantProductIds?.length) {
+//       filter.push({ terms: { "ids.variantProductId": VariantProductIds } });
+//     }
+
+//     if (ProductId)
+//       filter.push({ term: { "ids.productId": ProductId } });
+
+//     if (BatchIds?.length) {
+//       filter.push({
+//         nested: {
+//           path: "batchInfo",
+//           query: {
+//             terms: {
+//               "batchInfo._id": BatchIds
+//             }
+//           }
+//         }
+//       });
+//     }
+
+//     if (BatchName) {
+//       filter.push({
+//         nested: {
+//           path: "batchInfo",
+//           query: {
+//             match: {
+//               "batchInfo.BatchName": {
+//                 query: BatchName,
+//                 operator: "and"
+//               }
+//             }
+//           }
+//         }
+//       });
+//     }
+
+//     if (MinPrice || MaxPrice) {
+//       const range = {};
+//       if (MinPrice) range.gte = Number(MinPrice);
+//       if (MaxPrice) range.lte = Number(MaxPrice);
+//       filter.push({ range: { price: range } });
+//     }
+
+//     if (StartDate || EndDate) {
+//       const range = {};
+//       if (StartDate) range.gte = StartDate;
+//       if (EndDate) range.lte = EndDate;
+//       filter.push({ range: { createdAt: range } });
+//     }
+
+//     const must = [];
+
+//     if (VariantFilters?.length) {
+//       VariantFilters.forEach(v => {
+//         must.push({
+//           nested: {
+//             path: "variantFields",
+//             query: {
+//               bool: {
+//                 must: [
+//                   { term: { "variantFields.VariantId": v.VariantId } },
+//                   { term: { "variantFields.VariantValue": v.VariantValue } }
+//                 ]
+//               }
+//             }
+//           }
+//         });
+//       });
+//     }
+
+
+//     if (q) {
+//       must.push({
+//         multi_match: {
+//           query: q,
+//           fields: [
+//             "searchText^4",
+//             "label^3",
+//             "variantFields.VariantName^2",
+//             "variantFields.VariantValue^2"
+//           ],
+//           fuzziness: "AUTO"
+//         }
+//       });
+//     }
+
+//     return {
+//       function_score: {
+//         query: {
+//           bool: {
+//             must,
+//             filter
+//           }
+//         },
+//         functions: [
+//           {
+//             field_value_factor: {
+//               field: "popularity.score",
+//               factor: 1.5,
+//               missing: 0
+//             }
+//           }
+//         ],
+//         score_mode: "sum",
+//         boost_mode: "sum"
+//       }
+//     };
+//   };
+
+//   try {
+//     const {
+//       companyId,
+//       q,
+//       HeadCategoryId,
+//       SubCategoryId,
+//       BrandId,
+//       ProductId,
+//       MinPrice,
+//       MaxPrice,
+//       StartDate,
+//       EndDate,
+//       SortOrder,
+//       PriceSort,
+//       BatchName,
+//       UserId,
+//       VariantProductId
+//     } = req.query;
+
+//     const {
+//       VariantFilters,
+//       BatchIds,
+//       VariantProductIds
+//     } = req.body;
+
+//     if (!companyId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "companyId required"
+//       });
+//     }
+
+//     let derivedProductId = null;
+
+//     if (VariantProductId) {
+//       const vpRes = await client.search({
+//         index: "search_suggestions",
+//         size: 1,
+//         query: {
+//           bool: {
+//             filter: [
+//               { term: { companyId } },
+//               { term: { type: "variant" } },
+//               { term: { "ids.variantProductId": VariantProductId } }
+//             ]
+//           }
+//         }
+//       });
+
+//       derivedProductId =
+//         vpRes.hits.hits?.[0]?._source?.ids?.productId || null;
+//     }
+
+//     const query = buildESQuery({
+//       companyId,
+//       q,
+//       HeadCategoryId,
+//       SubCategoryId,
+//       BrandId,
+//       ProductId,
+//       VariantProductIds,
+//       BatchIds,
+//       BatchName,
+//       VariantFilters,
+//       MinPrice,
+//       MaxPrice,
+//       StartDate,
+//       EndDate,
+//       derivedProductId
+//     });
+
+//     const result = await client.search({
+//       index: "search_suggestions",
+//       size: 30,
+//       query,
+//       sort: buildSort({ SortOrder, PriceSort })
+//     });
+
+//     let data = result.hits.hits.map(h => ({
+//       ...h._source,
+//       score: h._score
+//     }));
+
+//     if (UserId) {
+//       const wishlistDoc = await client.get({
+//         index: "search_suggestions",
+//         id: `wishlist_${companyId}_${UserId}`,
+//         ignore: [404]
+//       });
+
+//       const wishlistIds = new Set(
+//         wishlistDoc?._source?.variantProductIds || []
+//       );
+
+//       data = data.map(v => ({
+//         ...v,
+//         WishList: wishlistIds.has(String(v.ids.variantProductId))
+//       }));
+//     }
+
+//     return res.json({
+//       success: true,
+//       total: result.hits.total.value,
+//       data
+//     });
+
+//   } catch (err) {
+//     console.error("ES getProductsById error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error"
+//     });
+//   }
+// };
+
+exports.getProductsById_ES = async (req, res) => {
+
+  const buildSort = ({ SortOrder, PriceSort }) => {
+    const sort = [];
+
+    if (SortOrder === "newer") sort.push({ createdAt: "desc" });
+    if (SortOrder === "older") sort.push({ createdAt: "asc" });
+    if (PriceSort === "lowtohigh") sort.push({ price: "asc" });
+    if (PriceSort === "hightolow") sort.push({ price: "desc" });
+
+    if (!sort.length) sort.push({ _score: "desc" });
+    return sort;
+  };
+
+  const buildESQuery = ({
+    companyId,
+    q,
+    HeadCategoryId,
+    SubCategoryId,
+    BrandId,
+    ProductId,
+    VariantProductIds,
+    BatchIds,
+    BatchName,
+    VariantFilters,
+    MinPrice,
+    MaxPrice,
+    StartDate,
+    EndDate,
+    derivedProductId
+  }) => {
+
+    const filter = [
+      { term: { companyId } },
+      { term: { type: "variant" } }
+    ];
+
+    const normalizeToArray = (value) => {
+      if (!value) return [];
+      if (Array.isArray(value)) return value;
+      if (typeof value === "string") {
+        if (value.includes(",")) {
+          return value.split(",").map(v => v.trim()).filter(Boolean);
+        }
+        return [value];
+      }
+      return [];
+    };
+
+    if (HeadCategoryId)
+      filter.push({ term: { "ids.headCategoryId": HeadCategoryId } });
+
+    const subCategoryIds = normalizeToArray(SubCategoryId);
+    if (subCategoryIds.length) {
+      filter.push({ terms: { "ids.subCategoryId": subCategoryIds } });
+    }
+
+    const brandIds = normalizeToArray(BrandId);
+    if (brandIds.length) {
+      filter.push({ terms: { "ids.brandId": brandIds } });
+    }
+
+    if (derivedProductId) {
+      filter.push({ term: { "ids.productId": derivedProductId } });
+    } else if (VariantProductIds?.length) {
+      filter.push({ terms: { "ids.variantProductId": VariantProductIds } });
+    }
+
+    if (ProductId)
+      filter.push({ term: { "ids.productId": ProductId } });
+
+    if (BatchIds?.length) {
+      filter.push({
+        nested: {
+          path: "batchInfo",
+          query: {
+            terms: {
+              "batchInfo._id": BatchIds
+            }
+          }
+        }
+      });
+    }
+
+    if (BatchName) {
+      filter.push({
+        nested: {
+          path: "batchInfo",
+          query: {
+            match: {
+              "batchInfo.BatchName": {
+                query: BatchName,
+                operator: "and"
+              }
+            }
+          }
+        }
+      });
+    }
+
+    if (MinPrice || MaxPrice) {
+      const range = {};
+      if (MinPrice) range.gte = Number(MinPrice);
+      if (MaxPrice) range.lte = Number(MaxPrice);
+      filter.push({ range: { price: range } });
+    }
+
+    if (StartDate || EndDate) {
+      const range = {};
+      if (StartDate) range.gte = StartDate;
+      if (EndDate) range.lte = EndDate;
+      filter.push({ range: { createdAt: range } });
+    }
+
+    const must = [];
+
+    if (VariantFilters?.length) {
+      VariantFilters.forEach(v => {
+        must.push({
+          nested: {
+            path: "variantFields",
+            query: {
+              bool: {
+                must: [
+                  { term: { "variantFields.VariantId": v.VariantId } },
+                  { term: { "variantFields.VariantValue": v.VariantValue } }
+                ]
+              }
+            }
+          }
+        });
+      });
+    }
+
+    if (q) {
+      must.push({
+        multi_match: {
+          query: q,
+          fields: [
+            "searchText^4",
+            "label^3",
+            "variantFields.VariantName^2",
+            "variantFields.VariantValue^2"
+          ],
+          fuzziness: "AUTO"
+        }
+      });
+    }
+
+    return {
+      function_score: {
+        query: {
+          bool: {
+            must,
+            filter
+          }
+        },
+        functions: [
+          {
+            field_value_factor: {
+              field: "popularity.score",
+              factor: 1.5,
+              missing: 0
+            }
+          }
+        ],
+        score_mode: "sum",
+        boost_mode: "sum"
+      }
+    };
+  };
+
+  try {
+    const {
+      companyId,
+      q,
+      HeadCategoryId,
+      SubCategoryId,
+      BrandId,
+      ProductId,
+      MinPrice,
+      MaxPrice,
+      StartDate,
+      EndDate,
+      SortOrder,
+      PriceSort,
+      BatchName,
+      UserId,
+      VariantProductId
+    } = req.query;
+
+    const {
+      VariantFilters,
+      BatchIds,
+      VariantProductIds
+    } = req.body;
+
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: "companyId required"
+      });
+    }
+
+    let derivedProductId = null;
+
+    if (VariantProductId) {
+      const vpRes = await client.search({
+        index: "search_suggestions",
+        size: 1,
+        query: {
+          bool: {
+            filter: [
+              { term: { companyId } },
+              { term: { type: "variant" } },
+              { term: { "ids.variantProductId": VariantProductId } }
+            ]
+          }
+        }
+      });
+
+      derivedProductId =
+        vpRes.hits.hits?.[0]?._source?.ids?.productId || null;
+    }
+
+    let wishlistIds = [];
+
+    if (UserId) {
+      try {
+        const wishlistDoc = await client.get({
+          index: "search_suggestions",
+          id: `wishlist_${companyId}_${UserId}`
+        });
+
+        wishlistIds = wishlistDoc._source?.variantProductIds || [];
+      } catch (err) {
+        if (err.meta?.statusCode !== 404) {
+          throw err;
+        }
+      }
+    }
+
+
+    const query = buildESQuery({
+      companyId,
+      q,
+      HeadCategoryId,
+      SubCategoryId,
+      BrandId,
+      ProductId,
+      VariantProductIds,
+      BatchIds,
+      BatchName,
+      VariantFilters,
+      MinPrice,
+      MaxPrice,
+      StartDate,
+      EndDate,
+      derivedProductId
+    });
+
+    const result = await client.search({
+      index: "search_suggestions",
+      size: 30,
+      query,
+      sort: buildSort({ SortOrder, PriceSort }),
+      _source: true,
+      aggs: {
+        uniqueSubCategories: {
+          terms: {
+            field: "ids.subCategoryId",
+            size: 1000
+          }
+        }
+      },
+      ...(UserId && {
+        script_fields: {
+          WishList: {
+            script: {
+              lang: "painless",
+              params: { wishlist: wishlistIds },
+              source: `
+            if (params.wishlist == null) return false;
+            if (doc['ids.variantProductId'].size() == 0) return false;
+            return params.wishlist.contains(doc['ids.variantProductId'].value);
+          `
+            }
+          }
+        }
+      })
+    });
+
+
+    const data = result.hits.hits.map(h => ({
+      ...h._source,
+      score: h._score,
+      WishList: h.fields?.WishList?.[0] || false
+    }));
+    const allSubCategoryIds = result.aggregations?.uniqueSubCategories?.buckets.map(
+      b => b.key
+    ) || [];
+
+    return res.json({
+      success: true,
+      total: result.hits.total.value,
+      data,
+      allSubCategoryIds
+    });
+
+  } catch (err) {
+    console.error("ES getProductsById error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message
+    });
+  }
+};
+exports.getWishlistES = async (req, res) => {
+  try {
+    const { companyId, userId } = req.query;
+
+    if (companyId && userId) {
+      try {
+        const doc = await client.get({
+          index: "search_suggestions",
+          id: `wishlist_${companyId}_${userId}`
+        });
+
+        return res.json({
+          success: true,
+          total: 1,
+          data: [{ id: doc._id, ...doc._source }]
+        });
+
+      } catch (err) {
+        if (err.meta?.statusCode === 404) {
+          return res.json({
+            success: true,
+            total: 0,
+            data: []
+          });
+        }
+        throw err;
+      }
+    }
+
+    const must = [{ term: { type: "wishlist" } }];
+
+    if (companyId) must.push({ term: { companyId } });
+
+    const result = await client.search({
+      index: "search_suggestions",
+      size: 10000,
+      query: { bool: { must } },
+      sort: [{ updatedAt: "desc" }]
+    });
+
+    const data = result.hits.hits.map(hit => ({
+      id: hit._id,
+      ...hit._source
+    }));
+
+    return res.json({
+      success: true,
+      total: data.length,
+      data
+    });
+
+  } catch (err) {
+    console.error("❌ getWishlistES error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error"
     });
   }
 };

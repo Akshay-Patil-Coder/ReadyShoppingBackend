@@ -2253,6 +2253,7 @@ module.exports = {
             });
         }
     },
+    
     addBatch: async (req, res) => {
         let { BatchName } = req.body;
 

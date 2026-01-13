@@ -8,11 +8,9 @@ const {
 } = require('./indexer');
 
 const { Product } = require('../../VariantsProducts/VariantsProducts.model');
+const { Wishlist } = require('../../WishList/WishList.model')
 
-mongoose.connect(process.env.MONGO_URL, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-});
+mongoose.connect(process.env.MONGO_URL);
 
 async function getProductData(matchCondition) {
     try {
@@ -168,13 +166,13 @@ async function updateElasticById({ type, id }) {
 
         switch (type) {
             case 'category':
-                matchCondition = { $or: [{ HeadCategoryId:new mongoose.Types.ObjectId(String(id)) }, { SubCategoryId:new mongoose.Types.ObjectId(String(id)) }] };
+                matchCondition = { $or: [{ HeadCategoryId: new mongoose.Types.ObjectId(String(id)) }, { SubCategoryId: new mongoose.Types.ObjectId(String(id)) }] };
                 break;
             case 'brand':
                 matchCondition = { BrandId: new mongoose.Types.ObjectId(String(id)) };
                 break;
             case 'product':
-                matchCondition = { _id:new mongoose.Types.ObjectId(String(id)) };
+                matchCondition = { _id: new mongoose.Types.ObjectId(String(id)) };
                 break;
             case 'variantProduct':
                 matchCondition = { VariantProductIds: new mongoose.Types.ObjectId(String(id)) };
@@ -328,7 +326,43 @@ async function deleteElasticVariantByProductId({ productId }) {
         throw err;
     }
 }
+async function saveWishlist({ companyId, userId }) {
+    try {
+
+        if (!companyId || !userId) {
+            return;
+        }
+
+        const FoundedWishList = await Wishlist.find({
+            companyId: companyId,
+            UserId: userId
+        });
+
+        const variantProductIds = FoundedWishList.flatMap(wishlist =>
+            wishlist.Products.map(p => String(p.VariantProductId))
+        );
+
+        const uniqueIds = [...new Set(variantProductIds)];
+
+        await client.index({
+            index: 'search_suggestions',
+            id: `wishlist_${companyId}_${userId}`,
+            document: {
+                companyId,
+                userId,
+                type: 'wishlist',
+                variantProductIds: uniqueIds,
+                updatedAt: new Date()
+            }
+        });
+        console.log(`wishlist updated of UserId:${userId}`)
+    } catch (err) {
+        console.error("Wishlist ES sync error:", err);
+        throw err;
+    }
+}
 
 
 
-module.exports = { updateElasticById, deleteElasticById, deleteElasticByCompanyId, deleteElasticVariantByProductId };
+
+module.exports = { updateElasticById, deleteElasticById, deleteElasticByCompanyId, deleteElasticVariantByProductId,saveWishlist };
