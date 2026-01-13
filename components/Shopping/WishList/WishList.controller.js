@@ -388,12 +388,7 @@ module.exports = {
                 wishlists = await Wishlist.find({ UserId, companyId });
             }
 
-            if (!wishlists.length) {
-                return res.status(404).json({
-                    success: false,
-                    message: "Wishlist is Empty"
-                });
-            }
+           
 
             let calculateTotals = (variant, qty, services = []) => {
                 let total = variant.Price * qty;
@@ -507,10 +502,6 @@ module.exports = {
             } catch (error) {
                 console.error(`❌ Failed to update Wishlist Es for user ${UserId}:`, error.message);
             }
-            return res.status(200).json({
-                success: true,
-                message: "Wishlist validated successfully"
-            });
 
         } catch (error) {
             console.error("ValidateWishlist Error:", error);
