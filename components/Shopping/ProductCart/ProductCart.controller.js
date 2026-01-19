@@ -304,7 +304,7 @@ module.exports = {
         if (req.user?.UserId) UserId = req.user.UserId;
         if (req.user?.companyId) companyId = req.user.companyId;
 
-        let { RenderingDomain } = req.query;
+        let { RenderingDomain = "public" } = req.query;
         RenderingDomain = ["private", "public"].includes((RenderingDomain || "").toLowerCase())
             ? RenderingDomain.toLowerCase()
             : "public";
@@ -471,14 +471,14 @@ module.exports = {
 
             let VariantData = FoundVariantAgg?.[0];
             if (!VariantData) return res.status(404).json({ message: "Variant not found", success: false });
-           
+
             if (VariantData.InventoryBaseStock?.InventoryBase) {
                 let stock = VariantData.InventoryBaseStock.AvailableStock || 0;
                 if (stock <= 0)
                     return res.status(400).json({ message: "Out of stock", success: false });
                 if (stock < Quantity) Quantity = stock;
             }
-            
+
             let paidServices = (ProductData.ProductServices || []).filter(s => s.Paid);
             let freeServices = (ProductData.ProductServices || []).filter(s => !s.Paid);
 
@@ -720,7 +720,21 @@ module.exports = {
 
                 return { total, discount, final };
             };
-
+            let recalcCartTotals = (cart) => {
+                let total = 0,
+                    discount = 0,
+                    final = 0;
+                for (let p of cart.Products) {
+                    if (p.IsActive !== false && p.Reserved !== true) {
+                        total += p.TotalPrice || 0;
+                        discount += p.DiscountPrice || 0;
+                        final += p.FinalPrice || 0;
+                    }
+                }
+                cart.TotalCartPrice = total;
+                cart.DiscountCartPrice = discount;
+                cart.FinalCartPrice = final;
+            };
 
             let updatedProducts = [];
 
@@ -837,7 +851,7 @@ module.exports = {
             FoundCart.DiscountCartPrice = parseFloat(activeProducts.reduce((sum, p) => sum + (p.DiscountPrice || 0), 0).toFixed(2));
             FoundCart.FinalCartPrice = parseFloat(activeProducts.reduce((sum, p) => sum + (p.FinalPrice || 0), 0).toFixed(2));
 
-
+            recalcCartTotals(FoundCart)
             await FoundCart.save();
 
         } catch (error) {
@@ -1338,7 +1352,7 @@ module.exports = {
 
     proceedToPaymentForCart: async (req, res) => {
         let { UserId, companyId, AddressId } = req.body;
-        let { RenderingDomain } = req.query;
+        let { RenderingDomain = "public" } = req.query;
         RenderingDomain = ["private", "public"].includes((RenderingDomain || "").toLowerCase())
             ? RenderingDomain.toLowerCase()
             : "public";
@@ -1735,6 +1749,7 @@ module.exports = {
 
 
     handlePaymentStatus: async (req, res) => {
+        let FrontendRenderDomain;
         try {
             let paytmResponse = req.body || {};
             let orderId = paytmResponse?.ORDERID;
@@ -1746,7 +1761,7 @@ module.exports = {
                 status: paytmResponse.STATUS
             };
 
-            let { RenderingDomain, companyId } = req.query;
+            let { RenderingDomain = "public", companyId } = req.query;
 
             RenderingDomain = ["private", "public"].includes((RenderingDomain || "").toLowerCase())
                 ? RenderingDomain.toLowerCase()
@@ -1839,11 +1854,11 @@ module.exports = {
             };
 
 
-            let FrontendRenderDomain;
+
             try {
                 const FoundCompany = companyId ? await CompanyModel.findById(companyId) : null;
                 if (FoundCompany) {
-                    if (RenderingDomain == 'Private' && FoundCompany.PredifinedDomain) {
+                    if (RenderingDomain == "private" && FoundCompany.PredifinedDomain) {
                         FrontendRenderDomain = `${FoundCompany.PredifinedDomain.replace(/\/+$/, '')}/shopping`;
                     } else if (FoundCompany.CompanyDomain) {
                         FrontendRenderDomain = `http://${FoundCompany.CompanyDomain}:4200/shopping`;
@@ -1989,9 +2004,11 @@ module.exports = {
 
         } catch (err) {
             console.error("handlePaymentStatus Error:", err);
-
-            const fallbackDomain = "http://localhost:4200/shopping";
             const paytmorderId = (req.body && req.body.ORDERID) ? encodeURIComponent(req.body.ORDERID) : "";
+            if (FrontendRenderDomain) {
+                return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paytmorderId}&status=INTERNAL-SERVER-ERROR`);
+            }
+            const fallbackDomain = "http://localhost:4200/shopping";
             return res.redirect(`${fallbackDomain}/order-checked?paytmorderId=${paytmorderId}&status=INTERNAL-SERVER-ERROR`);
         }
     },

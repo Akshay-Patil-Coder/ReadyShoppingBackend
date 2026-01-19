@@ -24,6 +24,7 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
+
 app.use((req, res, next) => {
   const start = Date.now();
 

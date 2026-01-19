@@ -167,7 +167,11 @@ module.exports = {
                     VariantData.VariantProductName = EachVariantProduct?.VariantProductName || ProductName;
                     VariantData.Price = EachVariantProduct?.Price || 0;
                     if (EachVariantProduct?.OfferPercentage) VariantData.OfferPercentage = EachVariantProduct.OfferPercentage;
-
+                    if (EachVariantProduct?.InventoryBaseStock?.AvailableStock > EachVariantProduct?.InventoryBaseStock?.Stock) {
+                        clearFiles(AllProductImages);
+                        clearVideo(AllProductVideos);
+                        return res.status(400).json({ message: "Available Stock Should Be Less Than Original Stock", status: false })
+                    }
                     VariantData.InventoryBaseStock = EachVariantProduct?.InventoryBaseStock || {
                         InventoryBase: false,
                         Stock: 0,
@@ -649,7 +653,10 @@ module.exports = {
                         await cleanupFiles(uploadedImages, ProductId, companyId);
                         return res.status(404).json({ message: "Variant product not found", success: false });
                     }
-
+                    if (VariantProductData?.InventoryBaseStock?.AvailableStock > VariantProductData?.InventoryBaseStock?.Stock) {
+                        await cleanupFiles(uploadedImages, ProductId, companyId);
+                        return res.status(400).json({ message: "Available Stock Should Be Less Than Original Stock", status: false })
+                    }
                     await updateVariantCounts(existing.VariantFields, false);
                     await updateVariantCounts(VariantProductData.VariantFields, true);
 
@@ -674,7 +681,10 @@ module.exports = {
                 if ((!uploadedImages?.length || uploadedImages?.length === 0) && product?.CommonImages.length === 0) {
                     return res.status(400).json({ message: "Please provide image to add product", success: false });
                 }
-
+                if (VariantProductData?.InventoryBaseStock?.AvailableStock > VariantProductData?.InventoryBaseStock?.Stock) {
+                    await cleanupFiles(uploadedImages, ProductId, companyId);
+                    return res.status(400).json({ message: "Available Stock Should Be Less Than Original Stock", status: false })
+                }
                 VariantProductData.VariantProductImage = uploadedImages.length ? uploadedImages : [product?.CommonImages[0]] || [];
 
                 let newVariant = await new VariantProduct(VariantProductData).save();
@@ -2253,7 +2263,7 @@ module.exports = {
             });
         }
     },
-    
+
     addBatch: async (req, res) => {
         let { BatchName } = req.body;
 
@@ -2345,7 +2355,7 @@ module.exports = {
         }
     },
     updateBatch: async (req, res) => {
-        let { BatchId, BatchName } = req.body;
+        let { BatchId } = req.body;
 
         let cleanupFiles = (file) => {
             try {
@@ -2385,7 +2395,6 @@ module.exports = {
             }
 
             let updateData = {};
-            if (BatchName) updateData.BatchName = BatchName;
             if (updatedLogo) updateData.BatchLogo = updatedLogo;
 
             let updatedBatch = await Batch.findByIdAndUpdate(

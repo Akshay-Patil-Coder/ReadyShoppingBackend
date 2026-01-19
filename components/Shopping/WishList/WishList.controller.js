@@ -388,7 +388,7 @@ module.exports = {
                 wishlists = await Wishlist.find({ UserId, companyId });
             }
 
-           
+
 
             let calculateTotals = (variant, qty, services = []) => {
                 let total = variant.Price * qty;
@@ -408,7 +408,23 @@ module.exports = {
                     final: final + serviceTotal
                 };
             };
+            let recalcTotals = (wl) => {
+                let total = 0,
+                    discount = 0,
+                    final = 0;
 
+                for (let p of wl.Products) {
+                    if (p.IsActive !== false) {
+                        total += p.TotalPrice || 0;
+                        discount += p.DiscountPrice || 0;
+                        final += p.FinalPrice || 0;
+                    }
+                }
+
+                wl.TotalCartPrice = total;
+                wl.DiscountCartPrice = discount;
+                wl.FinalCartPrice = final;
+            };
             for (let wishlist of wishlists) {
                 let updatedProducts = [];
 
@@ -430,8 +446,7 @@ module.exports = {
                     if (!product || !variant) continue;
 
                     if (variant.InventoryBaseStock?.InventoryBase) {
-                        let stock = variant.InventoryBaseStock.AvailableStock || 0;
-                        if (stock <= 0) continue;
+                        let stock = variant?.InventoryBaseStock?.AvailableStock || 0;
                         if (item.Quantity > stock) item.Quantity = stock;
                     }
 
@@ -493,7 +508,7 @@ module.exports = {
                 wishlist.FinalCartPrice = Number(
                     updatedProducts.reduce((s, p) => s + (p.FinalPrice || 0), 0).toFixed(2)
                 );
-
+                recalcTotals(wishlist)
                 await wishlist.save();
             }
             try {
@@ -1126,7 +1141,7 @@ module.exports = {
                 let WLProducts = data[0].Products;
 
                 for (let p of WLProducts) {
-                    if (p.IsActive == false) continue;
+                    if (p?.IsActive == false || p?.Quantity == 0 || p?.Quantity == undefined || p?.Quantity == null) continue;
 
                     let variantInfo = await VariantProduct.findById(p.VariantProductId);
 

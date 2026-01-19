@@ -196,7 +196,7 @@ router.get("/getBatch", (req, res) => {
 });
 router.put("/updateBatch", authentication, upload2.single('BatchLogo'), (req, res) => {
   if (req.user.role == 'Admin') {
-    return VariantProductController.addBatch(req, res);
+    return VariantProductController.updateBatch(req, res);
   }
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
@@ -216,6 +216,5 @@ router.post("/EditBatchOfVariantProduct", authentication, (req, res) => {
 router.get('/suggest', searchSuggestions);
 router.post('/getproductsbyes', getProductsById_ES);
 router.get('/getwishlistofes', getWishlistES);
-// router.get('/autoSuggest', autoSuggest);
 
 module.exports = router
