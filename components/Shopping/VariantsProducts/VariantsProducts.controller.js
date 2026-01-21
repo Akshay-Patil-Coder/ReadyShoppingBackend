@@ -273,40 +273,602 @@ module.exports = {
             });
         }
     },
-    addVariantProductCSV: async (req, res) => {
-        let csvFilePath = req.files?.CSVFile?.[0]?.path;
-        if (req.user.companyId) companyId = req.user.companyId
 
-        if (!csvFilePath) {
-            return res.status(400).json({ success: false, message: 'CSV file is required.' });
+    addMultipleVariantProduct: async (req, res) => {
+
+        let {
+            companyId,
+            HeadCategoryId,
+            SubCategoryId,
+            BrandId,
+            ProductsData,
+        } = req.body;
+
+        if (req.user?.companyId) companyId = req.user.companyId;
+
+        const deleteImages = (files) => {
+            files.forEach(file => {
+                try {
+                    const p = path.join(__dirname, '..', '..', 'public', 'ProductImage', file);
+                    if (fs.existsSync(p)) fs.unlinkSync(p);
+                } catch (err) {
+                    console.error("❌ Image delete error:", err.message);
+                }
+            });
+        };
+
+        const deleteVideos = (files) => {
+            files.forEach(file => {
+                try {
+                    const p = path.join(__dirname, '..', '..', 'public', 'ProductVideo', file);
+                    if (fs.existsSync(p)) fs.unlinkSync(p);
+                } catch (err) {
+                    console.error("❌ Video delete error:", err.message);
+                }
+            });
+        };
+
+        let AllProductImages = req.files?.ProductImages?.map(f => f.filename) || [];
+        let AllProductVideos = req.files?.ProductVideos?.map(f => f.filename) || [];
+
+        try {
+            if (typeof ProductsData === "string") {
+                ProductsData = JSON.parse(ProductsData);
+            }
+        } catch (err) {
+            console.error("❌ ProductsData JSON error:", err);
+            deleteImages(AllProductImages);
+            deleteVideos(AllProductVideos);
+            return res.status(400).json({ success: false, message: "Invalid ProductsData JSON" });
         }
-        let uploadedImages = req.files?.ProductImages?.map(f => f.filename) || [];
-        let uploadedVideos = req.files?.ProductVideos?.map(f => f.filename) || [];
-        let usedImages = [];
-        let usedVideos = [];
 
-        let lastProductRow = {};
+        if (!companyId || !HeadCategoryId || !SubCategoryId || !BrandId) {
+            deleteImages(AllProductImages);
+            deleteVideos(AllProductVideos);
+            return res.status(400).json({ success: false, message: "Missing required fields" });
+        }
+
+        let addedProducts = [];
+        let failedProducts = [];
+        let failedVariants = [];
+        let usedImages = new Set();
+        let usedVideos = new Set();
+
+        for (let EachProduct of ProductsData) {
+
+            try {
+                if (!EachProduct?.ProductName) {
+                    failedProducts.push({ product: EachProduct, reason: "ProductName missing" });
+                    continue;
+                }
+
+                let ProductData = {
+                    companyId,
+                    HeadCategoryId,
+                    SubCategoryId,
+                    BrandId,
+                    ProductName: EachProduct.ProductName,
+                };
+
+                let cd = EachProduct.CommonDescription;
+                if (cd && (cd.Head || (Array.isArray(cd.Points) && cd.Points.length) || cd.TextDescription)) {
+                    ProductData.CommonDescription = cd;
+                }
+
+                if (Array.isArray(EachProduct.ProductServices)) {
+                    let ProductServicesData = [];
+                    for (let s of EachProduct.ProductServices) {
+                        let fs = await ProductService.findById(s?.ProductServiceId);
+                        if (fs) ProductServicesData.push(s);
+                    }
+                    if (ProductServicesData.length) ProductData.ProductServices = ProductServicesData;
+                }
+
+                if (Array.isArray(EachProduct.CommonImages)) {
+                    ProductData.CommonImages = AllProductImages.filter(img =>
+                        EachProduct.CommonImages.some(c => img.endsWith(c))
+                    );
+                    ProductData.CommonImages.forEach(i => usedImages.add(i));
+                }
+
+                if (Array.isArray(EachProduct.CommonVideos)) {
+                    ProductData.CommonVideos = AllProductVideos.filter(v =>
+                        EachProduct.CommonVideos.some(c => v.endsWith(c))
+                    );
+                    ProductData.CommonVideos.forEach(v => usedVideos.add(v));
+                }
+
+                let product = await new Product(ProductData).save();
+
+                let VariantIds = [];
+
+                if (!Array.isArray(EachProduct.VariantProductDatas)) {
+                    throw new Error("VariantProductDatas missing");
+                }
+
+                for (let EachVariant of EachProduct.VariantProductDatas) {
+
+                    try {
+                        if (!EachVariant?.Price) throw new Error("Price missing");
+                        if (
+                            EachVariant?.InventoryBaseStock &&
+                            EachVariant.InventoryBaseStock.AvailableStock >
+                            EachVariant.InventoryBaseStock.Stock
+                        ) {
+                            throw new Error("AvailableStock greater than Stock");
+                        }
+                        let VariantData = {
+                            companyId,
+                            HeadCategoryId,
+                            SubCategoryId,
+                            ProductId: product._id,
+                            VariantProductName: EachVariant.VariantProductName || EachProduct.ProductName,
+                            Price: EachVariant.Price,
+                            OfferPercentage: EachVariant.OfferPercentage,
+                            InventoryBaseStock: EachVariant.InventoryBaseStock,
+                        };
+
+                        let ap = EachVariant?.AboutProduct;
+                        if (ap && (ap.Head || (Array.isArray(ap.Points) && ap.Points.length) || ap.TextDescription)) {
+                            VariantData.AboutProduct = ap;
+                        }
+
+                        if (Array.isArray(EachVariant.Specification)) {
+                            VariantData.Specification = EachVariant.Specification.filter(
+                                s => s.SpecificationKey && s.SpecificationValue
+                            );
+                        }
+                        if (EachVariant.BatchIds) {
+                            EachVariant.BatchIds = Array.isArray(EachVariant.BatchIds)
+                                ? EachVariant.BatchIds
+                                : [EachVariant.BatchIds];
+                        } if (EachVariant?.BatchIds?.length > 0) {
+                            let FoundBatches = await Batch.find(
+                                { _id: { $in: EachVariant.BatchIds } },
+                                { _id: 1 }
+                            );
+
+                            if (FoundBatches.length > 0) {
+                                VariantData.BatchIds = FoundBatches.map(batch => batch._id);
+                            }
+                        }
+                        if (Array.isArray(EachVariant.VariantFields)) {
+                            let validVariantFields = [];
+                            for (let vf of EachVariant.VariantFields) {
+                                let fv = await Variant.findById(vf?.VariantId);
+                                if (fv && vf?.VariantValue) {
+                                    validVariantFields.push({
+                                        VariantId: vf.VariantId,
+                                        VariantValue: vf.VariantValue
+                                    });
+                                }
+                            }
+                            if (validVariantFields.length) VariantData.VariantFields = validVariantFields;
+                        }
+
+                        let images = [];
+                        if (Array.isArray(EachVariant.VariantProductImage)) {
+                            images = EachVariant.VariantProductImage
+                                .map(img => AllProductImages.find(f => f.endsWith(img)))
+                                .filter(Boolean);
+                        }
+
+                        VariantData.VariantProductImage =
+                            images.length ? images :
+                                (product.CommonImages?.length ? [product.CommonImages[0]] : []);
+
+                        VariantData.VariantProductImage.forEach(i => usedImages.add(i));
+
+                        const variant = await new VariantProduct(VariantData).save();
+                        VariantIds.push(variant._id);
+
+                        if (Array.isArray(EachVariant.VariantFields)) {
+                            for (let vf of EachVariant.VariantFields) {
+                                let existingVariant = await Variant.findOne({
+                                    _id: vf.VariantId,
+                                    "VariantValues.Value": vf.VariantValue
+                                });
+
+                                if (existingVariant) {
+                                    await Variant.updateOne(
+                                        { _id: vf.VariantId, "VariantValues.Value": vf.VariantValue },
+                                        { $inc: { "VariantValues.$.Count": 1 } }
+                                    );
+                                } else {
+                                    await Variant.updateOne(
+                                        { _id: vf.VariantId },
+                                        { $push: { VariantValues: { Value: vf.VariantValue, Count: 1 } } }
+                                    );
+                                }
+
+                            }
+                        }
+
+                    } catch (vErr) {
+                        console.error("❌ Variant error:", EachProduct.ProductName, EachVariant?.VariantProductName, vErr.message);
+                        failedVariants.push({
+                            productName: EachProduct.ProductName,
+                            variant: EachVariant,
+                            reason: vErr.message
+                        });
+                    }
+                }
+
+                if (!VariantIds.length) {
+                    await Product.findByIdAndDelete(product._id);
+                    throw new Error("No valid variants");
+                }
+
+                await Product.findByIdAndUpdate(product._id, {
+                    $set: { VariantProductIds: VariantIds }
+                });
+
+                try {
+                    await updateElasticById({ type: 'product', id: product._id });
+                } catch (e) {
+                    console.error("❌ Elastic error:", e.message);
+                }
+
+                addedProducts.push(product._id);
+
+            } catch (err) {
+                console.error("❌ Product error:", err.message);
+                failedProducts.push({
+                    productName: EachProduct?.ProductName,
+                    reason: err.message
+                });
+            }
+        }
+
+        const unusedImages = AllProductImages.filter(i => !usedImages.has(i));
+        const unusedVideos = AllProductVideos.filter(v => !usedVideos.has(v));
+
+        deleteImages(unusedImages);
+        deleteVideos(unusedVideos);
+        return res.status(201).json({
+            success: true,
+            addedProducts,
+            failedProducts,
+            failedVariants,
+            removedImages: unusedImages,
+            removedVideos: unusedVideos
+        });
+    },
+
+    addVariantProductCSV: async (req, res) => {
+        let { companyId, HeadCategoryId, SubCategoryId, BrandId } = req.body;
+        const safeJSON = (value, fallback) => {
+            try {
+                return value ? JSON.parse(value) : fallback;
+            } catch {
+                return fallback;
+            }
+        };
+
+
+        const deleteFiles = (base, files) => {
+            files.forEach(file => {
+                try {
+                    const p = path.join(__dirname, "..", "..", "public", base, file);
+                    if (fs.existsSync(p)) fs.unlinkSync(p);
+                } catch (e) {
+                    console.error(`❌ ${base} delete error:`, e.message);
+                }
+            });
+        };
+
+        if (req.user?.companyId) companyId = req.user.companyId;
+        let AllProductImages = req.files?.ProductImages?.map(f => f.filename) || [];
+        let AllProductVideos = req.files?.ProductVideos?.map(f => f.filename) || [];
+
+        const imageMap = new Map(AllProductImages.map(i => [path.basename(i), i]));
+        const videoMap = new Map(AllProductVideos.map(v => [path.basename(v), v]));
+
+        const csvFilePath = req.files?.CSVFile?.[0]?.path;
+        if (!csvFilePath) {
+            deleteFiles("ProductImage", AllProductImages);
+            deleteFiles("ProductVideo", AllProductVideos);
+
+            return res.status(400).json({ success: false, message: "CSV file is required" });
+        }
+
+        let usedImages = new Set();
+        let usedVideos = new Set();
+
         let groupedProducts = {};
+        let lastProductName = null;
+
+        let addedProducts = [];
+        let failedProducts = [];
+        let failedVariants = [];
 
         try {
             await new Promise((resolve, reject) => {
                 fs.createReadStream(csvFilePath)
                     .pipe(csvParser())
-                    .on('data', async (row) => {
+                    .on("data", row => {
+
+                        if (!row.ProductName && lastProductName) {
+                            row.ProductName = lastProductName;
+                        }
+                        if (!row.ProductName) return;
+
+                        lastProductName = row.ProductName;
+
+                        if (!groupedProducts[row.ProductName]) {
+                            groupedProducts[row.ProductName] = {
+                                ProductName: row.ProductName,
+                                CommonDescription: safeJSON(row.CommonDescription, {}),
+                                ProductServices: safeJSON(row.ProductServices, []),
+                                CommonImages: safeJSON(row.CommonImages, []),
+                                CommonVideos: safeJSON(row.CommonVideos, []),
+                                VariantProductDatas: []
+                            };
+                        }
+
+                        let variantFields = [];
+                        const vfObj = safeJSON(row.VariantFields, {});
+                        for (let [VariantId, VariantValue] of Object.entries(vfObj)) {
+                            if (VariantId && VariantValue) {
+                                variantFields.push({ VariantId, VariantValue });
+                            }
+                        }
+
+                        const specArray = Object.entries(safeJSON(row.Specification, {})).map(
+                            ([k, v]) => ({ SpecificationKey: k, SpecificationValue: v })
+                        );
+
+                        groupedProducts[row.ProductName].VariantProductDatas.push({
+                            VariantProductName: row.VariantProductName,
+                            Price: Number(row.Price),
+                            OfferPercentage: Number(row.OfferPercentage || 0),
+                            InventoryBaseStock: {
+                                InventoryBase: row.InventoryBase === "true",
+                                Stock: Number(row.Stock || 0),
+                                AvailableStock: Number(row.AvailableStock || 0)
+                            },
+                            BatchIds: safeJSON(row.BatchIds, []),
+                            VariantFields: variantFields,
+                            Specification: specArray,
+                            AboutProduct: safeJSON(row.AboutProduct, {}),
+                            VariantProductImage: safeJSON(row.VariantProductImage, [])
+                        });
+                    })
+                    .on("end", resolve)
+                    .on("error", reject);
+            });
+
+            for (let productName in groupedProducts) {
+                const EachProduct = groupedProducts[productName];
+
+                try {
+                    let ProductData = {
+                        companyId,
+                        HeadCategoryId,
+                        SubCategoryId,
+                        BrandId,
+                        ProductName: EachProduct.ProductName
+                    };
+
+                    const cd = EachProduct.CommonDescription;
+                    if (cd?.Head || cd?.Points?.length || cd?.TextDescription) {
+                        ProductData.CommonDescription = cd;
+                    }
+
+                    if (EachProduct.ProductServices?.length) {
+                        let validServices = [];
+                        for (let s of EachProduct.ProductServices) {
+                            if (await ProductService.findById(s?.ProductServiceId)) {
+                                validServices.push(s);
+                            }
+                        }
+                        if (validServices.length) ProductData.ProductServices = validServices;
+                    }
+
+                    ProductData.CommonImages = EachProduct.CommonImages
+                        .map(i => imageMap.get(i))
+                        .filter(Boolean);
+                    ProductData.CommonImages.forEach(i => usedImages.add(i));
+
+                    ProductData.CommonVideos = EachProduct.CommonVideos
+                        .map(v => videoMap.get(v))
+                        .filter(Boolean);
+                    ProductData.CommonVideos.forEach(v => usedVideos.add(v));
+
+                    const product = await new Product(ProductData).save();
+                    let VariantIds = [];
+
+                    for (let EachVariant of EachProduct.VariantProductDatas) {
+                        try {
+                            if (!EachVariant.Price) throw new Error("Price missing");
+
+                            if (
+                                EachVariant.InventoryBaseStock.AvailableStock >
+                                EachVariant.InventoryBaseStock.Stock
+                            ) {
+                                throw new Error("AvailableStock greater than Stock");
+                            }
+
+                            let VariantData = {
+                                companyId,
+                                HeadCategoryId,
+                                SubCategoryId,
+                                ProductId: product._id,
+                                VariantProductName: EachVariant.VariantProductName || product.ProductName,
+                                Price: EachVariant.Price,
+                                OfferPercentage: EachVariant.OfferPercentage,
+                                InventoryBaseStock: EachVariant.InventoryBaseStock
+                            };
+
+                            const ap = EachVariant.AboutProduct;
+                            if (ap?.Head || ap?.Points?.length || ap?.TextDescription) {
+                                VariantData.AboutProduct = ap;
+                            }
+
+                            VariantData.Specification = EachVariant.Specification.filter(
+                                s => s.SpecificationKey && s.SpecificationValue
+                            );
+
+                            if (EachVariant.BatchIds?.length) {
+                                const batches = await Batch.find(
+                                    { _id: { $in: EachVariant.BatchIds } },
+                                    { _id: 1 }
+                                );
+                                if (batches.length) {
+                                    VariantData.BatchIds = batches.map(b => b._id);
+                                }
+                            }
+
+                            let validVariantFields = [];
+                            for (let vf of EachVariant.VariantFields) {
+                                if (await Variant.findById(vf.VariantId)) {
+                                    validVariantFields.push(vf);
+                                }
+                            }
+                            if (validVariantFields.length) {
+                                VariantData.VariantFields = validVariantFields;
+                            }
+
+                            const images = EachVariant.VariantProductImage
+                                .map(i => imageMap.get(i))
+                                .filter(Boolean);
+
+                            VariantData.VariantProductImage =
+                                images.length ? images :
+                                    (product.CommonImages?.length ? [product.CommonImages[0]] : []);
+
+                            VariantData.VariantProductImage.forEach(i => usedImages.add(i));
+
+                            const variant = await new VariantProduct(VariantData).save();
+                            VariantIds.push(variant._id);
+
+                            if (VariantData.VariantFields?.length) {
+                                for (let vf of VariantData.VariantFields) {
+                                    const exists = await Variant.findOne({
+                                        _id: vf.VariantId,
+                                        "VariantValues.Value": vf.VariantValue
+                                    });
+
+                                    if (exists) {
+                                        await Variant.updateOne(
+                                            { _id: vf.VariantId, "VariantValues.Value": vf.VariantValue },
+                                            { $inc: { "VariantValues.$.Count": 1 } }
+                                        );
+                                    } else {
+                                        await Variant.updateOne(
+                                            { _id: vf.VariantId },
+                                            { $push: { VariantValues: { Value: vf.VariantValue, Count: 1 } } }
+                                        );
+                                    }
+                                }
+                            }
+
+                        } catch (vErr) {
+                            failedVariants.push({ productName, variant: EachVariant, reason: vErr.message });
+                        }
+                    }
+
+                    if (!VariantIds.length) {
+                        await Product.findByIdAndDelete(product._id);
+                        throw new Error("No valid variants");
+                    }
+
+                    await Product.findByIdAndUpdate(product._id, {
+                        $set: { VariantProductIds: VariantIds }
+                    });
+
+                    try {
+                        await updateElasticById({ type: "product", id: product._id });
+                    } catch { }
+
+                    addedProducts.push(product._id);
+
+                } catch (pErr) {
+                    failedProducts.push({ productName, reason: pErr.message });
+                }
+            }
+
+            deleteFiles("ProductImage", AllProductImages.filter(i => !usedImages.has(i)));
+            deleteFiles("ProductVideo", AllProductVideos.filter(v => !usedVideos.has(v)));
+
+            fs.unlinkSync(csvFilePath);
+
+            return res.status(201).json({
+                success: true,
+                addedProducts,
+                failedProducts,
+                failedVariants
+            });
+
+        } catch (err) {
+            return res.status(500).json({ success: false, message: "Internal Server Error", error: err.message });
+        }
+    },
+
+    previewVariantProductCSV: async (req, res) => {
+        try {
+            const csvFilePath = req.files?.CSVFile?.[0]?.path;
+
+            if (!csvFilePath) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'CSV file is required'
+                });
+            }
+
+            let lastProductRow = {};
+            let groupedProducts = {};
+
+            await new Promise((resolve, reject) => {
+                fs.createReadStream(csvFilePath)
+                    .pipe(csvParser())
+                    .on('data', (row) => {
+
+                        // 🔁 Inherit product-level fields
                         row.ProductName = row.ProductName || lastProductRow.ProductName;
                         row.ProductServices = row.ProductServices || lastProductRow.ProductServices;
                         row.CommonDescription = row.CommonDescription || lastProductRow.CommonDescription;
                         row.CommonImages = row.CommonImages || lastProductRow.CommonImages;
                         row.CommonVideos = row.CommonVideos || lastProductRow.CommonVideos;
                         row.VariantProductImage = row.VariantProductImage || lastProductRow.VariantProductImage;
-                        lastProductRow = { ...row };
 
+                        // ❌ If still no ProductName (first row empty), skip
                         if (!row.ProductName) return;
 
+                        lastProductRow = { ...row };
+
+                        // 🆕 Initialize product group
                         if (!groupedProducts[row.ProductName]) {
+
+                            // ✅ Parse ProductServices safely & SKIP invalid services
+                            let productServices = [];
+                            if (row.ProductServices) {
+                                try {
+                                    const parsedServices = JSON.parse(row.ProductServices);
+                                    if (Array.isArray(parsedServices)) {
+                                        productServices = parsedServices
+                                            .filter(ps => ps?.ProductServiceId) // ⭐ skip if no ID
+                                            .map(ps => ({
+                                                Paid: !!ps.Paid,
+                                                ProductServiceId: ps.ProductServiceId,
+                                                ProductServiceAmount: Number(ps.ProductServiceAmount || 0),
+                                                ExpiryDate: {
+                                                    Hour: Number(ps?.ExpiryDate?.Hour || 0),
+                                                    Minute: Number(ps?.ExpiryDate?.Minute || 0),
+                                                    Second: Number(ps?.ExpiryDate?.Second || 0),
+                                                    Day: Number(ps?.ExpiryDate?.Day || 0),
+                                                    Week: Number(ps?.ExpiryDate?.Week || 0),
+                                                    Month: Number(ps?.ExpiryDate?.Month || 0),
+                                                    Year: Number(ps?.ExpiryDate?.Year || 0)
+                                                }
+                                            }));
+                                    }
+                                } catch (_) { }
+                            }
+
                             groupedProducts[row.ProductName] = {
                                 ProductName: row.ProductName,
-                                ProductServices: row.ProductServices ? JSON.parse(row.ProductServices) : [],
+                                ProductServices: productServices,
                                 CommonDescription: row.CommonDescription ? JSON.parse(row.CommonDescription) : {},
                                 CommonImages: row.CommonImages ? JSON.parse(row.CommonImages) : [],
                                 CommonVideos: row.CommonVideos ? JSON.parse(row.CommonVideos) : [],
@@ -314,37 +876,52 @@ module.exports = {
                             };
                         }
 
-                        let variantFieldsArray = [];
+                        // 🧬 VariantFields
+                        let variantFields = [];
                         if (row.VariantFields) {
-                            let vfObj = JSON.parse(row.VariantFields);
-                            for (let [VariantId, VariantValue] of Object.entries(vfObj)) {
-                                if (!VariantId || !VariantValue) continue;
-                                let FoundVariant = await Variant.findById(VariantId);
-                                if (FoundVariant) variantFieldsArray.push({ VariantId, VariantValue });
-                            }
+                            try {
+                                const vfObj = JSON.parse(row.VariantFields);
+                                variantFields = Object.entries(vfObj).map(
+                                    ([VariantId, VariantValue]) => ({ VariantId, VariantValue })
+                                );
+                            } catch (_) { }
                         }
 
-                        let specArray = [];
+                        // 📋 Specification
+                        let specification = [];
                         if (row.Specification) {
-                            let specObj = JSON.parse(row.Specification);
-                            specArray = Object.entries(specObj).map(([key, value]) => ({
-                                SpecificationKey: key,
-                                SpecificationValue: value
-                            }));
+                            try {
+                                const specObj = JSON.parse(row.Specification);
+                                specification = Object.entries(specObj).map(
+                                    ([key, value]) => ({
+                                        SpecificationKey: key,
+                                        SpecificationValue: value
+                                    })
+                                );
+                            } catch (_) { }
                         }
 
-                        let filterFilesEndsWith = (csvFiles, uploaded) =>
-                            (csvFiles || []).filter(csvFile => uploaded.some(u => u.endsWith(csvFile)));
+                        // 📝 AboutProduct
+                        let aboutProduct = {
+                            Head: "",
+                            Points: [],
+                            TextDescription: ""
+                        };
 
-                        let commonImagesFiltered = filterFilesEndsWith(JSON.parse(row.CommonImages || '[]'), uploadedImages);
-                        let commonVideosFiltered = filterFilesEndsWith(JSON.parse(row.CommonVideos || '[]'), uploadedVideos);
-                        let variantImagesFiltered = filterFilesEndsWith(JSON.parse(row.VariantProductImage || '[]'), uploadedImages);
+                        if (row.AboutProduct) {
+                            try {
+                                const ap = JSON.parse(row.AboutProduct);
+                                aboutProduct = {
+                                    Head: ap?.Head || "",
+                                    Points: Array.isArray(ap?.Points) ? ap.Points : [],
+                                    TextDescription: ap?.TextDescription || ""
+                                };
+                            } catch (_) { }
+                        }
 
-                        usedImages.push(...commonImagesFiltered, ...variantImagesFiltered);
-                        usedVideos.push(...commonVideosFiltered);
-
+                        // ➕ Push Variant
                         groupedProducts[row.ProductName].VariantProductDatas.push({
-                            VariantProductName: row.VariantProductName,
+                            VariantProductName: row.VariantProductName || row.ProductName,
                             Price: Number(row.Price || 0),
                             OfferPercentage: Number(row.OfferPercentage || 0),
                             BatchIds: row.BatchIds ? JSON.parse(row.BatchIds) : [],
@@ -353,126 +930,46 @@ module.exports = {
                                 Stock: Number(row.Stock || 0),
                                 AvailableStock: Number(row.AvailableStock || 0)
                             },
-                            Specification: specArray,
-                            VariantFields: variantFieldsArray,
-                            AboutProduct: row.AboutProduct ? JSON.parse(row.AboutProduct) : {},
-                            VariantProductImage: variantImagesFiltered,
-                            CommonImages: commonImagesFiltered,
-                            CommonVideos: commonVideosFiltered
+                            Specification: specification,
+                            VariantFields: variantFields,
+                            AboutProduct: aboutProduct,
+                            VariantProductImage: row.VariantProductImage
+                                ? JSON.parse(row.VariantProductImage)
+                                : []
                         });
                     })
-                    .on('end', () => resolve())
-                    .on('error', (err) => reject(err));
+                    .on('end', resolve)
+                    .on('error', reject);
             });
 
-            let savedProducts = [];
+            // 🔠 Sort products
+            const sortedProducts = Object.values(groupedProducts).sort(
+                (a, b) => a.ProductName.localeCompare(b.ProductName)
+            );
 
-            for (let productName in groupedProducts) {
-                let p = groupedProducts[productName];
-                let ProductData = { ProductName: p.ProductName };
-
-                if (Array.isArray(p.ProductServices) && p.ProductServices.length > 0) {
-                    let ProductServicesData = [];
-                    for (let EachService of p.ProductServices) {
-                        let FoundService = await ProductService.findById(EachService?.ProductServiceId);
-                        if (FoundService) ProductServicesData.push(EachService);
-                    }
-                    if (ProductServicesData.length > 0) ProductData.ProductServices = ProductServicesData;
-                }
-
-                if (Array.isArray(p.CommonImages) && p.CommonImages.length > 0) ProductData.CommonImages = p.CommonImages;
-                if (Array.isArray(p.CommonVideos) && p.CommonVideos.length > 0) ProductData.CommonVideos = p.CommonVideos;
-                if (p.CommonDescription && (p.CommonDescription.Head || (Array.isArray(p.CommonDescription.Points) && p.CommonDescription.Points.length) || p.CommonDescription.TextDescription)) {
-                    ProductData.CommonDescription = p.CommonDescription;
-                }
-
-                let AddProduct = await new Product(ProductData).save();
-                if (!AddProduct) continue;
-
-                let VariantIds = [];
-
-                for (let EachVariantProduct of p.VariantProductDatas) {
-                    if (!EachVariantProduct?.Price) continue;
-                    if (p.CommonImages.length == 0 && EachVariantProduct.VariantProductImage.lengh == 0) continue;
-                    let VariantData = { ProductId: AddProduct._id };
-                    VariantData.VariantProductImage = EachVariantProduct.VariantProductImage ? EachVariantProduct.VariantProductImage : [p.CommonImages[0]];
-                    VariantData.BatchIds = EachVariantProduct.BatchIds || [];
-                    VariantData.VariantProductName = EachVariantProduct.VariantProductName || ProductData.ProductName;
-                    VariantData.Price = EachVariantProduct.Price;
-                    if (EachVariantProduct.OfferPercentage) VariantData.OfferPercentage = EachVariantProduct.OfferPercentage;
-                    VariantData.InventoryBaseStock = EachVariantProduct.InventoryBaseStock || { InventoryBase: false, Stock: 0, AvailableStock: 0 };
-                    VariantData.Specification = EachVariantProduct.Specification || [];
-                    VariantData.VariantFields = EachVariantProduct.VariantFields || [];
-                    VariantData.AboutProduct = EachVariantProduct.AboutProduct || {};
-
-                    let AddVariantProduct = await new VariantProduct(VariantData).save();
-                    if (AddVariantProduct) {
-                        VariantIds.push(AddVariantProduct._id);
-
-                        if (Array.isArray(EachVariantProduct.VariantFields)) {
-                            await Promise.all(
-                                EachVariantProduct.VariantFields.map(async (EachVariant) => {
-                                    let findVariant = await Variant.findOne({
-                                        _id: EachVariant?.VariantId,
-                                        'VariantValues.Value': EachVariant?.VariantValue
-                                    });
-                                    if (findVariant) {
-                                        await Variant.findOneAndUpdate(
-                                            { _id: EachVariant?.VariantId, 'VariantValues.Value': EachVariant?.VariantValue },
-                                            { $inc: { 'VariantValues.$.Count': 1 } }
-                                        );
-                                    } else {
-                                        await Variant.findOneAndUpdate(
-                                            { _id: EachVariant?.VariantId },
-                                            { $push: { VariantValues: { Value: EachVariant?.VariantValue, Count: 1 } } }
-                                        );
-                                    }
-                                })
-                            );
-                        }
-                    }
-                }
-
-                if (VariantIds.length > 0) {
-                    await Product.findByIdAndUpdate(AddProduct._id, { $set: { VariantProductIds: VariantIds } }, { new: true });
-                    savedProducts.push(AddProduct);
-                } else {
-                    if (AddProduct?._id) await Product.findByIdAndDelete(AddProduct._id);
-                }
-            }
-
-            let cleanupFiles = (folder, uploaded, used) => {
-                let folderPath = path.join(__dirname, '..', '..', 'public', folder);
-                if (!fs.existsSync(folderPath)) return;
-                fs.readdirSync(folderPath).forEach(file => {
-                    if (uploaded.includes(file) && !used.some(u => u.endsWith(file))) {
-                        fs.unlinkSync(path.join(folderPath, file));
-                    }
-                });
-            };
-
-            cleanupFiles('ProductImage', uploadedImages, usedImages);
-            cleanupFiles('ProductImage', uploadedImages, usedImages);
-            cleanupFiles('ProductVideo', uploadedVideos, usedVideos);
-
-            fs.unlinkSync(req.file.path);
-
-            return res.status(201).json({ success: true, message: 'Products and variants uploaded successfully.', data: savedProducts });
+            return res.status(200).json({
+                success: true,
+                count: sortedProducts.length,
+                data: sortedProducts
+            });
 
         } catch (error) {
-            console.error('❌ CSV Upload Error:', error);
-            return res.status(500).json({ success: false, message: 'Internal Server Error', error: error.message });
+            console.error('❌ CSV Preview Error:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Internal Server Error',
+                error: error.message
+            });
         }
     },
     getVariantProductCsv: async (req, res) => {
         try {
-            let csvFilePath = path.join(__dirname, "..", "..", "public", "ProductCsv", 'products_template.csv');
+            const dirPath = path.join(__dirname, "..", "..", "public", "ProductCsv");
+            const csvFilePath = path.join(dirPath, "products_template.csv");
 
-            if (fs.existsSync(csvFilePath)) {
-                fs.unlinkSync(csvFilePath);
-                console.log('🗑️ Old CSV deleted');
-            }
-            let csvWriter = createCsvWriter({
+            await fs.promises.mkdir(dirPath, { recursive: true });
+
+            const csvWriter = createCsvWriter({
                 path: csvFilePath,
                 header: [
                     { id: 'ProductName', title: 'ProductName' },
@@ -494,17 +991,30 @@ module.exports = {
                 ]
             });
 
+            // Write empty template
             await csvWriter.writeRecords([]);
-            console.log('✅New CSV template generated');
+
+            console.log('✅ CSV template generated');
 
             res.download(csvFilePath, 'products_template.csv', (err) => {
-                if (err) console.error('❌ Error sending CSV:', err);
+                if (err) {
+                    console.error('❌ Error sending CSV:', err);
+                    res.status(500).json({
+                        success: false,
+                        message: 'Failed to download CSV'
+                    });
+                }
             });
 
         } catch (error) {
             console.error('❌ CSV Generation Error:', error);
-            res.status(500).json({ success: false, message: 'Internal Server Error', error: error.message });
+            res.status(500).json({
+                success: false,
+                message: 'Internal Server Error',
+                error: error.message
+            });
         }
+
     },
     UpdateVariantProduct: async (req, res) => {
         let {

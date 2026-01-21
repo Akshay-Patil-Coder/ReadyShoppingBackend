@@ -2051,7 +2051,7 @@ module.exports = {
                 return res.status(400).json({ message: "Orders Not Found", success: false });
             }
 
-            const allowedStatus = ['INITIATED', 'PENDING', 'SHIPPED', 'OUTFORDELIVERY', 'CANCELED', 'ASSIGNED'];
+            const allowedStatus = ['INITIATED', 'PENDING', 'SHIPPED', 'OUTFORDELIVERY', 'CANCELED', 'ASSIGNED','RETURN'];
             if (Status && !allowedStatus.includes(Status)) {
                 return res.status(400).json({ message: 'Provide Proper Status Of Product', success: false });
             }
@@ -2160,7 +2160,7 @@ module.exports = {
                 });
             }
 
-            const allowedStatus = ['INITIATED', 'PENDING', 'SHIPPED', 'OUTFORDELIVERY', 'CANCELED', 'ASSIGNED'];
+            const allowedStatus = ['INITIATED', 'PENDING', 'SHIPPED', 'OUTFORDELIVERY', 'CANCELED', 'ASSIGNED','RETURN'];
 
             if (Status && !allowedStatus.includes(Status)) {
                 return res.status(400).json({

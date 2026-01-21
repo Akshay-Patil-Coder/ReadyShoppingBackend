@@ -13,42 +13,86 @@ const storage = multer.diskStorage({
 
     if (file.mimetype.startsWith('image/')) {
       uploadDir = path.join(__dirname, '..', '..', 'public', 'ProductImage');
+
     } else if (file.mimetype.startsWith('video/')) {
       uploadDir = path.join(__dirname, '..', '..', 'public', 'ProductVideo');
+
+    } else if (
+      file.mimetype === 'text/csv' ||
+      file.mimetype === 'application/csv' ||
+      file.mimetype === 'application/vnd.ms-excel'
+    ) {
+      uploadDir = path.join(__dirname, '..', '..', 'public', 'ProductCsv');
+
     } else {
-      return cb(new Error('Invalid file type. Only images and videos are allowed.'), false);
+      return cb(
+        new Error('Invalid file type. Only images, videos, and CSV files are allowed.'),
+        false
+      );
     }
 
+    // Ensure directory exists
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
 
     cb(null, uploadDir);
   },
+
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const baseName = path.basename(file.originalname, path.extname(file.originalname));
+    const baseName = path
+      .basename(file.originalname, path.extname(file.originalname))
+      .replace(/\s+/g, '_');
     const extension = path.extname(file.originalname);
 
-    const prefix = file.mimetype.startsWith('video/') ? 'ProductVideo-' : 'ProductImage-';
+    let prefix = 'File-';
+    if (file.mimetype.startsWith('image/')) prefix = 'ProductImage-';
+    else if (file.mimetype.startsWith('video/')) prefix = 'ProductVideo-';
+    else prefix = 'ProductCSV-';
 
     cb(null, `${prefix}${uniqueSuffix}-${baseName}${extension}`);
   }
 });
 
+
 const fileFilter = (req, file, cb) => {
-  const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
-  const allowedVideoTypes = ['video/mp4', 'video/mkv', 'video/webm', 'video/ogg'];
+  const allowedImageTypes = [
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/jpg'
+  ];
+
+  const allowedVideoTypes = [
+    'video/mp4',
+    'video/mkv',
+    'video/webm',
+    'video/ogg'
+  ];
+
+  const allowedCsvTypes = [
+    'text/csv',
+    'application/csv',
+    'application/vnd.ms-excel' 
+  ];
 
   if (
-    !allowedImageTypes.includes(file.mimetype) &&
-    !allowedVideoTypes.includes(file.mimetype)
+    allowedImageTypes.includes(file.mimetype) ||
+    allowedVideoTypes.includes(file.mimetype) ||
+    allowedCsvTypes.includes(file.mimetype)
   ) {
-    return cb(new Error('Only image (jpeg, png, gif, jpg) and video (mp4, mkv, webm, ogg) files are allowed'), false);
+    cb(null, true);
+  } else {
+    cb(
+      new Error(
+        'Only image (jpeg, png, gif, jpg), video (mp4, mkv, webm, ogg), and CSV files are allowed'
+      ),
+      false
+    );
   }
-
-  cb(null, true);
 };
+
 
 const upload = multer({
   storage: storage,
@@ -76,8 +120,8 @@ router.post(
   "/addVariantProductCSV",
   authentication,
   upload.fields([
-    { name: 'ProductImages', maxCount: 1000 },
-    { name: 'ProductVideos', maxCount: 5 },
+    { name: 'ProductImages', maxCount: 10000 },
+    { name: 'ProductVideos', maxCount: 1000 },
     { name: 'CSVFile', maxCount: 1 }
   ]),
   (req, res) => {
@@ -86,6 +130,32 @@ router.post(
     }
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
+  }
+);
+
+router.post(
+  "/addMultipleVariantProduct",
+  authentication,
+  upload.fields([
+    { name: 'ProductImages', maxCount: 10000 },
+    { name: 'ProductVideos', maxCount: 1000 }
+  ]),
+  (req, res) => {
+    if (req.user.role == 'Company' || req.user.role == 'Admin') {
+      return VariantProductController.addVariantProductCSV(req, res);
+    }
+    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+
+  }
+);
+router.post(
+  "/previewVariantProductCSV",
+  upload.fields([
+    { name: 'CSVFile', maxCount: 1 }
+  ]),
+  (req, res) => {
+      return VariantProductController.previewVariantProductCSV(req, res);
+   
   }
 );
 
