@@ -200,7 +200,7 @@ module.exports = {
             }
         }
         try {
-            let { VariantId, VariantName, VariantValues, Extension } = req.body;
+            let { VariantId, VariantName, VariantValues, Extension, VariantType } = req.body;
             let companyId = req.query.companyId;
             if (req.user.companyId) companyId = req.user.companyId
 
@@ -214,6 +214,24 @@ module.exports = {
                 await cleanFile();
                 return res.status(404).json({ message: 'Variant not found', success: false });
             }
+            if (typeof VariantType == "string" && VariantType.trim() !== "") {
+                const allowedTypes = ["String", "Number", "Date"];
+
+                const normalizedVariantType =
+                    VariantType.trim().charAt(0).toUpperCase() +
+                    VariantType.trim().slice(1).toLowerCase();
+
+                if (!allowedTypes.includes(normalizedVariantType)) {
+                    await cleanFile();
+                    return res.status(400).json({
+                        success: false,
+                        message: `Variant Type must be one of: ${allowedTypes.join(", ")}`
+                    });
+                }
+
+                FoundVariant.VariantType = normalizedVariantType;
+            }
+
 
             if (Array.isArray(VariantValues) && VariantValues.length > 0) {
                 let existing = FoundVariant.VariantValues || [];

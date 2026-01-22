@@ -275,6 +275,24 @@ module.exports = {
     },
 
     addMultipleVariantProduct: async (req, res) => {
+       const safeJSON = (value, fallback = null) => {
+    try {
+        if (!value) return fallback;
+        if (Array.isArray(value)) return value;
+        if (typeof value === "object") return value;
+        if (typeof value === "string") {
+            const trimmed = value.trim();
+            if (!trimmed || trimmed === "[object Object]") return fallback;
+            // Make sure it starts with [ or { before parsing
+            if (/^[\[\{]/.test(trimmed)) return JSON.parse(trimmed);
+            return fallback;
+        }
+        return fallback;
+    } catch (err) {
+        console.error("safeJSON parse error:", err.message);
+        return fallback;
+    }
+};
 
         let {
             companyId,
@@ -296,7 +314,7 @@ module.exports = {
                 }
             });
         };
-
+       
         const deleteVideos = (files) => {
             files.forEach(file => {
                 try {
@@ -310,16 +328,19 @@ module.exports = {
 
         let AllProductImages = req.files?.ProductImages?.map(f => f.filename) || [];
         let AllProductVideos = req.files?.ProductVideos?.map(f => f.filename) || [];
+         console.log(ProductsData, 'data')
+        console.log(typeof ProductsData, 'type')
+        ProductsData = safeJSON(ProductsData, null);
+         console.log(ProductsData, 'data')
+        console.log(typeof ProductsData, 'type')
 
-        try {
-            if (typeof ProductsData === "string") {
-                ProductsData = JSON.parse(ProductsData);
-            }
-        } catch (err) {
-            console.error("❌ ProductsData JSON error:", err);
+        if (!Array.isArray(ProductsData)) {
             deleteImages(AllProductImages);
             deleteVideos(AllProductVideos);
-            return res.status(400).json({ success: false, message: "Invalid ProductsData JSON" });
+            return res.status(400).json({
+                success: false,
+                message: "ProductsData must be a valid JSON array"
+            });
         }
 
         if (!companyId || !HeadCategoryId || !SubCategoryId || !BrandId) {

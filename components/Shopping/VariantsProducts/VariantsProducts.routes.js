@@ -43,7 +43,6 @@ const storage = multer.diskStorage({
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     const baseName = path
       .basename(file.originalname, path.extname(file.originalname))
-      .replace(/\s+/g, '_');
     const extension = path.extname(file.originalname);
 
     let prefix = 'File-';
@@ -135,16 +134,12 @@ router.post(
 
 router.post(
   "/addMultipleVariantProduct",
-  authentication,
   upload.fields([
     { name: 'ProductImages', maxCount: 10000 },
     { name: 'ProductVideos', maxCount: 1000 }
   ]),
   (req, res) => {
-    if (req.user.role == 'Company' || req.user.role == 'Admin') {
-      return VariantProductController.addVariantProductCSV(req, res);
-    }
-    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+      return VariantProductController.addMultipleVariantProduct(req, res);
 
   }
 );
