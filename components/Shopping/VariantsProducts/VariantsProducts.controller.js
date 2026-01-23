@@ -275,24 +275,24 @@ module.exports = {
     },
 
     addMultipleVariantProduct: async (req, res) => {
-       const safeJSON = (value, fallback = null) => {
-    try {
-        if (!value) return fallback;
-        if (Array.isArray(value)) return value;
-        if (typeof value === "object") return value;
-        if (typeof value === "string") {
-            const trimmed = value.trim();
-            if (!trimmed || trimmed === "[object Object]") return fallback;
-            // Make sure it starts with [ or { before parsing
-            if (/^[\[\{]/.test(trimmed)) return JSON.parse(trimmed);
-            return fallback;
-        }
-        return fallback;
-    } catch (err) {
-        console.error("safeJSON parse error:", err.message);
-        return fallback;
-    }
-};
+        const safeJSON = (value, fallback = null) => {
+            try {
+                if (!value) return fallback;
+                if (Array.isArray(value)) return value;
+                if (typeof value === "object") return value;
+                if (typeof value === "string") {
+                    const trimmed = value.trim();
+                    if (!trimmed || trimmed === "[object Object]") return fallback;
+                    // Make sure it starts with [ or { before parsing
+                    if (/^[\[\{]/.test(trimmed)) return JSON.parse(trimmed);
+                    return fallback;
+                }
+                return fallback;
+            } catch (err) {
+                console.error("safeJSON parse error:", err.message);
+                return fallback;
+            }
+        };
 
         let {
             companyId,
@@ -314,7 +314,7 @@ module.exports = {
                 }
             });
         };
-       
+
         const deleteVideos = (files) => {
             files.forEach(file => {
                 try {
@@ -328,10 +328,10 @@ module.exports = {
 
         let AllProductImages = req.files?.ProductImages?.map(f => f.filename) || [];
         let AllProductVideos = req.files?.ProductVideos?.map(f => f.filename) || [];
-         console.log(ProductsData, 'data')
+        console.log(ProductsData, 'data')
         console.log(typeof ProductsData, 'type')
         ProductsData = safeJSON(ProductsData, null);
-         console.log(ProductsData, 'data')
+        console.log(ProductsData, 'data')
         console.log(typeof ProductsData, 'type')
 
         if (!Array.isArray(ProductsData)) {
@@ -827,143 +827,134 @@ module.exports = {
     },
 
     previewVariantProductCSV: async (req, res) => {
+
+        const parsePipeArray = (value = "") =>
+            value
+                .split("|")
+                .map(v => v.trim())
+                .filter(Boolean);
+
+        const parseKeyValuePipe = (value = "") =>
+            value
+                .split("|")
+                .map(p => p.trim())
+                .filter(Boolean)
+                .map(p => {
+                    const [key, val] = p.split("=").map(v => v.trim());
+                    return key && val ? { key, val } : null;
+                })
+                .filter(Boolean);
+
+        const resolveVariantFields = async (rawValue = "", VariantModel) => {
+            const parsed = parseKeyValuePipe(rawValue);
+            const result = [];
+
+            for (const { key, val } of parsed) {
+                let variant = null;
+
+                if (/^[0-9a-fA-F]{24}$/.test(key)) {
+                    variant = await VariantModel.findById(key);
+                }
+
+                if (!variant) {
+                    variant = await VariantModel.findOne({ VariantName: key });
+                }
+
+                if (variant) {
+                    result.push({
+                        VariantId: variant._id,
+                        VariantValue: val
+                    });
+                }
+            }
+
+            return result;
+        };
+
         try {
             const csvFilePath = req.files?.CSVFile?.[0]?.path;
-
             if (!csvFilePath) {
                 return res.status(400).json({
                     success: false,
-                    message: 'CSV file is required'
+                    message: "CSV file is required"
                 });
             }
 
+            const rows = [];
             let lastProductRow = {};
-            let groupedProducts = {};
 
             await new Promise((resolve, reject) => {
                 fs.createReadStream(csvFilePath)
                     .pipe(csvParser())
-                    .on('data', (row) => {
+                    .on("data", (row) => {
 
-                        // 🔁 Inherit product-level fields
-                        row.ProductName = row.ProductName || lastProductRow.ProductName;
-                        row.ProductServices = row.ProductServices || lastProductRow.ProductServices;
-                        row.CommonDescription = row.CommonDescription || lastProductRow.CommonDescription;
-                        row.CommonImages = row.CommonImages || lastProductRow.CommonImages;
-                        row.CommonVideos = row.CommonVideos || lastProductRow.CommonVideos;
-                        row.VariantProductImage = row.VariantProductImage || lastProductRow.VariantProductImage;
+                        row.ProductName ||= lastProductRow.ProductName;
+                        row["CommonDescription(Head)"] ||= lastProductRow["CommonDescription(Head)"];
+                        row["CommonDescription(Points)"] ||= lastProductRow["CommonDescription(Points)"];
+                        row["CommonDescription(TextDescription)"] ||= lastProductRow["CommonDescription(TextDescription)"];
+                        row.CommonImages ||= lastProductRow.CommonImages;
+                        row.CommonVideos ||= lastProductRow.CommonVideos;
 
-                        // ❌ If still no ProductName (first row empty), skip
                         if (!row.ProductName) return;
 
                         lastProductRow = { ...row };
-
-                        // 🆕 Initialize product group
-                        if (!groupedProducts[row.ProductName]) {
-
-                            // ✅ Parse ProductServices safely & SKIP invalid services
-                            let productServices = [];
-                            if (row.ProductServices) {
-                                try {
-                                    const parsedServices = JSON.parse(row.ProductServices);
-                                    if (Array.isArray(parsedServices)) {
-                                        productServices = parsedServices
-                                            .filter(ps => ps?.ProductServiceId) // ⭐ skip if no ID
-                                            .map(ps => ({
-                                                Paid: !!ps.Paid,
-                                                ProductServiceId: ps.ProductServiceId,
-                                                ProductServiceAmount: Number(ps.ProductServiceAmount || 0),
-                                                ExpiryDate: {
-                                                    Hour: Number(ps?.ExpiryDate?.Hour || 0),
-                                                    Minute: Number(ps?.ExpiryDate?.Minute || 0),
-                                                    Second: Number(ps?.ExpiryDate?.Second || 0),
-                                                    Day: Number(ps?.ExpiryDate?.Day || 0),
-                                                    Week: Number(ps?.ExpiryDate?.Week || 0),
-                                                    Month: Number(ps?.ExpiryDate?.Month || 0),
-                                                    Year: Number(ps?.ExpiryDate?.Year || 0)
-                                                }
-                                            }));
-                                    }
-                                } catch (_) { }
-                            }
-
-                            groupedProducts[row.ProductName] = {
-                                ProductName: row.ProductName,
-                                ProductServices: productServices,
-                                CommonDescription: row.CommonDescription ? JSON.parse(row.CommonDescription) : {},
-                                CommonImages: row.CommonImages ? JSON.parse(row.CommonImages) : [],
-                                CommonVideos: row.CommonVideos ? JSON.parse(row.CommonVideos) : [],
-                                VariantProductDatas: []
-                            };
-                        }
-
-                        // 🧬 VariantFields
-                        let variantFields = [];
-                        if (row.VariantFields) {
-                            try {
-                                const vfObj = JSON.parse(row.VariantFields);
-                                variantFields = Object.entries(vfObj).map(
-                                    ([VariantId, VariantValue]) => ({ VariantId, VariantValue })
-                                );
-                            } catch (_) { }
-                        }
-
-                        // 📋 Specification
-                        let specification = [];
-                        if (row.Specification) {
-                            try {
-                                const specObj = JSON.parse(row.Specification);
-                                specification = Object.entries(specObj).map(
-                                    ([key, value]) => ({
-                                        SpecificationKey: key,
-                                        SpecificationValue: value
-                                    })
-                                );
-                            } catch (_) { }
-                        }
-
-                        // 📝 AboutProduct
-                        let aboutProduct = {
-                            Head: "",
-                            Points: [],
-                            TextDescription: ""
-                        };
-
-                        if (row.AboutProduct) {
-                            try {
-                                const ap = JSON.parse(row.AboutProduct);
-                                aboutProduct = {
-                                    Head: ap?.Head || "",
-                                    Points: Array.isArray(ap?.Points) ? ap.Points : [],
-                                    TextDescription: ap?.TextDescription || ""
-                                };
-                            } catch (_) { }
-                        }
-
-                        // ➕ Push Variant
-                        groupedProducts[row.ProductName].VariantProductDatas.push({
-                            VariantProductName: row.VariantProductName || row.ProductName,
-                            Price: Number(row.Price || 0),
-                            OfferPercentage: Number(row.OfferPercentage || 0),
-                            BatchIds: row.BatchIds ? JSON.parse(row.BatchIds) : [],
-                            InventoryBaseStock: {
-                                InventoryBase: row.InventoryBase === 'true',
-                                Stock: Number(row.Stock || 0),
-                                AvailableStock: Number(row.AvailableStock || 0)
-                            },
-                            Specification: specification,
-                            VariantFields: variantFields,
-                            AboutProduct: aboutProduct,
-                            VariantProductImage: row.VariantProductImage
-                                ? JSON.parse(row.VariantProductImage)
-                                : []
-                        });
+                        rows.push(row);
                     })
-                    .on('end', resolve)
-                    .on('error', reject);
+                    .on("end", resolve)
+                    .on("error", reject);
             });
 
-            // 🔠 Sort products
+            const groupedProducts = {};
+
+            for (const row of rows) {
+
+                if (!groupedProducts[row.ProductName]) {
+                    groupedProducts[row.ProductName] = {
+                        ProductName: row.ProductName,
+                        CommonDescription: {
+                            Head: row["CommonDescription(Head)"] || "",
+                            Points: parsePipeArray(row["CommonDescription(Points)"]),
+                            TextDescription: row["CommonDescription(TextDescription)"] || ""
+                        },
+                        CommonImages: parsePipeArray(row.CommonImages),
+                        CommonVideos: parsePipeArray(row.CommonVideos),
+                        VariantProductDatas: []
+                    };
+                }
+
+                const specification = parseKeyValuePipe(row.Specification).map(
+                    ({ key, val }) => ({
+                        SpecificationKey: key,
+                        SpecificationValue: val
+                    })
+                );
+
+                const variantFields = await resolveVariantFields(
+                    row.VariantFields,
+                    Variant
+                );
+
+                groupedProducts[row.ProductName].VariantProductDatas.push({
+                    VariantProductName: row.VariantProductName || row.ProductName,
+                    Price: Number(row.Price || 0),
+                    OfferPercentage: Number(row.OfferPercentage || 0),
+                    BatchIds: parsePipeArray(row.BatchIds),
+                    InventoryBaseStock: {
+                        InventoryBase: row.InventoryBase === "true",
+                        Stock: Number(row.Stock || 0),
+                        AvailableStock: Number(row.AvailableStock || 0)
+                    },
+                    Specification: specification,
+                    VariantFields: variantFields,
+                    AboutProduct: {
+                        Head: row["AboutProduct(Head)"] || "",
+                        Points: parsePipeArray(row["AboutProduct(Points)"]),
+                        TextDescription: row["AboutProduct(TextDescription)"] || ""
+                    },
+                    VariantProductImage: parsePipeArray(row.VariantProductImage)
+                });
+            }
+
             const sortedProducts = Object.values(groupedProducts).sort(
                 (a, b) => a.ProductName.localeCompare(b.ProductName)
             );
@@ -975,14 +966,16 @@ module.exports = {
             });
 
         } catch (error) {
-            console.error('❌ CSV Preview Error:', error);
+            console.error("❌ CSV Preview Error:", error);
             return res.status(500).json({
                 success: false,
-                message: 'Internal Server Error',
+                message: "Internal Server Error",
                 error: error.message
             });
         }
     },
+
+
     getVariantProductCsv: async (req, res) => {
         try {
             const dirPath = path.join(__dirname, "..", "..", "public", "ProductCsv");
@@ -994,8 +987,9 @@ module.exports = {
                 path: csvFilePath,
                 header: [
                     { id: 'ProductName', title: 'ProductName' },
-                    { id: 'ProductServices', title: 'ProductServices' },
-                    { id: 'CommonDescription', title: 'CommonDescription' },
+                    { id: 'CommonDescription(Head)', title: 'CommonDescription(Head)' },
+                    { id: 'CommonDescription(Points)', title: 'CommonDescription(Points)' },
+                    { id: 'CommonDescription(TextDescription)', title: 'CommonDescription(TextDescription)' },
                     { id: 'CommonImages', title: 'CommonImages' },
                     { id: 'CommonVideos', title: 'CommonVideos' },
                     { id: 'VariantProductName', title: 'VariantProductName' },
@@ -1007,7 +1001,9 @@ module.exports = {
                     { id: 'AvailableStock', title: 'AvailableStock' },
                     { id: 'Specification', title: 'Specification' },
                     { id: 'VariantFields', title: 'VariantFields' },
-                    { id: 'AboutProduct', title: 'AboutProduct' },
+                    { id: 'AboutProduct(Head)', title: 'AboutProduct(Head)' },
+                    { id: 'AboutProduct(Points)', title: 'AboutProduct(Points)' },
+                    { id: 'AboutProduct(TextDescription)', title: 'AboutProduct(TextDescription)' },
                     { id: 'VariantProductImage', title: 'VariantProductImage' },
                 ]
             });

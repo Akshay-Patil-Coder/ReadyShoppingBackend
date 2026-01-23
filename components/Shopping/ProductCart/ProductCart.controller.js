@@ -1861,7 +1861,8 @@ module.exports = {
                     if (RenderingDomain == "private" && FoundCompany.PredifinedDomain) {
                         FrontendRenderDomain = `${FoundCompany.PredifinedDomain.replace(/\/+$/, '')}/shopping`;
                     } else if (FoundCompany.CompanyDomain) {
-                        FrontendRenderDomain = `http://${FoundCompany.CompanyDomain}:4200/shopping`;
+                         let companydomain = FoundCompany.CompanyDomain.trim();
+                        FrontendRenderDomain = `https://${companydomain}.shop.readytechnologies.in/shopping`;
                     }
                 }
             } catch (err) {
