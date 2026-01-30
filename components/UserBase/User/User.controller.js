@@ -46,11 +46,11 @@ module.exports = {
         } catch (err) {
           console.log("Dialer API error", err.message);
         }
-        let otpResponse = await module.exports.OtpSend(phone,companyId);
+        let otpResponse = await module.exports.OtpSend(phone, companyId);
         return res.status(201).json({ success: true, message: "Otp Sended", data: otpResponse, firstTimeLogin: true });
 
       } else {
-        let otpResponse = await module.exports.OtpSend(phone,companyId);
+        let otpResponse = await module.exports.OtpSend(phone, companyId);
         return res.status(201).json({ success: true, message: "Otp Sended", data: otpResponse });
       }
 
@@ -59,9 +59,59 @@ module.exports = {
       res.status(500).json({ success: false, error: error.message, message: "Internal Server Error" });
     }
   },
+ LoginViaExternalApps: async (req, res) => {
+  try {
+    const { UserName, companyId, Phone } = req.body;
+
+    if (!Phone || !companyId) {
+      return res.status(400).json({
+        message: "Please provide companyId and Phone Number for login",
+        success: false,
+      });
+    }
+
+    let user = await User.findOne({ companyId, Phone });
+
+    if (!user) {
+      user = new User({
+        Phone,
+        companyId,
+        UserName: UserName || '',
+      });
+      await user.save();
+    }
+
+    const userObject = {
+      _id: user._id,
+      phone: user.Phone,
+      email: user.Email || "",
+      Role: 'User',
+      companyId: user.companyId,
+    };
+
+    const token = jwt.sign({ userObject }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "7d" });
+    const refToken = jwt.sign({ userObject }, process.env.REFER_TOKEN_SECRET, { expiresIn: "7d" });
+
+    return res.status(200).json({
+      token,
+      refToken,
+      info: userObject,
+      success: true,
+      message: "User Loggin Successfully",
+    });
+
+  } catch (error) {
+    console.error("LoginViaExternalAppsError:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong during login",
+      error: error.message,
+    });
+  }
+},
 
 
-  OtpSend: async (phoneno,companyId) => {
+  OtpSend: async (phoneno, companyId) => {
     if (!phoneno) {
       console.log("data not found");
       return null;
@@ -94,7 +144,7 @@ module.exports = {
     }
     let hashedOtp = bcrypt.hashSync(OTP.toString(), 10);
     let updatedUser = await User.findOneAndUpdate(
-      { Phone: phoneno,companyId },
+      { Phone: phoneno, companyId },
       { $set: { ActiveOtp: hashedOtp, OtpTime: Date.now() + 5 * 60 * 1000 } },
       { new: true }
     );
@@ -130,12 +180,14 @@ module.exports = {
           _id: user._id,
           phone: user.Phone,
           email: user.Email || "",
-          Role:'User',
-          companyId:user.companyId
+          Role: 'User',
+          companyId: user.companyId
         };
 
         let token = jwt.sign({ userObject }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "7d" });
         let refToken = jwt.sign({ userObject }, process.env.REFER_TOKEN_SECRET, { expiresIn: "7d" });
+
+
 
         return res.status(200).json({
           token,
@@ -470,7 +522,7 @@ module.exports = {
           { $pull: { Address: { _id: AddressId } } },
           { new: true }
         );
-        
+
       } else {
         return res.status(400).json({ message: "Invalid operation", success: false });
       }

@@ -478,6 +478,10 @@ module.exports = {
                             images.length ? images :
                                 (product.CommonImages?.length ? [product.CommonImages[0]] : []);
 
+                        if (!VariantData.VariantProductImage.length) {
+                            throw new Error("Variant product image missing");
+                        }
+
                         VariantData.VariantProductImage.forEach(i => usedImages.add(i));
 
                         const variant = await new VariantProduct(VariantData).save();

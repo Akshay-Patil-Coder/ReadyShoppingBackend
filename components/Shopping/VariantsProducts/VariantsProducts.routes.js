@@ -278,7 +278,7 @@ router.post("/EditBatchOfVariantProduct", authentication, (req, res) => {
   return VariantProductController.EditBatchOfVariantProduct(req, res)
 });
 
-router.get('/suggest', searchSuggestions);
+router.post('/suggest', searchSuggestions);
 router.post('/getproductsbyes', getProductsById_ES);
 router.get('/getwishlistofes', getWishlistES);
 

@@ -44,6 +44,9 @@ router.post("/verify", (req, res) => {
 router.post('/loginViaPhone', (req, res) => {
   userController.LoginViaPhone(req, res)
 })
+router.post('/loginViaExternalApps', (req, res) => {
+  userController.LoginViaExternalApps(req, res)
+})
 
 router.post('/resendotpforsignup', (req, res) => {
   return userController.ResendOtpForSignup(req, res)
