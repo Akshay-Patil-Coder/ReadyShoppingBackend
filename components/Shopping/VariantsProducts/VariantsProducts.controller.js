@@ -283,7 +283,6 @@ module.exports = {
                 if (typeof value === "string") {
                     const trimmed = value.trim();
                     if (!trimmed || trimmed === "[object Object]") return fallback;
-                    // Make sure it starts with [ or { before parsing
                     if (/^[\[\{]/.test(trimmed)) return JSON.parse(trimmed);
                     return fallback;
                 }
