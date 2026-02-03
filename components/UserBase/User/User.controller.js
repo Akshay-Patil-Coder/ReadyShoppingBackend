@@ -59,56 +59,102 @@ module.exports = {
       res.status(500).json({ success: false, error: error.message, message: "Internal Server Error" });
     }
   },
- LoginViaExternalApps: async (req, res) => {
-  try {
-    const { UserName, companyId, Phone } = req.body;
+  LoginViaExternalApps: async (req, res) => {
+    try {
+      let { UserName, companyId, Phone } = req.body;
 
-    if (!Phone || !companyId) {
-      return res.status(400).json({
-        message: "Please provide companyId and Phone Number for login",
-        success: false,
-      });
-    }
+      if (!companyId || Phone === undefined || Phone === null) {
+        return res.status(400).json({
+          message: "Please provide companyId and Phone Number",
+          success: false,
+        });
+      }
 
-    let user = await User.findOne({ companyId, Phone });
+      let phoneStr = Phone.toString().trim();
 
-    if (!user) {
-      user = new User({
-        Phone,
+      if (/[a-zA-Z]/.test(phoneStr)) {
+        return res.status(400).json({
+          message: "Phone number must not contain characters",
+          success: false,
+        });
+      }
+
+      if (!/^[0-9+\s\-()]+$/.test(phoneStr)) {
+        return res.status(400).json({
+          message: "Phone number contains invalid symbols",
+          success: false,
+        });
+      }
+
+      // ✅ normalize
+      phoneStr = phoneStr.replace(/[\s\-()]/g, "");
+
+      if (phoneStr.startsWith("+91")) {
+        phoneStr = phoneStr.slice(3);
+      }
+
+      phoneStr = phoneStr.replace(/^0+/, "");
+
+      if (!/^\d{10}$/.test(phoneStr)) {
+        return res.status(400).json({
+          message: "Invalid Phone Number",
+          success: false,
+        });
+      }
+
+      const phoneNumber = Number(phoneStr);
+
+      let user = await User.findOne({
         companyId,
-        UserName: UserName || '',
+        Phone: phoneNumber,
       });
-      await user.save();
+
+      if (!user) {
+        user = new User({
+          Phone: phoneNumber,
+          companyId,
+          UserName: UserName || "",
+        });
+        await user.save();
+      }
+
+      const userObject = {
+        _id: user._id,
+        phone: user.Phone,
+        email: user.Email || "",
+        Role: "User",
+        companyId: user.companyId,
+      };
+
+      const token = jwt.sign(
+        { userObject },
+        process.env.ACCESS_TOKEN_SECRET,
+        { expiresIn: "7d" }
+      );
+
+      const refToken = jwt.sign(
+        { userObject },
+        process.env.REFER_TOKEN_SECRET,
+        { expiresIn: "7d" }
+      );
+
+      return res.status(200).json({
+        token,
+        refToken,
+        info: userObject,
+        success: true,
+        message: "User Login Successfully",
+      });
+
+    } catch (error) {
+      console.error("LoginViaExternalAppsError:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Something went wrong during login",
+        error: error.message,
+      });
     }
-
-    const userObject = {
-      _id: user._id,
-      phone: user.Phone,
-      email: user.Email || "",
-      Role: 'User',
-      companyId: user.companyId,
-    };
-
-    const token = jwt.sign({ userObject }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "7d" });
-    const refToken = jwt.sign({ userObject }, process.env.REFER_TOKEN_SECRET, { expiresIn: "7d" });
-
-    return res.status(200).json({
-      token,
-      refToken,
-      info: userObject,
-      success: true,
-      message: "User Loggin Successfully",
-    });
-
-  } catch (error) {
-    console.error("LoginViaExternalAppsError:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong during login",
-      error: error.message,
-    });
-  }
-},
+  },
 
 
   OtpSend: async (phoneno, companyId) => {

@@ -15,6 +15,18 @@ const clc = require('cli-color');
 // require('./components/Shopping/ElasticSearch/elastic/reindexAll.js');
 const axios = require('axios')
 const app = express();
+const redis = require("redis");
+
+const client = redis.createClient({
+  url: "redis://localhost:6379"
+});
+
+client.connect();
+
+client.on("connect", () => {
+  console.log("Redis connected 🚀");
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.set("view engine", "ejs");
