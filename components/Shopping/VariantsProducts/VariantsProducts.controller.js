@@ -865,13 +865,20 @@ module.exports = {
                 }
 
                 if (!variant) {
+                    const nameQuery = {
+                        VariantName: { $regex: `^${key}$`, $options: "i" }
+                    };
+
                     if (SubCategoryId) {
-                        variant = await VariantModel.findOne({ VariantName: key, SubCategoryId });
-                    }
-                    else {
-                        variant = await VariantModel.findOne({ VariantName: key });
+                        variant = await VariantModel.findOne({
+                            ...nameQuery,
+                            SubCategoryId
+                        });
+                    } else {
+                        variant = await VariantModel.findOne(nameQuery);
                     }
                 }
+
 
                 if (variant) {
                     result.push({
