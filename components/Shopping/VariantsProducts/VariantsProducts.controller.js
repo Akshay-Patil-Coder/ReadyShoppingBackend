@@ -943,7 +943,7 @@ module.exports = {
                     OfferPercentage: Number(row.OfferPercentage || 0),
                     BatchIds: parsePipeArray(row.BatchIds),
                     InventoryBaseStock: {
-                        InventoryBase: row.InventoryBase === "true",
+                        InventoryBase: row.InventoryBase?.toString().toLowerCase() == "true" ,
                         Stock: Number(row.Stock || 0),
                         AvailableStock: Number(row.AvailableStock || 0)
                     },
