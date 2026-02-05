@@ -830,7 +830,7 @@ module.exports = {
     },
 
     previewVariantProductCSV: async (req, res) => {
-
+        let { SubCategoryId } = req.body;
         const parsePipeArray = (value = "") =>
             value
                 .split("|")
@@ -856,11 +856,21 @@ module.exports = {
                 let variant = null;
 
                 if (/^[0-9a-fA-F]{24}$/.test(key)) {
-                    variant = await VariantModel.findById(key);
+                    if (SubCategoryId) {
+                        variant = await VariantModel.findOne({ _id: key, SubCategoryId });
+                    }
+                    else {
+                        variant = await VariantModel.findById(key);
+                    }
                 }
 
                 if (!variant) {
-                    variant = await VariantModel.findOne({ VariantName: key });
+                    if (SubCategoryId) {
+                        variant = await VariantModel.findOne({ VariantName: key, SubCategoryId });
+                    }
+                    else {
+                        variant = await VariantModel.findOne({ VariantName: key });
+                    }
                 }
 
                 if (variant) {
@@ -943,7 +953,7 @@ module.exports = {
                     OfferPercentage: Number(row.OfferPercentage || 0),
                     BatchIds: parsePipeArray(row.BatchIds),
                     InventoryBaseStock: {
-                        InventoryBase: row.InventoryBase?.toString().toLowerCase() == "true" ,
+                        InventoryBase: row.InventoryBase?.toString().toLowerCase() == "true",
                         Stock: Number(row.Stock || 0),
                         AvailableStock: Number(row.AvailableStock || 0)
                     },
