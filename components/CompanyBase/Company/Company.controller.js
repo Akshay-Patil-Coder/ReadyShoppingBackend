@@ -22,7 +22,7 @@ const DeletedCompanyModel = require('./DeletedCompany.model');
 const { deleteElasticByCompanyId, updateElasticById } = require('../../Shopping/ElasticSearch/elastic/CRUD.js')
 module.exports = {
     addcompanies: async (req, res) => {
-        let { CompanyName, CompanyDomain, PredifinedDomain, Latitude, Longitude, Street, City, State, Country, PostalCode, Email, Phone, PanCardNo, GstNo, Contact_person_name, Password } = req.body;
+        let { CompanyName, CompanyDomain, PredifinedDomain, Latitude, Longitude, Street, City, State, Country, PostalCode, Email, Phone, PanCardNo, GstNo, Contact_person_name, Password, ManualAddress } = req.body;
 
         try {
             if (!CompanyName || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !Contact_person_name || !Password) {
@@ -154,6 +154,8 @@ module.exports = {
             else if (CompanyDomain) {
                 CompanyData.CompanyDomain = CompanyDomain
             }
+            if (ManualAddress) CompanyData.ManualAddress = ManualAddress
+
             if (req.file) {
                 CompanyData.CompanyLogo = req.file.filename
             }
@@ -323,7 +325,8 @@ module.exports = {
                 Contact_person_name,
                 _id,
                 Latitude,
-                Longitude
+                Longitude,
+                ManualAddress
             } = req.body;
             if (req.user.companyId) _id = req.user.companyId
 
@@ -432,7 +435,7 @@ module.exports = {
                     CompanyData.Longitude = Longitude;
                 }
             }
-
+            if (ManualAddress) CompanyData.ManualAddress = ManualAddress
             let updatedCompany = await Company.findByIdAndUpdate(_id, { $set: CompanyData }, { new: true });
 
             return res.status(200).json({

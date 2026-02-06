@@ -38,6 +38,9 @@ const companySchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    ManualAddress: {
+        type: String
+    },
     Latitude: {
         type: Number
     },
