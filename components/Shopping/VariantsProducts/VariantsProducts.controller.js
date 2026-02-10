@@ -355,7 +355,7 @@ module.exports = {
         let usedVideos = new Set();
 
         for (let EachProduct of ProductsData) {
-
+            let ListOfVariantProduct=[];
             try {
                 if (!EachProduct?.ProductName) {
                     failedProducts.push({ product: EachProduct, reason: "ProductName missing" });
@@ -485,7 +485,7 @@ module.exports = {
 
                         const variant = await new VariantProduct(VariantData).save();
                         VariantIds.push(variant._id);
-
+                        ListOfVariantProduct.push(VariantData)
                         if (Array.isArray(EachVariant.VariantFields)) {
                             for (let vf of EachVariant.VariantFields) {
                                 let existingVariant = await Variant.findOne({
@@ -533,7 +533,7 @@ module.exports = {
                     console.error("❌ Elastic error:", e.message);
                 }
 
-                addedProducts.push(product._id);
+                addedProducts.push({ProductData,ListOfVariantProduct});
 
             } catch (err) {
                 console.error("❌ Product error:", err.message);
