@@ -6,7 +6,7 @@ const path = require('path')
 const fs = require('fs')
 const router = express.Router()
 const { authentication } = require('../../Middleware/Middleware.controller')
-const { searchSuggestions, getProductsById_ES, getWishlistES} = require('../ElasticSearch/elastic/search.controller')
+const { searchSuggestions, getProductsById_ES, getWishlistES } = require('../ElasticSearch/elastic/search.controller')
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     let uploadDir;
@@ -20,11 +20,12 @@ const storage = multer.diskStorage({
     } else if (
       file.mimetype === 'text/csv' ||
       file.mimetype === 'application/csv' ||
-      file.mimetype === 'application/vnd.ms-excel'
+      file.mimetype === 'application/vnd.ms-excel' || // .xls
+      file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // .xlsx
     ) {
       uploadDir = path.join(__dirname, '..', '..', 'public', 'ProductCsv');
-
-    } else {
+    }
+    else {
       return cb(
         new Error('Invalid file type. Only images, videos, and CSV files are allowed.'),
         false
@@ -73,8 +74,10 @@ const fileFilter = (req, file, cb) => {
   const allowedCsvTypes = [
     'text/csv',
     'application/csv',
-    'application/vnd.ms-excel' 
+    'application/vnd.ms-excel', // old .xls
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // .xlsx
   ];
+
 
   if (
     allowedImageTypes.includes(file.mimetype) ||
@@ -109,7 +112,7 @@ router.post(
     if (req.user.role == 'Company' || req.user.role == 'Admin') {
       return VariantProductController.addVariantProduct(req, res);
     }
-   
+
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
   }
@@ -139,7 +142,7 @@ router.post(
     { name: 'ProductVideos', maxCount: 1000 }
   ]),
   (req, res) => {
-      return VariantProductController.addMultipleVariantProduct(req, res);
+    return VariantProductController.addMultipleVariantProduct(req, res);
 
   }
 );
@@ -149,22 +152,38 @@ router.post(
     { name: 'CSVFile', maxCount: 1 }
   ]),
   (req, res) => {
-      return VariantProductController.previewVariantProductCSV(req, res);
-   
+    return VariantProductController.previewVariantProductCSV(req, res);
+
   }
 );
+router.post(
+  "/previewVariantProductExcel",
+  upload.fields([
+    { name: 'CSVFile', maxCount: 1 }
+  ]),
+  (req, res) => {
+    return VariantProductController.previewVariantProductExcel(req, res);
 
+  }
+);
 router.get(
   "/getVariantProductCsv",
   (req, res) => {
     return VariantProductController.getVariantProductCsv(req, res);
   }
 );
+
+router.get(
+  "/getVariantProductExcel",
+  (req, res) => {
+    return VariantProductController.getVariantProductExcel(req, res);
+  }
+);
 router.put("/UpdateVariantProduct", authentication, upload.array('ProductImages', 100), (req, res) => {
   if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return VariantProductController.UpdateVariantProduct(req, res);
   }
- 
+
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 
@@ -173,7 +192,7 @@ router.put("/UpdateProductDetail", authentication, (req, res) => {
   if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return VariantProductController.UpdateProductDetail(req, res);
   }
- 
+
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 });
@@ -181,7 +200,7 @@ router.put("/UpdateCommonImages", authentication, upload.array('ProductImages', 
   if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return VariantProductController.UpdateCommonImages(req, res);
   }
- 
+
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 });
@@ -215,7 +234,7 @@ router.put('/updateVariantDetails', authentication, (req, res) => {
   if (req.user.role == 'Company' || req.user.role == 'Admin') {
     return VariantProductController.updateVariantDetails(req, res);
   }
-  
+
   return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 
@@ -267,7 +286,7 @@ router.put("/updateBatch", authentication, upload2.single('BatchLogo'), (req, re
 
 });
 router.post("/EditBatchOfVariantProduct", authentication, (req, res) => {
-   if (req.user.role == 'Company') {
+  if (req.user.role == 'Company') {
     req.body.companyId = req.user.companyId
     return VariantProductController.EditBatchOfVariantProduct(req, res);
   }

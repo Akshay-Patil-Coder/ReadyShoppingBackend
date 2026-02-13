@@ -9,7 +9,7 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const csvParser = require('csv-parser');
 const { Wishlist } = require('../WishList/WishList.model');
 const { updateElasticById, deleteElasticById, deleteElasticVariantByProductId } = require('../ElasticSearch/elastic/CRUD');
-
+const ExcelJS = require('exceljs');
 
 module.exports = {
     addVariantProduct: async (req, res) => {
@@ -355,7 +355,7 @@ module.exports = {
         let usedVideos = new Set();
 
         for (let EachProduct of ProductsData) {
-            let ListOfVariantProduct=[];
+            let ListOfVariantProduct = [];
             try {
                 if (!EachProduct?.ProductName) {
                     failedProducts.push({ product: EachProduct, reason: "ProductName missing" });
@@ -533,7 +533,7 @@ module.exports = {
                     console.error("❌ Elastic error:", e.message);
                 }
 
-                addedProducts.push({ProductData,ListOfVariantProduct});
+                addedProducts.push({ ProductData, ListOfVariantProduct });
 
             } catch (err) {
                 console.error("❌ Product error:", err.message);
@@ -978,7 +978,9 @@ module.exports = {
             const sortedProducts = Object.values(groupedProducts).sort(
                 (a, b) => a.ProductName.localeCompare(b.ProductName)
             );
-
+            if (fs.existsSync(csvFilePath)) {
+                fs.unlinkSync(csvFilePath)
+            }
             return res.status(200).json({
                 success: true,
                 count: sortedProducts.length,
@@ -994,7 +996,177 @@ module.exports = {
             });
         }
     },
+    previewVariantProductExcel: async (req, res) => {
 
+        let { SubCategoryId } = req.body;
+
+        const parsePipeArray = (value = "") =>
+            value
+                .toString()
+                .split("|")
+                .map(v => v.trim())
+                .filter(Boolean);
+
+        const parseKeyValuePipe = (value = "") =>
+            value
+                .toString()
+                .split("|")
+                .map(p => p.trim())
+                .filter(Boolean)
+                .map(p => {
+                    const [key, val] = p.split("=").map(v => v.trim());
+                    return key && val ? { key, val } : null;
+                })
+                .filter(Boolean);
+
+        const resolveVariantFields = async (rawValue = "", VariantModel) => {
+            const parsed = parseKeyValuePipe(rawValue);
+            const result = [];
+
+            for (const { key, val } of parsed) {
+                let variant = null;
+
+                if (/^[0-9a-fA-F]{24}$/.test(key)) {
+                    variant = SubCategoryId
+                        ? await VariantModel.findOne({ _id: key, SubCategoryId })
+                        : await VariantModel.findById(key);
+                }
+
+                if (!variant) {
+                    const nameQuery = {
+                        VariantName: { $regex: `^${key}$`, $options: "i" }
+                    };
+
+                    variant = SubCategoryId
+                        ? await VariantModel.findOne({ ...nameQuery, SubCategoryId })
+                        : await VariantModel.findOne(nameQuery);
+                }
+
+                if (variant) {
+                    result.push({
+                        VariantId: variant._id,
+                        VariantValue: val
+                    });
+                }
+            }
+
+            return result;
+        };
+
+        try {
+            const excelPath = req.files?.CSVFile?.[0]?.path;
+
+            if (!excelPath) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Excel file is required"
+                });
+            }
+
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.readFile(excelPath);
+
+            const worksheet = workbook.worksheets[0];
+
+            const headers = worksheet.getRow(1).values.slice(1);
+            const rows = [];
+            let lastProductRow = {};
+
+            worksheet.eachRow((row, rowNumber) => {
+
+                if (rowNumber === 1) return; 
+
+                const rowData = {};
+                headers.forEach((header, index) => {
+                    rowData[header] = row.getCell(index + 1).value || "";
+                });
+
+                rowData.ProductName ||= lastProductRow.ProductName;
+                rowData["CommonDescription(Head)"] ||= lastProductRow["CommonDescription(Head)"];
+                rowData["CommonDescription(Points)"] ||= lastProductRow["CommonDescription(Points)"];
+                rowData["CommonDescription(TextDescription)"] ||= lastProductRow["CommonDescription(TextDescription)"];
+                rowData.CommonImages ||= lastProductRow.CommonImages;
+                rowData.CommonVideos ||= lastProductRow.CommonVideos;
+
+                if (!rowData.ProductName) return;
+
+                lastProductRow = { ...rowData };
+                rows.push(rowData);
+            });
+
+            const groupedProducts = {};
+
+            for (const row of rows) {
+
+                if (!groupedProducts[row.ProductName]) {
+                    groupedProducts[row.ProductName] = {
+                        ProductName: row.ProductName,
+                        CommonDescription: {
+                            Head: row["CommonDescription(Head)"] || "",
+                            Points: parsePipeArray(row["CommonDescription(Points)"]),
+                            TextDescription: row["CommonDescription(TextDescription)"] || ""
+                        },
+                        CommonImages: parsePipeArray(row.CommonImages),
+                        CommonVideos: parsePipeArray(row.CommonVideos),
+                        VariantProductDatas: []
+                    };
+                }
+
+                const specification = parseKeyValuePipe(row.Specification).map(
+                    ({ key, val }) => ({
+                        SpecificationKey: key,
+                        SpecificationValue: val
+                    })
+                );
+
+                const variantFields = await resolveVariantFields(
+                    row.VariantFields,
+                    Variant
+                );
+
+                groupedProducts[row.ProductName].VariantProductDatas.push({
+                    VariantProductName: row.VariantProductName || row.ProductName,
+                    Price: Number(row.Price || 0),
+                    OfferPercentage: Number(row.OfferPercentage || 0),
+                    BatchIds: parsePipeArray(row.BatchIds),
+                    InventoryBaseStock: {
+                        InventoryBase: row.InventoryBase?.toString().toLowerCase() === "true",
+                        Stock: Number(row.Stock || 0),
+                        AvailableStock: Number(row.AvailableStock || 0)
+                    },
+                    Specification: specification,
+                    VariantFields: variantFields,
+                    AboutProduct: {
+                        Head: row["AboutProduct(Head)"] || "",
+                        Points: parsePipeArray(row["AboutProduct(Points)"]),
+                        TextDescription: row["AboutProduct(TextDescription)"] || ""
+                    },
+                    VariantProductImage: parsePipeArray(row.VariantProductImage)
+                });
+            }
+
+            const sortedProducts = Object.values(groupedProducts)
+                .sort((a, b) => a.ProductName.localeCompare(b.ProductName));
+
+            if (fs.existsSync(excelPath)) {
+                fs.unlinkSync(excelPath);
+            }
+
+            return res.status(200).json({
+                success: true,
+                count: sortedProducts.length,
+                data: sortedProducts
+            });
+
+        } catch (error) {
+            console.error("❌ Excel Preview Error:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Internal Server Error",
+                error: error.message
+            });
+        }
+    },
 
     getVariantProductCsv: async (req, res) => {
         try {
@@ -1053,6 +1225,87 @@ module.exports = {
         }
 
     },
+
+
+getVariantProductExcel: async (req, res) => {
+    try {
+        const dirPath = path.join(__dirname, "..", "..", "public", "ProductCsv");
+        const filePath = path.join(dirPath, "products_template.xlsx");
+
+        await fs.promises.mkdir(dirPath, { recursive: true });
+
+        const workbook = new ExcelJS.Workbook();
+
+        const worksheet = workbook.addWorksheet("Products", {
+            views: [{ state: "frozen", ySplit: 1 }] 
+        });
+
+        const headers = [
+            'ProductName',
+            'CommonDescription(Head)',
+            'CommonDescription(Points)',
+            'CommonDescription(TextDescription)',
+            'CommonImages',
+            'CommonVideos',
+            'VariantProductName',
+            'Price',
+            'OfferPercentage',
+            'BatchIds',
+            'InventoryBase',
+            'Stock',
+            'AvailableStock',
+            'Specification',
+            'VariantFields',
+            'AboutProduct(Head)',
+            'AboutProduct(Points)',
+            'AboutProduct(TextDescription)',
+            'VariantProductImage'
+        ];
+
+      
+        worksheet.columns = headers.map(header => ({
+            header,
+            key: header,
+            width: 25,
+            style: {
+                protection: { locked: false } 
+            }
+        }));
+
+        const headerRow = worksheet.getRow(1);
+        headerRow.font = { bold: true };
+        headerRow.alignment = { vertical: "middle", horizontal: "center" };
+
+        headerRow.eachCell(cell => {
+            cell.protection = { locked: true };
+        });
+
+        await worksheet.protect("1234", {
+            selectLockedCells: false,
+            selectUnlockedCells: true,
+            formatColumns: true,
+            formatRows: true,
+            insertRows: true,
+            deleteRows: true,
+            insertColumns: false,
+            deleteColumns: false
+        });
+
+        await workbook.xlsx.writeFile(filePath);
+
+        console.log("✅ Excel template generated");
+
+        return res.download(filePath, "products_template.xlsx");
+
+    } catch (error) {
+        console.error("❌ Excel Generation Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error",
+            error: error.message
+        });
+    }
+},
     UpdateVariantProduct: async (req, res) => {
         let {
             ProductId,
