@@ -3,6 +3,7 @@ const mongoose = require('mongoose')
 const path = require('path')
 const fs = require('fs')
 const { VariantProduct } = require('../VariantsProducts/VariantsProducts.model');
+const { updateElasticById } = require('../ElasticSearch/elastic/CRUD');
 
 module.exports = {
 
@@ -106,6 +107,13 @@ module.exports = {
                     { _id: { $in: VariantsProductsIds } },
                     { $set: { OfferPercentage } }
                 );
+                try {
+                    await updateElasticById({ type: 'multipleVariantProducts', id: VariantsProductsIds });
+                } catch (e) {
+                    console.error("❌ Elastic error:", e.message);
+                }
+
+
             }
 
             let newBanner = new bannersSchema(bannerData);
@@ -466,7 +474,11 @@ module.exports = {
                         { $set: { OfferPercentage: null } }
                     );
                 }
-
+                try {
+                    await updateElasticById({ type: 'multipleVariantProducts', id: VariantsProductsId });
+                } catch (e) {
+                    console.error("❌ Elastic error:", e.message);
+                }
                 return resp.status(200).json({
                     data: updatedResult,
                     success: true,
@@ -487,7 +499,11 @@ module.exports = {
                         { $set: { OfferPercentage: updatedResult.OfferPercentage } }
                     );
                 }
-
+                try {
+                    await updateElasticById({ type: 'multipleVariantProducts', id: VariantsProductsId });
+                } catch (e) {
+                    console.error("❌ Elastic error:", e.message);
+                }
                 return resp.status(200).json({
                     data: updatedResult,
                     success: true,
@@ -543,6 +559,11 @@ module.exports = {
                     if (productData && productData.OfferPercentage === bannerData.OfferPercentage) {
                         await VariantProduct.updateOne({ _id: prodObjectId }, { $set: { OfferPercentage: null } });
                     }
+                }
+                try {
+                    await updateElasticById({ type: 'multipleVariantProducts', id: bannerData.VariantsProductsIds });
+                } catch (e) {
+                    console.error("❌ Elastic error:", e.message);
                 }
             }
 

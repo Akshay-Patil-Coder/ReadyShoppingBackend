@@ -1074,7 +1074,7 @@ module.exports = {
 
             worksheet.eachRow((row, rowNumber) => {
 
-                if (rowNumber === 1) return; 
+                if (rowNumber === 1) return;
 
                 const rowData = {};
                 headers.forEach((header, index) => {
@@ -1227,85 +1227,85 @@ module.exports = {
     // },
 
 
-getVariantProductCsv: async (req, res) => {
-    try {
-        const dirPath = path.join(__dirname, "..", "..", "public", "ProductCsv");
-        const filePath = path.join(dirPath, "products_template.xlsx");
+    getVariantProductCsv: async (req, res) => {
+        try {
+            const dirPath = path.join(__dirname, "..", "..", "public", "ProductCsv");
+            const filePath = path.join(dirPath, "products_template.xlsx");
 
-        await fs.promises.mkdir(dirPath, { recursive: true });
+            await fs.promises.mkdir(dirPath, { recursive: true });
 
-        const workbook = new ExcelJS.Workbook();
+            const workbook = new ExcelJS.Workbook();
 
-        const worksheet = workbook.addWorksheet("Products", {
-            views: [{ state: "frozen", ySplit: 1 }] 
-        });
+            const worksheet = workbook.addWorksheet("Products", {
+                views: [{ state: "frozen", ySplit: 1 }]
+            });
 
-        const headers = [
-            'ProductName',
-            'CommonDescription(Head)',
-            'CommonDescription(Points)',
-            'CommonDescription(TextDescription)',
-            'CommonImages',
-            'CommonVideos',
-            'VariantProductName',
-            'Price',
-            'OfferPercentage',
-            'BatchIds',
-            'InventoryBase',
-            'Stock',
-            'AvailableStock',
-            'Specification',
-            'VariantFields',
-            'AboutProduct(Head)',
-            'AboutProduct(Points)',
-            'AboutProduct(TextDescription)',
-            'VariantProductImage'
-        ];
+            const headers = [
+                'ProductName',
+                'CommonDescription(Head)',
+                'CommonDescription(Points)',
+                'CommonDescription(TextDescription)',
+                'CommonImages',
+                'CommonVideos',
+                'VariantProductName',
+                'Price',
+                'OfferPercentage',
+                'BatchIds',
+                'InventoryBase',
+                'Stock',
+                'AvailableStock',
+                'Specification',
+                'VariantFields',
+                'AboutProduct(Head)',
+                'AboutProduct(Points)',
+                'AboutProduct(TextDescription)',
+                'VariantProductImage'
+            ];
 
-      
-        worksheet.columns = headers.map(header => ({
-            header,
-            key: header,
-            width: 25,
-            style: {
-                protection: { locked: false } 
-            }
-        }));
 
-        const headerRow = worksheet.getRow(1);
-        headerRow.font = { bold: true };
-        headerRow.alignment = { vertical: "middle", horizontal: "center" };
+            worksheet.columns = headers.map(header => ({
+                header,
+                key: header,
+                width: 25,
+                style: {
+                    protection: { locked: false }
+                }
+            }));
 
-        headerRow.eachCell(cell => {
-            cell.protection = { locked: true };
-        });
+            const headerRow = worksheet.getRow(1);
+            headerRow.font = { bold: true };
+            headerRow.alignment = { vertical: "middle", horizontal: "center" };
 
-        await worksheet.protect("1234", {
-            selectLockedCells: false,
-            selectUnlockedCells: true,
-            formatColumns: true,
-            formatRows: true,
-            insertRows: true,
-            deleteRows: true,
-            insertColumns: false,
-            deleteColumns: false
-        });
+            headerRow.eachCell(cell => {
+                cell.protection = { locked: true };
+            });
 
-        await workbook.xlsx.writeFile(filePath);
+            await worksheet.protect("1234", {
+                selectLockedCells: false,
+                selectUnlockedCells: true,
+                formatColumns: true,
+                formatRows: true,
+                insertRows: true,
+                deleteRows: true,
+                insertColumns: false,
+                deleteColumns: false
+            });
 
-        console.log("✅ Excel template generated");
+            await workbook.xlsx.writeFile(filePath);
 
-        return res.download(filePath, "products_template.xlsx");
+            console.log("✅ Excel template generated");
 
-    } catch (error) {
-        console.error("❌ Excel Generation Error:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Internal Server Error",
-            error: error.message
-        });
-    }
-},
+            return res.download(filePath, "products_template.xlsx");
+
+        } catch (error) {
+            console.error("❌ Excel Generation Error:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Internal Server Error",
+                error: error.message
+            });
+        }
+    },
     UpdateVariantProduct: async (req, res) => {
         let {
             ProductId,

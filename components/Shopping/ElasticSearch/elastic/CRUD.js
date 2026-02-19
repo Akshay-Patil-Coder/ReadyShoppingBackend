@@ -177,6 +177,13 @@ async function updateElasticById({ type, id }) {
             case 'variantProduct':
                 matchCondition = { VariantProductIds: new mongoose.Types.ObjectId(String(id)) };
                 break;
+            case 'multipleVariantProducts':
+                const objectIds = id.map(item => new mongoose.Types.ObjectId(String(item)));
+
+                matchCondition = {
+                    VariantProductIds: { $in: objectIds }
+                };
+                break;
             case 'company':
                 matchCondition = { companyId: new mongoose.Types.ObjectId(String(id)) };
                 break;
@@ -365,4 +372,4 @@ async function saveWishlist({ companyId, userId }) {
 
 
 
-module.exports = { updateElasticById, deleteElasticById, deleteElasticByCompanyId, deleteElasticVariantByProductId,saveWishlist };
+module.exports = { updateElasticById, deleteElasticById, deleteElasticByCompanyId, deleteElasticVariantByProductId, saveWishlist };
