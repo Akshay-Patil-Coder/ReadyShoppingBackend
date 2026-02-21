@@ -429,10 +429,11 @@ module.exports = {
 
             let data = await module.exports.getBannersData(matchCondition);
 
+
             if (!data || data.length === 0) {
                 return res.status(404).json({ message: 'No banners found for the given criteria', success: false });
             }
-
+            
             return res.status(200).json({ data, success: true, message: "Banners fetched successfully" });
 
         } catch (error) {
@@ -442,90 +443,164 @@ module.exports = {
     },
 
 
+    // updateProductsById: async (req, resp) => {
+    //     try {
+    //         let { BannerId, VariantsProductsId, BannerType } = req.body;
+    //         let companyId = req.query.companyId;
+    //         let operation = req.query.operation;
+    //         if (req.user.companyId) companyId = req.user.companyId
+
+    //         if (!BannerId || !VariantsProductsId || VariantsProductsId.length === 0) {
+    //             return resp.status(400).json({ message: 'Please insert valid data', success: false });
+    //         }
+
+    //         if (BannerType !== 'Offer') {
+    //             return resp.status(400).json({ message: 'BannerType must be "Offer"', success: false });
+    //         }
+
+    //         let bannerObjectId = new mongoose.Types.ObjectId(String(BannerId));
+    //         let companyObjectId = new mongoose.Types.ObjectId(String(companyId));
+    //         let variantObjectIds = VariantsProductsId.map(id => new mongoose.Types.ObjectId(String(id)));
+
+    //         if (operation === 'delete') {
+    //             let updatedResult = await bannersSchema.findOneAndUpdate(
+    //                 { _id: bannerObjectId, companyId: companyObjectId, BannerType },
+    //                 { $pull: { VariantsProductsIds: { $in: variantObjectIds } } },
+    //                 { new: true }
+    //             );
+
+    //             if (updatedResult && updatedResult.BannerType === 'Offer') {
+    //                 await VariantProduct.updateMany(
+    //                     { _id: { $in: variantObjectIds }, OfferPercentage: updatedResult.OfferPercentage },
+    //                     { $set: { OfferPercentage: null } }
+    //                 );
+    //             }
+    //             try {
+    //                 await updateElasticById({ type: 'multipleVariantProducts', id: VariantsProductsId });
+    //             } catch (e) {
+    //                 console.error("❌ Elastic error:", e.message);
+    //             }
+    //             return resp.status(200).json({
+    //                 data: updatedResult,
+    //                 success: true,
+    //                 message: "Product(s) deleted successfully from the offer banner"
+    //             });
+    //         }
+
+    //         if (operation === 'add') {
+    //             let updatedResult = await bannersSchema.findOneAndUpdate(
+    //                 { _id: bannerObjectId, companyId: companyObjectId, BannerType },
+    //                 { $addToSet: { VariantsProductsIds: { $each: variantObjectIds } } },
+    //                 { new: true }
+    //             );
+
+    //             if (updatedResult && updatedResult.BannerType === 'Offer') {
+    //                 await VariantProduct.updateMany(
+    //                     { _id: { $in: variantObjectIds } },
+    //                     { $set: { OfferPercentage: updatedResult.OfferPercentage } }
+    //                 );
+    //             }
+    //             try {
+    //                 await updateElasticById({ type: 'multipleVariantProducts', id: VariantsProductsId });
+    //             } catch (e) {
+    //                 console.error("❌ Elastic error:", e.message);
+    //             }
+    //             return resp.status(200).json({
+    //                 data: updatedResult,
+    //                 success: true,
+    //                 message: "Product(s) added successfully to the offer banner"
+    //             });
+    //         }
+
+    //         return resp.status(400).json({
+    //             message: "Invalid operation type. Use 'add' or 'delete'.",
+    //             success: false
+    //         });
+
+    //     } catch (error) {
+    //         console.error("Error in updateProductsById:", error);
+    //         return resp.status(500).json({
+    //             message: "Internal Server Error",
+    //             error: error.message,
+    //             success: false
+    //         });
+    //     }
+    // },
     updateProductsById: async (req, resp) => {
         try {
             let { BannerId, VariantsProductsId, BannerType } = req.body;
-            let companyId = req.query.companyId;
-            let operation = req.query.operation;
-            if (req.user.companyId) companyId = req.user.companyId
+            let companyId = req.user.companyId || req.query.companyId;
 
-            if (!BannerId || !VariantsProductsId || VariantsProductsId.length === 0) {
-                return resp.status(400).json({ message: 'Please insert valid data', success: false });
+            if (!BannerId || !Array.isArray(VariantsProductsId)) {
+                return resp.status(400).json({ message: 'Invalid data', success: false });
             }
 
             if (BannerType !== 'Offer') {
                 return resp.status(400).json({ message: 'BannerType must be "Offer"', success: false });
             }
 
-            let bannerObjectId = new mongoose.Types.ObjectId(String(BannerId));
-            let companyObjectId = new mongoose.Types.ObjectId(String(companyId));
-            let variantObjectIds = VariantsProductsId.map(id => new mongoose.Types.ObjectId(String(id)));
+            const bannerObjectId = new mongoose.Types.ObjectId(String(BannerId));
+            const companyObjectId = new mongoose.Types.ObjectId(String(companyId));
+            const newVariantIds = VariantsProductsId.map(id => new mongoose.Types.ObjectId(String(id)));
 
-            if (operation === 'delete') {
-                let updatedResult = await bannersSchema.findOneAndUpdate(
-                    { _id: bannerObjectId, companyId: companyObjectId, BannerType },
-                    { $pull: { VariantsProductsIds: { $in: variantObjectIds } } },
-                    { new: true }
-                );
+            const existingBanner = await bannersSchema.findOne({
+                _id: bannerObjectId,
+                companyId: companyObjectId,
+                BannerType
+            });
 
-                if (updatedResult && updatedResult.BannerType === 'Offer') {
-                    await VariantProduct.updateMany(
-                        { _id: { $in: variantObjectIds }, OfferPercentage: updatedResult.OfferPercentage },
-                        { $set: { OfferPercentage: null } }
-                    );
-                }
-                try {
-                    await updateElasticById({ type: 'multipleVariantProducts', id: VariantsProductsId });
-                } catch (e) {
-                    console.error("❌ Elastic error:", e.message);
-                }
-                return resp.status(200).json({
-                    data: updatedResult,
-                    success: true,
-                    message: "Product(s) deleted successfully from the offer banner"
-                });
+            if (!existingBanner) {
+                return resp.status(404).json({ message: "Banner not found", success: false });
             }
 
-            if (operation === 'add') {
-                let updatedResult = await bannersSchema.findOneAndUpdate(
-                    { _id: bannerObjectId, companyId: companyObjectId, BannerType },
-                    { $addToSet: { VariantsProductsIds: { $each: variantObjectIds } } },
-                    { new: true }
-                );
+            const oldVariantIds = existingBanner.VariantsProductsIds.map(id => id.toString());
+            const newVariantIdsString = newVariantIds.map(id => id.toString());
 
-                if (updatedResult && updatedResult.BannerType === 'Offer') {
-                    await VariantProduct.updateMany(
-                        { _id: { $in: variantObjectIds } },
-                        { $set: { OfferPercentage: updatedResult.OfferPercentage } }
-                    );
-                }
-                try {
-                    await updateElasticById({ type: 'multipleVariantProducts', id: VariantsProductsId });
-                } catch (e) {
-                    console.error("❌ Elastic error:", e.message);
-                }
-                return resp.status(200).json({
-                    data: updatedResult,
-                    success: true,
-                    message: "Product(s) added successfully to the offer banner"
-                });
+            const removedIds = oldVariantIds.filter(id => !newVariantIdsString.includes(id));
+
+            const addedIds = newVariantIdsString.filter(id => !oldVariantIds.includes(id));
+
+            existingBanner.VariantsProductsIds = newVariantIds;
+            await existingBanner.save();
+
+            if (removedIds.length > 0) {
+                await VariantProduct.updateMany(
+                    { _id: { $in: removedIds }, OfferPercentage: existingBanner.OfferPercentage },
+                    { $set: { OfferPercentage: null } }
+                );
             }
 
-            return resp.status(400).json({
-                message: "Invalid operation type. Use 'add' or 'delete'.",
-                success: false
+            if (addedIds.length > 0) {
+                await VariantProduct.updateMany(
+                    { _id: { $in: addedIds } },
+                    { $set: { OfferPercentage: existingBanner.OfferPercentage } }
+                );
+            }
+
+            try {
+                await updateElasticById({
+                    type: 'multipleVariantProducts',
+                    id: [...removedIds, ...addedIds]
+                });
+            } catch (e) {
+                console.error("Elastic error:", e.message);
+            }
+
+            return resp.status(200).json({
+                success: true,
+                message: "Banner products updated successfully",
+                data: existingBanner
             });
 
         } catch (error) {
-            console.error("Error in updateProductsById:", error);
+            console.error("Error:", error);
             return resp.status(500).json({
+                success: false,
                 message: "Internal Server Error",
-                error: error.message,
-                success: false
+                error: error.message
             });
         }
     },
-
     deleteBanner: async (req, res) => {
         try {
             let { _id, companyId } = req.query;
