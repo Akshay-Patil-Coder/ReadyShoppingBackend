@@ -108,6 +108,12 @@ module.exports = {
                     return res.status(400).json({ message: 'mobile number must be unique' })
                 }
             }
+             if (Email) {
+                let findCompany = await Company.findOne({ Email: String(Email) })
+                if (findCompany) {
+                    return res.status(400).json({ message: 'email must be unique' })
+                }
+            }
             let CopyOfPassword;
             if (Password) {
                 let salt = await bcrypt.genSalt(10);

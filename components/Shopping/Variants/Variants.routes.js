@@ -26,7 +26,10 @@ const storage = multer.diskStorage({
 const fileFilter = (req, file, cb) => {
   const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
   if (!allowedTypes.includes(file.mimetype)) {
-    return cb(new Error('Only image files (jpeg, png, gif,jpg) are allowed'), false);
+    return req.res.status(400).json({
+      success: false,
+      message: 'Only image files (jpeg, png, gif, jpg) are allowed'
+    });
   }
   cb(null, true);
 };
@@ -36,27 +39,27 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
-router.post("/addVariant", authentication,upload.single("VariantImage"), (req, res) => {
-    if (req.user.role == 'Company' ||req.user.role == 'Admin') {
-        return VariantController.addVariant(req, res)
-    }
-    
-    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+router.post("/addVariant", authentication, upload.single("VariantImage"), (req, res) => {
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
+    return VariantController.addVariant(req, res)
+  }
+
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 });
 
 router.get('/getVariantsById', (req, res) => {
-    VariantController.getVariantsById(req, res)
+  VariantController.getVariantsById(req, res)
 })
 router.get('/getAvailableFilters', (req, res) => {
-    VariantController.getAvailableFilters(req, res)
+  VariantController.getAvailableFilters(req, res)
 })
-router.put('/updateVariantDetails', authentication,upload.single("VariantImage"), (req, res) => {
-    if (req.user.role == 'Company' ||req.user.role == 'Admin') {
-        return VariantController.updateVariantDetails(req, res)
-    }
-   
-    return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
+router.put('/updateVariantDetails', authentication, upload.single("VariantImage"), (req, res) => {
+  if (req.user.role == 'Company' || req.user.role == 'Admin') {
+    return VariantController.updateVariantDetails(req, res)
+  }
+
+  return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 
 })
 

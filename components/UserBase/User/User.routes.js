@@ -27,7 +27,10 @@ const storage = multer.diskStorage({
 const fileFilter = (req, file, cb) => {
   const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
   if (!allowedTypes.includes(file.mimetype)) {
-    return cb(new Error('Only image files (jpeg, png, gif,jpg) are allowed'), false);
+    return req.res.status(400).json({
+      success: false,
+      message: 'Only image (jpeg, png, gif, jpg), video (mp4, mkv, webm, ogg), and CSV files are allowed'
+    });
   }
   cb(null, true);
 };
@@ -52,7 +55,7 @@ router.post('/resendotpforsignup', (req, res) => {
   return userController.ResendOtpForSignup(req, res)
 })
 
-router.post('/addProfile',upload.single('UserProfile'), (req, res) => {
+router.post('/addProfile', upload.single('UserProfile'), (req, res) => {
   return userController.addProfile(req, res)
 })
 router.post('/updateDetail', (req, res) => {

@@ -16,13 +16,26 @@ const storage = multer.diskStorage({
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-        cb(null,'ShoppingCategory-' + uniqueSuffix +'-' + path.basename(file.originalname, path.extname(file.originalname)).replace(/\s+/g, '-') +path.extname(file.originalname));
+        cb(null, 'ShoppingCategory-' + uniqueSuffix + '-' + path.basename(file.originalname, path.extname(file.originalname)).replace(/\s+/g, '-') + path.extname(file.originalname));
 
     }
 });
 
+const fileFilter = (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
+    if (!allowedTypes.includes(file.mimetype)) {
+        return req.res.status(400).json({
+            success: false,
+            message: 'Only image (jpeg, png, gif, jpg), video (mp4, mkv, webm, ogg), and CSV files are allowed'
+        });
+    }
+    cb(null, true);
+};
+const upload = multer({
+    storage: storage,
+    fileFilter: fileFilter
+});
 
-const upload = multer({ storage });
 
 router.post('/addCategory', authentication, upload.single('image'), (req, res) => {
     if (req.user.role == 'Company' || req.user.role == 'Admin') {

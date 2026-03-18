@@ -26,10 +26,10 @@ const storage = multer.diskStorage({
       uploadDir = path.join(__dirname, '..', '..', 'public', 'ProductCsv');
     }
     else {
-      return cb(
-        new Error('Invalid file type. Only images, videos, and CSV files are allowed.'),
-        false
-      );
+      return req.res.status(400).json({
+        success: false,
+        message: 'Invalid file type. Only images, videos, and CSV files are allowed.'
+      });
     }
 
     // Ensure directory exists
@@ -86,12 +86,10 @@ const fileFilter = (req, file, cb) => {
   ) {
     cb(null, true);
   } else {
-    cb(
-      new Error(
-        'Only image (jpeg, png, gif, jpg), video (mp4, mkv, webm, ogg), and CSV files are allowed'
-      ),
-      false
-    );
+    return req.res.status(400).json({
+      success: false,
+      message: 'Only image (jpeg, png, gif, jpg), video (mp4, mkv, webm, ogg), and CSV files are allowed'
+    });
   }
 };
 
@@ -258,7 +256,10 @@ const storage2 = multer.diskStorage({
 const fileFilter2 = (req, file, cb) => {
   const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
   if (!allowedTypes.includes(file.mimetype)) {
-    return cb(new Error('Only image files (jpeg, png, gif,jpg) are allowed'), false);
+    return req.res.status(400).json({
+      success: false,
+      message: 'Only image (jpeg, png, gif, jpg), video (mp4, mkv, webm, ogg), and CSV files are allowed'
+    });
   }
   cb(null, true);
 };
