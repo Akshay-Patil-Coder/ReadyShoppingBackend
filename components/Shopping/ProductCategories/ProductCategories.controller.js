@@ -430,7 +430,7 @@ module.exports = {
 
     updateCategory: async (req, res) => {
         try {
-            let { categoryName, companyId } = req.body;
+            let { categoryName, companyId,Description } = req.body;
             if (req.user.companyId) companyId = req.user.companyId
 
             if (!companyId) {
@@ -449,7 +449,7 @@ module.exports = {
                 }
                 return res.status(404).send({ success: false, message: "Category not found" });
             }
-            let updatedData = { categoryName: categoryName, updatedAt: new Date() };
+            let updatedData = { categoryName: categoryName, updatedAt: new Date(),Description:Description };
 
             if (req.file?.filename) {
                 if (category?.imageName) {
