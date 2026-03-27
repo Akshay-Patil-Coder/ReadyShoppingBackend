@@ -5,6 +5,9 @@ const VariantProductSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         required: true
     },
+    ASIN:{
+        type:String
+    },
     HeadCategoryId: {
         type: mongoose.Schema.Types.ObjectId,
         required: true
