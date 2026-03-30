@@ -6,7 +6,6 @@ const randomUseragent = require("random-useragent");
 
 puppeteer.use(StealthPlugin());
 
-// ─── State ────────────────────────────────────────────────────────────────────
 
 let browser = null;
 let running = false;
@@ -18,7 +17,6 @@ const stats = {
     errors: 0,
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
@@ -43,7 +41,6 @@ function saveProduct(product, filePath) {
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 }
 
-// ─── Page Helpers ─────────────────────────────────────────────────────────────
 async function detectAmazonBlock(page) {
     const content = await page.content();
 
@@ -140,7 +137,6 @@ async function openWithRetry(page, url, maxRetries = 3) {
     return false;
 }
 
-// ─── Page Scrapers ────────────────────────────────────────────────────────────
 
 function extractBaseProduct() {
    const getASIN = () => {
@@ -251,7 +247,6 @@ function extractVariant() {
             if (key && val) specs.push({ SpecificationKey: key, SpecificationValue: val });
         });
 
-    // TABLE 2
     document.querySelectorAll("#productDetails_detailBullets_sections1 tr")
         .forEach(row => {
             const key = row.querySelector("th")?.innerText.trim();
@@ -259,7 +254,6 @@ function extractVariant() {
             if (key && val) specs.push({ SpecificationKey: key, SpecificationValue: val });
         });
 
-    // BULLETS
     document.querySelectorAll("#detailBullets_feature_div li")
         .forEach(li => {
             const text = li.innerText.split(":");
@@ -310,7 +304,6 @@ function extractVariant() {
     };
 }
 
-// ─── Core Scraper ─────────────────────────────────────────────────────────────
 
 async function collectProductLinks(page, keyword, pages) {
     const links = [];
@@ -382,7 +375,6 @@ async function scrapeProduct(page, link, filePath) {
         Variants: [],
     };
 
-    // ✅ ALWAYS include current ASIN FIRST
     const variantASINs = [
         base.currentASIN,
         ...base.asins.filter(a => a !== base.currentASIN)
@@ -435,14 +427,12 @@ async function scrapeProduct(page, link, filePath) {
 
     log(`Scraped: ${productData.ProductName}`);
 
-    // ✅ SAVE using current ASIN as identity
     saveProduct(productData, filePath);
 
     stats.saved++;
     broadcastStats();
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
 
 async function startScraping(config, onFinish) {
     stats.saved = 0;
@@ -463,10 +453,7 @@ async function startScraping(config, onFinish) {
     browser = await puppeteer.launch({ headless: false, args: ["--no-sandbox"] });
     let page = await browser.newPage();
 
-    // await page.setViewport({
-    //     width: 1200 + Math.floor(Math.random() * 200),
-    //     height: 700 + Math.floor(Math.random() * 200),
-    // });
+   
 
     await page.setUserAgent(randomUseragent.getRandom());
 
@@ -487,18 +474,12 @@ async function startScraping(config, onFinish) {
             await scrapeProduct(page, link, filePath);
             await randomDelay(3000, 6000);
 
-            // Refresh browser every 15 products
             if (counter % 15 === 0) {
 
                 log("♻ Refreshing browser session");
 
                 await page.close();
                 page = await browser.newPage();
-
-                // await page.setViewport({
-                //     width: 1200 + Math.floor(Math.random() * 200),
-                //     height: 700 + Math.floor(Math.random() * 200),
-                // });
 
                 await page.setUserAgent(randomUseragent.getRandom());
             }

@@ -10,7 +10,6 @@ const brandsSchema = mongoose.Schema(
         },
         BrandImage: {
             type: String,
-            required: true
         },
         companyId: {
             type: mongoose.Schema.Types.ObjectId,

@@ -10,6 +10,7 @@ const csvParser = require('csv-parser');
 const { Wishlist } = require('../WishList/WishList.model');
 const { updateElasticById, deleteElasticById, deleteElasticVariantByProductId } = require('../ElasticSearch/elastic/CRUD');
 const ExcelJS = require('exceljs');
+const { brandmodel } = require('../ProductsBrand/ProductsBrand.model')
 
 module.exports = {
     addVariantProduct: async (req, res) => {
@@ -558,7 +559,325 @@ module.exports = {
             removedVideos: unusedVideos
         });
     },
+    addMultipleScrappedProducts: async (req, res) => {
+        const safeJSON = (value, fallback = null) => {
+            try {
+                if (!value) return fallback;
+                if (Array.isArray(value)) return value;
+                if (typeof value === "object") return value;
+                if (typeof value === "string") {
+                    const trimmed = value.trim();
+                    if (!trimmed || trimmed === "[object Object]") return fallback;
+                    if (/^[\[\{]/.test(trimmed)) return JSON.parse(trimmed);
+                    return fallback;
+                }
+                return fallback;
+            } catch (err) {
+                console.error("safeJSON parse error:", err.message);
+                return fallback;
+            }
+        };
 
+        let {
+            companyId,
+            HeadCategoryId,
+            SubCategoryId,
+            ProductsData,
+        } = req.body;
+
+        if (req.user?.companyId) companyId = req.user.companyId;
+
+        const deleteImages = (files) => {
+            files.forEach(file => {
+                try {
+                    const p = path.join(__dirname, '..', '..', 'public', 'ProductImage', file);
+                    if (fs.existsSync(p)) fs.unlinkSync(p);
+                } catch (err) {
+                    console.error("❌ Image delete error:", err.message);
+                }
+            });
+        };
+
+        const deleteVideos = (files) => {
+            files.forEach(file => {
+                try {
+                    const p = path.join(__dirname, '..', '..', 'public', 'ProductVideo', file);
+                    if (fs.existsSync(p)) fs.unlinkSync(p);
+                } catch (err) {
+                    console.error("❌ Video delete error:", err.message);
+                }
+            });
+        };
+
+        let AllProductImages = req.files?.ProductImages?.map(f => f.filename) || [];
+        let AllProductVideos = req.files?.ProductVideos?.map(f => f.filename) || [];
+
+        ProductsData = safeJSON(ProductsData, null);
+
+        if (!companyId || !HeadCategoryId || !SubCategoryId) {
+            deleteImages(AllProductImages);
+            deleteVideos(AllProductVideos);
+            return res.status(400).json({ success: false, message: "Missing required fields" });
+        }
+
+        let addedProducts = [];
+        let failedProducts = [];
+        let failedVariants = [];
+        let usedImages = new Set();
+        let usedVideos = new Set();
+        let AllImages = new Set();
+        let AllVideos = new Set();
+
+        for (let EachProduct of ProductsData) {
+            let ListOfVariantProduct = [];
+            try {
+                if (!EachProduct?.ProductName) {
+                    failedProducts.push({ product: EachProduct, reason: "ProductName missing" });
+                    continue;
+                }
+                if (!EachProduct?.Brand) {
+                    failedProducts.push({ product: EachProduct, reason: "Brand Missing" });
+                    continue;
+                }
+                let FindBrandId = await brandmodel.findOne({
+                    BrandName: EachProduct?.Brand,
+                    companyId
+                })
+
+                let BrandId = '';
+                if (FindBrandId && FindBrandId?._id) {
+                   BrandId = FindBrandId?._id
+                }
+                else {
+                    let CreateBrand = await new brandmodel({
+                        BrandName: EachProduct?.Brand,
+                        companyId,
+                        HeadCategoryId,
+                        SubCategoryId
+                    }).save();
+                    if (CreateBrand) {
+                        BrandId = CreateBrand?._id
+                    }
+                }
+                if (!BrandId) {
+                    failedProducts.push({ product: EachProduct, reason: "Brand missing" });
+                    continue;
+                }
+                let ProductData = {
+                    companyId,
+                    HeadCategoryId,
+                    SubCategoryId,
+                    BrandId,
+                    ProductName: EachProduct.ProductName,
+                };
+
+                let cd = EachProduct.CommonDescription;
+                if (cd && (cd.Head || (Array.isArray(cd.Points) && cd.Points.length) || cd.TextDescription)) {
+                    ProductData.CommonDescription = cd;
+                }
+
+
+                if (Array.isArray(EachProduct.CommonImages)) {
+                    EachProduct.CommonImages.forEach((EachImage)=>{
+                        AllImages.add(EachImage)
+                    })
+                }
+
+                if (Array.isArray(EachProduct.CommonVideos)) {
+                     EachProduct.CommonVideos.forEach((EachVideo)=>{
+                        AllVideos.add(EachVideo)
+                    })
+                   
+                }
+
+                let product = await new Product(ProductData).save();
+
+                let VariantIds = [];
+
+                if (!Array.isArray(EachProduct.Variants)) {
+                    throw new Error("VariantProductDatas missing");
+                }
+
+                for (let EachVariant of EachProduct.Variants) {
+
+                    try {
+                        if (!EachVariant?.Price) throw new Error("Price missing");
+                        if (
+                            EachVariant?.InventoryBaseStock &&
+                            EachVariant.InventoryBaseStock.AvailableStock >
+                            EachVariant.InventoryBaseStock.Stock
+                        ) {
+                            throw new Error("AvailableStock greater than Stock");
+                        }
+                        if (!EachVariant?.ASIN) {
+                            throw new Error("ASIN Value Not Found");
+                        }
+                        let FoundVariant = await VariantProduct.findOne({ASIN:EachVariant?.ASIN})
+                        if(FoundVariant && FoundVariant?._id){
+                            throw new Error("Variant Product Already Exist")
+                        }
+                        let VariantData = {
+                            companyId,
+                            ASIN:EachVariant?.ASIN,
+                            HeadCategoryId,
+                            SubCategoryId,
+                            ProductId: product._id,
+                            VariantProductName: EachVariant.VariantProductName || EachProduct.ProductName,
+                            Price: EachVariant.Price,
+                            OfferPercentage: EachVariant.OfferPercentage,
+                        };
+                        if (EachVariant?.InventoryBaseStock) {
+                            VariantData.InventoryBaseStock = EachVariant?.InventoryBaseStock;
+                        }
+
+                        let ap = EachVariant?.AboutProduct;
+                        if (ap && (ap.Head || (Array.isArray(ap.Points) && ap.Points.length) || ap.TextDescription)) {
+                            VariantData.AboutProduct = ap;
+                        }
+
+                        if (Array.isArray(EachVariant.Specification)) {
+                            VariantData.Specification = EachVariant.Specification.filter(
+                                s => s.SpecificationKey && s.SpecificationValue
+                            );
+                        }
+                        if (EachVariant.BatchIds) {
+                            EachVariant.BatchIds = Array.isArray(EachVariant.BatchIds)
+                                ? EachVariant.BatchIds
+                                : [EachVariant.BatchIds];
+                        } if (EachVariant?.BatchIds?.length > 0) {
+                            let FoundBatches = await Batch.find(
+                                { _id: { $in: EachVariant.BatchIds } },
+                                { _id: 1 }
+                            );
+
+                            if (FoundBatches.length > 0) {
+                                VariantData.BatchIds = FoundBatches.map(batch => batch._id);
+                            }
+                        }
+                        let VariantFieldsArray = Object.entries(EachVariant.VariantFields)
+                        if (EachVariant.VariantFields && VariantFieldsArray.length) {
+                                  let validVariantFields = [];
+                            VariantFieldsArray.forEach(async ([key, value]) => {
+                                let fv = await Variant.findOne({ VariantName: key });
+                                if (fv && value) {
+                                    validVariantFields.push({
+                                        VariantId: fv._id,
+                                        VariantValue: value
+                                    });
+                                }
+                                else {
+                                    let CreateVariant = await new Variant({
+                                        companyId,
+                                        HeadCategoryId,
+                                        SubCategoryId,
+                                        VariantName: key,
+                                        VariantType: 'String',
+                                    }).save();
+                                    if (CreateVariant && CreateVariant?._id && value) {
+                                        validVariantFields.push({
+                                            VariantId: CreateVariant._id,
+                                            VariantValue: value
+                                        });
+                                    }
+                                }
+                            })
+                      
+                            if (validVariantFields.length) VariantData.VariantFields = validVariantFields;
+                        }
+
+                        let images = [];
+                        if (Array.isArray(EachVariant.VariantProductImage)) {
+                            EachVariant.VariantProductImage.forEach((EachImage)=>{
+                                AllImages.add(EachImage)
+                            })
+                            images = EachVariant.VariantProductImage
+                        }
+                        
+                        VariantData.VariantProductImage =
+                            images.length ? images :
+                                (product.CommonImages?.length ? [product.CommonImages[0]] : []);
+
+                        if (!VariantData.VariantProductImage.length) {
+                            throw new Error("Variant product image missing");
+                        }
+
+                        VariantData.VariantProductImage.forEach(i => usedImages.add(i));
+
+                        const variant = await new VariantProduct(VariantData).save();
+                        VariantIds.push(variant._id);
+                        ListOfVariantProduct.push(VariantData)
+                        if (Array.isArray(VariantData.VariantFields)) {
+                            for (let vf of VariantData.VariantFields) {
+                                let existingVariant = await Variant.findOne({
+                                    _id: vf.VariantId,
+                                    "VariantValues.Value": vf.VariantValue
+                                });
+
+                                if (existingVariant) {
+                                    await Variant.updateOne(
+                                        { _id: vf.VariantId, "VariantValues.Value": vf.VariantValue },
+                                        { $inc: { "VariantValues.$.Count": 1 } }
+                                    );
+                                } else {
+                                    await Variant.updateOne(
+                                        { _id: vf.VariantId },
+                                        { $push: { VariantValues: { Value: vf.VariantValue, Count: 1 } } }
+                                    );
+                                }
+
+                            }
+                        }
+
+                    } catch (vErr) {
+                        console.error("❌ Variant error:", EachProduct.ProductName, EachVariant?.VariantProductName, vErr.message);
+                        failedVariants.push({
+                            productName: EachProduct.ProductName,
+                            variant: EachVariant,
+                            reason: vErr.message
+                        });
+                    }
+                }
+
+                if (!VariantIds.length) {
+                    await Product.findByIdAndDelete(product._id);
+                    throw new Error("No valid variants");
+                }
+
+                await Product.findByIdAndUpdate(product._id, {
+                    $set: { VariantProductIds: VariantIds }
+                });
+
+                try {
+                    await updateElasticById({ type: 'product', id: product._id });
+                } catch (e) {
+                    console.error("❌ Elastic error:", e.message);
+                }
+
+                addedProducts.push({ ProductData, ListOfVariantProduct });
+
+            } catch (err) {
+                console.error("❌ Product error:", err.message);
+                failedProducts.push({
+                    productName: EachProduct?.ProductName,
+                    reason: err.message
+                });
+            }
+        }
+
+        const unusedImages = AllProductImages.filter(i => !usedImages.has(i));
+        const unusedVideos = AllProductVideos.filter(v => !usedVideos.has(v));
+
+        deleteImages(unusedImages);
+        deleteVideos(unusedVideos);
+        return res.status(201).json({
+            success: true,
+            addedProducts,
+            failedProducts,
+            failedVariants,
+            removedImages: unusedImages,
+            removedVideos: unusedVideos
+        });
+    },
     addVariantProductCSV: async (req, res) => {
         let { companyId, HeadCategoryId, SubCategoryId, BrandId } = req.body;
         const safeJSON = (value, fallback) => {
