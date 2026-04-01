@@ -51,7 +51,7 @@ const VariantProductSchema = new mongoose.Schema({
     InventoryBaseStock: {
         InventoryBase: {
             type: Boolean,
-            default: true
+            default: false
         },
         Stock: {
             type: Number,
