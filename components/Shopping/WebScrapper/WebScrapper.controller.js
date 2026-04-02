@@ -549,8 +549,17 @@ async function scrapeProduct(browserInstance, link, config) {
         // ── Brand (atomic upsert) ─────────────────────────────────────────────
 
         const brand = await brandmodel.findOneAndUpdate(
-            { BrandName: base.Brand, companyId },
-            { $setOnInsert: { BrandName: base.Brand, companyId, HeadCategoryId, SubCategoryId } },
+            { BrandName: base.Brand, companyId, HeadCategoryId },
+            {
+                $setOnInsert: {
+                    BrandName: base.Brand,
+                    companyId,
+                    HeadCategoryId
+                },
+                $addToSet: {
+                    SubCategoryId: SubCategoryId
+                }
+            },
             { new: true, upsert: true }
         );
 
@@ -661,6 +670,7 @@ async function scrapeProduct(browserInstance, link, config) {
                                     {
                                         VariantName: { $regex: `^${escapedKey}$`, $options: "i" },
                                         companyId,
+                                        SubCategoryId
                                     },
                                     {
                                         $setOnInsert: {

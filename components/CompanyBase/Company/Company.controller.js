@@ -1398,16 +1398,16 @@ module.exports = {
         try {
             let { token } = req.body;
             if (!token) {
-                return resp.status(400).json({ message: 'please provide token', success: false })
+                return resp.status(401).json({ message: 'please provide token', success: false })
             }
             let data = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET)
             if (!data) {
-                return resp.status(400).json({ message: "token is expired or data not found", success: false })
+                return resp.status(401).json({ message: "token is expired or data not found", success: false })
             }
             resp.status(200).json({ message: 'token verified successfully', data: data })
 
         } catch (error) {
-            return resp.status(400).json({ message: "TokenExpiredError", success: false })
+            return resp.status(401).json({ message: "TokenExpiredError", success: false })
         }
     }
 };
