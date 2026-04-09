@@ -10,4 +10,7 @@ module.exports = {
   '/api/v1/ProductServiceImage': './components/public/ProductServiceImage',
   '/api/v1/ProductsRatingImage': './components/public/ProductSRatingImage',
   '/api/v1/BatchImages': './components/public/BatchImages',
+  '/api/v1/ServiceCategoryImage': './components/public/ServiceCategoryImage',
+  '/api/v1/ServiceBannerImage': './components/public/ServiceBannerImage',
+  '/api/v1/ServiceProductImage': './components/public/ServiceProductImage',
 };
