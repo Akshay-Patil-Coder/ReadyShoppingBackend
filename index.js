@@ -15,7 +15,8 @@ const OtherRoutes = require('./Routes/Other.routes');
 const DoorStepServiceRoutes = require('./Routes/DoorStepService.routes');
 const ShoppingRoutes = require('./Routes/Shopping.routes');
 // const CoachingRoutes = require('./Routes/Coaching.routes');
-
+// require('./components/Shopping/ElasticSearch/elastic/createindex.js');
+// require('./components/Shopping/ElasticSearch/elastic/reindexAll.js');
 const scraperRoutes = require('./components/Shopping/WebScrapper/WebScrapper.routes');
 
 const { ProductOrder } = require('./components/Shopping/ProductCart/ProductCart.model');

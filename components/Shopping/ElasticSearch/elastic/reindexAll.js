@@ -242,10 +242,10 @@ async function reindexAll() {
   process.exit(0);
 }
 
-reindexAll().catch(err => {
-  console.error('❌ Reindex failed:', err);
-  process.exit(1);
-});
+// reindexAll().catch(err => {
+//   console.error('❌ Reindex failed:', err);
+//   process.exit(1);
+// });
 
 
 

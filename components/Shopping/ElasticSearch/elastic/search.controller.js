@@ -489,7 +489,7 @@ exports.getProductsById_ES = async (req, res) => {
 
     return res.json({
       success: true,
-      total: data?.length || 0,
+      total: result.hits.total.value || 0,
       data,
       allSubCategoryIds
     });
