@@ -473,185 +473,185 @@ module.exports = {
             return res.status(500).json({ message: "Internal error", success: false });
         }
     },
-handleServicePaymentStatus: async (req, res) => {
-    let FrontendRenderDomain;
-    try {
-        let paytmResponse = req.body || {};
-        let orderId = paytmResponse?.ORDERID;
-
-        let paymentInfo = {
-            orderId,
-            txnId: paytmResponse.TXNID,
-            amount: paytmResponse.TXNAMOUNT,
-            respMsg: paytmResponse.RESPMSG,
-            status: paytmResponse.STATUS
-        };
-
-        let { RenderingDomain = "public", companyId } = req.query;
-
-        RenderingDomain = ["private", "public"].includes((RenderingDomain || "").toLowerCase())
-            ? RenderingDomain.toLowerCase()
-            : "public";
-
+    handleServicePaymentStatus: async (req, res) => {
+        let FrontendRenderDomain;
         try {
-            const FoundCompany = companyId ? await CompanyModel.findById(companyId) : null;
+            let paytmResponse = req.body || {};
+            let orderId = paytmResponse?.ORDERID;
 
-            if (FoundCompany) {
-                if (RenderingDomain == "private" && FoundCompany.PredifinedDomain) {
-                    FrontendRenderDomain = `${FoundCompany.PredifinedDomain.replace(/\/+$/, '')}/services`;
-                } else if (FoundCompany.CompanyDomain) {
-                    let companydomain = FoundCompany.CompanyDomain.trim();
-                    FrontendRenderDomain = `https://${companydomain}.shop.readytechnologies.in/services`;
+            let paymentInfo = {
+                orderId,
+                txnId: paytmResponse.TXNID,
+                amount: paytmResponse.TXNAMOUNT,
+                respMsg: paytmResponse.RESPMSG,
+                status: paytmResponse.STATUS
+            };
+
+            let { RenderingDomain = "public", companyId } = req.query;
+
+            RenderingDomain = ["private", "public"].includes((RenderingDomain || "").toLowerCase())
+                ? RenderingDomain.toLowerCase()
+                : "public";
+
+            try {
+                const FoundCompany = companyId ? await CompanyModel.findById(companyId) : null;
+
+                if (FoundCompany) {
+                    if (RenderingDomain == "private" && FoundCompany.PredifinedDomain) {
+                        FrontendRenderDomain = `${FoundCompany.PredifinedDomain.replace(/\/+$/, '')}/services`;
+                    } else if (FoundCompany.CompanyDomain) {
+                        let companydomain = FoundCompany.CompanyDomain.trim();
+                        FrontendRenderDomain = `https://${companydomain}.shop.readytechnologies.in/services`;
+                    }
                 }
+            } catch (err) {
+                console.error('Error fetching company domain:', err?.message || err);
             }
-        } catch (err) {
-            console.error('Error fetching company domain:', err?.message || err);
-        }
 
-        if (!FrontendRenderDomain) {
-            FrontendRenderDomain = "http://localhost:4200/services";
-        }
+            if (!FrontendRenderDomain) {
+                FrontendRenderDomain = "http://localhost:4200/services";
+            }
 
-        let verifyPaytmStatus;
+            let verifyPaytmStatus;
 
-        try {
-            const paytmParams = {
-                body: {
-                    mid: process.env.PAYTM_MID,
-                    orderId: paymentInfo.orderId
-                }
-            };
+            try {
+                const paytmParams = {
+                    body: {
+                        mid: process.env.PAYTM_MID,
+                        orderId: paymentInfo.orderId
+                    }
+                };
 
-            const checksum = await PaytmChecksum.generateSignature(
-                JSON.stringify(paytmParams.body),
-                process.env.PAYTM_KEY
-            );
+                const checksum = await PaytmChecksum.generateSignature(
+                    JSON.stringify(paytmParams.body),
+                    process.env.PAYTM_KEY
+                );
 
-            paytmParams.head = { signature: checksum };
+                paytmParams.head = { signature: checksum };
 
-            const post_data = JSON.stringify(paytmParams);
+                const post_data = JSON.stringify(paytmParams);
 
-            const options = {
-                hostname: "securegw.paytm.in",
-                port: 443,
-                path: `/v3/order/status`,
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Content-Length": Buffer.byteLength(post_data)
-                }
-            };
+                const options = {
+                    hostname: "securegw.paytm.in",
+                    port: 443,
+                    path: `/v3/order/status`,
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Content-Length": Buffer.byteLength(post_data)
+                    }
+                };
 
-            verifyPaytmStatus = await new Promise((resolve, reject) => {
-                let response = "";
-                const paytmReq = https.request(options, (paytmRes) => {
-                    paytmRes.on("data", chunk => response += chunk);
-                    paytmRes.on("end", () => {
-                        try { resolve(JSON.parse(response)); }
-                        catch (e) { reject(e); }
+                verifyPaytmStatus = await new Promise((resolve, reject) => {
+                    let response = "";
+                    const paytmReq = https.request(options, (paytmRes) => {
+                        paytmRes.on("data", chunk => response += chunk);
+                        paytmRes.on("end", () => {
+                            try { resolve(JSON.parse(response)); }
+                            catch (e) { reject(e); }
+                        });
                     });
+                    paytmReq.on("error", reject);
+                    paytmReq.write(post_data);
+                    paytmReq.end();
                 });
-                paytmReq.on("error", reject);
-                paytmReq.write(post_data);
-                paytmReq.end();
-            });
 
-        } catch (err) {
-            console.error('Paytm verify error:', err?.message || err);
+            } catch (err) {
+                console.error('Paytm verify error:', err?.message || err);
 
-            return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=PAYTM-VERIFY-ERROR`);
-        }
+                return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=PAYTM-VERIFY-ERROR`);
+            }
 
-        const resultStatus = verifyPaytmStatus?.body?.resultInfo?.resultStatus || "UNKNOWN";
+            const resultStatus = verifyPaytmStatus?.body?.resultInfo?.resultStatus || "UNKNOWN";
 
-        const FoundOrder = await ServiceOrder.findOne({ "PaymentSession.orderId": orderId });
+            const FoundOrder = await ServiceOrder.findOne({ "PaymentSession.orderId": orderId });
 
-        if (!FoundOrder) {
-            return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=ORDER-NOT-FOUND`);
-        }
-
-       
-        if (resultStatus == "TXN_SUCCESS") {
-
-            if (FoundOrder.PaymentSession?.status == 'SUCCESS') {
-                return res.redirect(`${FrontendRenderDomain}/order-checked?orderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=SUCCESS&serviceorderid=${FoundOrder._id}`);
+            if (!FoundOrder) {
+                return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=ORDER-NOT-FOUND`);
             }
 
 
-            FoundOrder.PaymentSession = FoundOrder.PaymentSession || {};
-            FoundOrder.PaymentSession.status = "SUCCESS";
-            FoundOrder.PaymentSession.txnId = paymentInfo.txnId;
-            FoundOrder.PaymentSession.amount = paymentInfo.amount;
+            if (resultStatus == "TXN_SUCCESS") {
 
-            await FoundOrder.save();
+                if (FoundOrder.PaymentSession?.status == 'SUCCESS') {
+                    return res.redirect(`${FrontendRenderDomain}/order-checked?orderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=SUCCESS&serviceorderid=${FoundOrder._id}`);
+                }
 
-            return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=SUCCESS&serviceorderid=${FoundOrder._id}`);
-        }
 
-        
-        if (resultStatus == "TXN_FAILURE" || resultStatus == "FAILURE") {
+                FoundOrder.PaymentSession = FoundOrder.PaymentSession || {};
+                FoundOrder.PaymentSession.status = "SUCCESS";
+                FoundOrder.PaymentSession.txnId = paymentInfo.txnId;
+                FoundOrder.PaymentSession.amount = paymentInfo.amount;
 
-            if (FoundOrder.PaymentSession?.status == 'FAILED') {
+                await FoundOrder.save();
+
+                return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=SUCCESS&serviceorderid=${FoundOrder._id}`);
+            }
+
+
+            if (resultStatus == "TXN_FAILURE" || resultStatus == "FAILURE") {
+
+                if (FoundOrder.PaymentSession?.status == 'FAILED') {
+                    return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=FAILED&serviceorderid=${FoundOrder._id}`);
+                }
+
+                try {
+                    for (let item of (FoundOrder.Services || [])) {
+                        await ServiceAppointmentModel.updateOne(
+                            { "schedule.appointments._id": item.AppointmentId },
+                            {
+                                $set: {
+                                    "schedule.$[].appointments.$[elem].booked": false
+                                }
+                            },
+                            {
+                                arrayFilters: [{ "elem._id": item.AppointmentId }]
+                            }
+                        );
+                    }
+                } catch (err) {
+                    console.error('Rollback appointment error:', err?.message || err);
+                }
+
+                FoundOrder.PaymentSession = FoundOrder.PaymentSession || {};
+                FoundOrder.PaymentSession.status = "FAILED";
+                FoundOrder.PaymentSession.txnId = paymentInfo.txnId || FoundOrder.PaymentSession.txnId;
+                FoundOrder.PaymentSession.amount = paymentInfo.amount || FoundOrder.PaymentSession.amount;
+
+                await FoundOrder.save();
+
+                const resultMsg = (verifyPaytmStatus?.body?.resultInfo?.resultMsg || "").toLowerCase();
+                const respMsg = (paymentInfo?.respMsg || "").toLowerCase();
+
+                const isCancelled =
+                    resultMsg.includes("cancelled") ||
+                    respMsg.includes("user has not completed transaction");
+
+                if (isCancelled) {
+                    return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=CANCELLED&serviceorderid=${FoundOrder._id}`);
+                }
+
                 return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=FAILED&serviceorderid=${FoundOrder._id}`);
             }
 
-            try {
-                for (let item of (FoundOrder.Services || [])) {
-                    await ServiceAppointmentModel.updateOne(
-                        { "schedule.appointments._id": item.AppointmentId },
-                        {
-                            $set: {
-                                "schedule.$[].appointments.$[elem].booked": false
-                            }
-                        },
-                        {
-                            arrayFilters: [{ "elem._id": item.AppointmentId }]
-                        }
-                    );
-                }
-            } catch (err) {
-                console.error('Rollback appointment error:', err?.message || err);
+            return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=${encodeURIComponent(resultStatus)}&serviceorderid=${FoundOrder._id}`);
+
+        } catch (err) {
+            console.error("handleServicePaymentStatus Error:", err);
+
+            const paytmorderId = (req.body && req.body.ORDERID)
+                ? encodeURIComponent(req.body.ORDERID)
+                : "";
+
+            if (FrontendRenderDomain) {
+                return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paytmorderId}&status=INTERNAL-SERVER-ERROR`);
             }
 
-            FoundOrder.PaymentSession = FoundOrder.PaymentSession || {};
-            FoundOrder.PaymentSession.status = "FAILED";
-            FoundOrder.PaymentSession.txnId = paymentInfo.txnId || FoundOrder.PaymentSession.txnId;
-            FoundOrder.PaymentSession.amount = paymentInfo.amount || FoundOrder.PaymentSession.amount;
+            const fallbackDomain = "http://localhost:4200/services";
 
-            await FoundOrder.save();
-
-            const resultMsg = (verifyPaytmStatus?.body?.resultInfo?.resultMsg || "").toLowerCase();
-            const respMsg = (paymentInfo?.respMsg || "").toLowerCase();
-
-            const isCancelled =
-                resultMsg.includes("cancelled") ||
-                respMsg.includes("user has not completed transaction");
-
-            if (isCancelled) {
-                return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=CANCELLED&serviceorderid=${FoundOrder._id}`);
-            }
-
-            return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=FAILED&serviceorderid=${FoundOrder._id}`);
+            return res.redirect(`${fallbackDomain}/order-checked?paytmorderId=${paytmorderId}&status=INTERNAL-SERVER-ERROR`);
         }
-
-        return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=${encodeURIComponent(resultStatus)}&serviceorderid=${FoundOrder._id}`);
-
-    } catch (err) {
-        console.error("handleServicePaymentStatus Error:", err);
-
-        const paytmorderId = (req.body && req.body.ORDERID)
-            ? encodeURIComponent(req.body.ORDERID)
-            : "";
-
-        if (FrontendRenderDomain) {
-            return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${paytmorderId}&status=INTERNAL-SERVER-ERROR`);
-        }
-
-        const fallbackDomain = "http://localhost:4200/services";
-
-        return res.redirect(`${fallbackDomain}/order-checked?paytmorderId=${paytmorderId}&status=INTERNAL-SERVER-ERROR`);
     }
-}
     // // addtocart: async (req, resp) => {
     // //     try {
     // //         let { companyId, UserId, serviceId, SelectedParts, TotalServiceParts, TotalServicePrice, SheduledTime } = req.body;
