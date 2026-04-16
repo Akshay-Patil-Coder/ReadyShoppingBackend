@@ -1,75 +1,97 @@
 
 const mongoose = require('mongoose');
-const { type } = require('os');
 
-const serviceProductCartSchema = mongoose.Schema(
-    {
+const serviceCartSchema = new mongoose.Schema({
 
-        companyId: {
-            type: mongoose.Schema.Types.ObjectId,
-            required: true
-        },
-        UserId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User',
-            required: true
-        },
-        CartServices: [{
-            serviceId: {
+    UserId: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true,
+        ref: "User"
+    },
+
+    companyId: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true
+    },
+
+    Services: [
+        {
+            ServiceProductId: {
                 type: mongoose.Schema.Types.ObjectId,
-                ref: 'ServiceProduct'
+                ref: "ServiceProducts",
+                required: true
             },
-            SelectedParts: [{
-                partName: {
-                    type: String,
-                },
-                partPrice: {
-                    type: Number
-                },
-                selected: {
-                    type: Boolean
-                }
-            }],
-            TotalServiceParts: [{
-                partName: {
-                    type: String,
-                },
-                partPrice: {
-                    type: Number
-                },
-                selected: {
-                    type: Boolean
-                }
-            }],
-            TotalServicePrice: {
-                type: Number,
-                default: null
-            },
-            // SheduledTime: {
-            //     type: Date,
-            //     // required: true
-            // },
 
-            SheduledTime: [
+            ProviderId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "ServiceProvider",
+                required: true
+            },
+
+            AppointmentId: {
+                type:mongoose.Schema.Types.ObjectId,
+                required:true
+            },
+
+            TotalPrice: {
+                type: Number,
+                required: true
+            },
+
+            DiscountPrice: {
+                type: Number,
+                default: 0
+            },
+
+            Parts: [
                 {
-                    date: String,
-                    day: String,
-                    appointmentId:{
-                        type:mongoose.Schema.Types.ObjectId,
+                    partName: String,
+                    partPrice: Number,
+                    selected: {
+                        type: Boolean,
+                        default: true
                     }
                 }
-            ]
-        }],
+            ],
 
-        isActive: {
-            type: Boolean,
-            default: true,
+            PartsTotal: {
+                type: Number,
+                default: 0
+            },
 
+            FinalPrice: {
+                type: Number,
+                required: true
+            },
+
+            IsActive: {
+                type: Boolean,
+                default: true
+            }
         }
-    }, {
-    timestamps: true
-}
-)
-const serviceProductCartModel = mongoose.model('ServiceProductCart', serviceProductCartSchema)
-module.exports.serviceProductCartModel = serviceProductCartModel;
+    ],
 
+
+    TotalCartPrice: {
+        type: Number,
+        default: 0
+    },
+
+    DiscountCartPrice: {
+        type: Number,
+        default: 0
+    },
+
+    FinalCartPrice: {
+        type: Number,
+        default: 0
+    },
+
+    isActive: {
+        type: Boolean,
+        default: true
+    }
+
+}, { timestamps: true });
+
+module.exports = mongoose.model("ServiceCart", serviceCartSchema);

@@ -287,6 +287,184 @@ module.exports = {
         }
     },
 
+ ValidateCart: async (req, res) => {
+        let { UserId, companyId } = req.body;
+        try {
+            if (!UserId || !companyId)
+                return res.status(400).json({ message: 'User Or Company Not Found', success: false });
+
+            let FoundUser = await User.findOne({ _id: UserId, companyId });
+            if (!FoundUser)
+                return res.status(400).json({ message: 'User Not Found', success: false });
+
+            let FoundCart = await ProductCart.findOne({ UserId, companyId });
+            if (!FoundCart)
+                return res.status(404).json({ message: 'Cart is empty', success: false });
+
+
+            let calculateProductTotals = (variant, qty, activeServices = []) => {
+                let total = variant.Price * qty;
+                let discount = 0;
+                if (variant.OfferPercentage > 0)
+                    discount = (total * variant.OfferPercentage) / 100;
+
+                let final = total - discount;
+
+                if (activeServices.length) {
+                    let serviceTotal = activeServices.reduce(
+                        (sum, s) => sum + (s.ProductServiceAmount || 0),
+                        0
+                    );
+                    total += serviceTotal;
+                    final += serviceTotal;
+                }
+
+                return { total, discount, final };
+            };
+            let recalcCartTotals = (cart) => {
+                let total = 0,
+                    discount = 0,
+                    final = 0;
+                for (let p of cart.Products) {
+                    if (p.IsActive !== false && p.Reserved !== true) {
+                        total += p.TotalPrice || 0;
+                        discount += p.DiscountPrice || 0;
+                        final += p.FinalPrice || 0;
+                    }
+                }
+                cart.TotalCartPrice = total;
+                cart.DiscountCartPrice = discount;
+                cart.FinalCartPrice = final;
+            };
+
+            let updatedProducts = [];
+
+            for (let EachProduct of FoundCart.Products) {
+
+                EachProduct.Reserved = EachProduct.Reserved || false;
+
+                let FoundProduct = await Product.findOne({
+                    _id: EachProduct.ProductId,
+                    companyId,
+                    isActive: true,
+                });
+
+                let FoundVariantProduct = await VariantProduct.findOne({
+                    ProductId: EachProduct.ProductId,
+                    _id: EachProduct.VariantProductId,
+                    companyId,
+                    isActive: true,
+                });
+
+                if (!FoundProduct || !FoundVariantProduct) continue;
+
+
+
+                if (!EachProduct.Reserved && FoundVariantProduct.InventoryBaseStock?.InventoryBase === true) {
+                    let availableStock = FoundVariantProduct.InventoryBaseStock.AvailableStock || 0;
+
+                    if (availableStock <= 0) continue;
+
+                    if (EachProduct.Quantity > availableStock) {
+                        EachProduct.Quantity = availableStock;
+                    }
+                }
+
+
+                let ProductServicesList = FoundProduct.ProductServices || [];
+                let PaidServices = ProductServicesList.filter(s => s.Paid === true);
+                let FreeServices = ProductServicesList.filter(s => s.Paid === false);
+
+                let activePaidServices = [];
+                let NewProductServices = [];
+                let NewFreeServices = [];
+
+                for (let EachService of EachProduct.ProductServices || []) {
+                    let serviceData = await ProductService.findOne({
+                        _id: EachService.ProductServiceId,
+                        companyId,
+                        isActive: true
+                    });
+
+                    if (
+                        serviceData &&
+                        PaidServices.some(
+                            (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
+                        )
+                    ) {
+                        if (EachService.ServiceActive === true) {
+                            let matchedConfig = PaidServices.find(
+                                (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
+                            );
+
+                            if (matchedConfig) {
+                                activePaidServices.push({
+                                    ...serviceData.toObject(),
+                                    ProductServiceAmount: matchedConfig.ProductServiceAmount || 0
+                                });
+                            }
+
+                            NewProductServices.push(EachService)
+                        }
+                    }
+                }
+
+                for (let EachService of FreeServices || []) {
+                    let serviceData = await ProductService.findOne({
+                        _id: EachService.ProductServiceId,
+                        companyId,
+                        isActive: true
+                    });
+
+                    if (serviceData) {
+                        NewFreeServices.push(EachService);
+                    }
+                }
+
+                EachProduct.ProductServices = NewProductServices;
+                EachProduct.ProductFreeServices = NewFreeServices.map(s => s.ProductServiceId);
+
+
+                if (!EachProduct.Reserved) {
+                    let { total, discount, final } = calculateProductTotals(
+                        FoundVariantProduct,
+                        EachProduct.Quantity,
+                        activePaidServices
+                    );
+
+                    EachProduct.TotalPrice = total;
+                    EachProduct.DiscountPrice = discount;
+                    EachProduct.FinalPrice = final;
+                }
+
+
+                updatedProducts.push(EachProduct);
+            }
+
+
+            FoundCart.Products = updatedProducts;
+
+
+
+            let activeProducts = updatedProducts.filter(p => p.Reserved !== true && p.IsActive !== false);
+
+            FoundCart.TotalCartPrice = parseFloat(activeProducts.reduce((sum, p) => sum + (p.TotalPrice || 0), 0).toFixed(2));
+            FoundCart.DiscountCartPrice = parseFloat(activeProducts.reduce((sum, p) => sum + (p.DiscountPrice || 0), 0).toFixed(2));
+            FoundCart.FinalCartPrice = parseFloat(activeProducts.reduce((sum, p) => sum + (p.FinalPrice || 0), 0).toFixed(2));
+
+            recalcCartTotals(FoundCart)
+            await FoundCart.save();
+
+        } catch (error) {
+            console.warn("GetCartError:", error.message);
+            return res.status(500).json({
+                message: "Internal Server Error",
+                error: error.message,
+                success: false
+            });
+        }
+
+    },
 
     proceedToPaymentForSingleProduct: async (req, res) => {
 
@@ -686,185 +864,7 @@ module.exports = {
     },
 
 
-    ValidateCart: async (req, res) => {
-        let { UserId, companyId } = req.body;
-        try {
-            if (!UserId || !companyId)
-                return res.status(400).json({ message: 'User Or Company Not Found', success: false });
-
-            let FoundUser = await User.findOne({ _id: UserId, companyId });
-            if (!FoundUser)
-                return res.status(400).json({ message: 'User Not Found', success: false });
-
-            let FoundCart = await ProductCart.findOne({ UserId, companyId });
-            if (!FoundCart)
-                return res.status(404).json({ message: 'Cart is empty', success: false });
-
-
-            let calculateProductTotals = (variant, qty, activeServices = []) => {
-                let total = variant.Price * qty;
-                let discount = 0;
-                if (variant.OfferPercentage > 0)
-                    discount = (total * variant.OfferPercentage) / 100;
-
-                let final = total - discount;
-
-                if (activeServices.length) {
-                    let serviceTotal = activeServices.reduce(
-                        (sum, s) => sum + (s.ProductServiceAmount || 0),
-                        0
-                    );
-                    total += serviceTotal;
-                    final += serviceTotal;
-                }
-
-                return { total, discount, final };
-            };
-            let recalcCartTotals = (cart) => {
-                let total = 0,
-                    discount = 0,
-                    final = 0;
-                for (let p of cart.Products) {
-                    if (p.IsActive !== false && p.Reserved !== true) {
-                        total += p.TotalPrice || 0;
-                        discount += p.DiscountPrice || 0;
-                        final += p.FinalPrice || 0;
-                    }
-                }
-                cart.TotalCartPrice = total;
-                cart.DiscountCartPrice = discount;
-                cart.FinalCartPrice = final;
-            };
-
-            let updatedProducts = [];
-
-            for (let EachProduct of FoundCart.Products) {
-
-                EachProduct.Reserved = EachProduct.Reserved || false;
-
-                let FoundProduct = await Product.findOne({
-                    _id: EachProduct.ProductId,
-                    companyId,
-                    isActive: true,
-                });
-
-                let FoundVariantProduct = await VariantProduct.findOne({
-                    ProductId: EachProduct.ProductId,
-                    _id: EachProduct.VariantProductId,
-                    companyId,
-                    isActive: true,
-                });
-
-                if (!FoundProduct || !FoundVariantProduct) continue;
-
-
-
-                if (!EachProduct.Reserved && FoundVariantProduct.InventoryBaseStock?.InventoryBase === true) {
-                    let availableStock = FoundVariantProduct.InventoryBaseStock.AvailableStock || 0;
-
-                    if (availableStock <= 0) continue;
-
-                    if (EachProduct.Quantity > availableStock) {
-                        EachProduct.Quantity = availableStock;
-                    }
-                }
-
-
-                let ProductServicesList = FoundProduct.ProductServices || [];
-                let PaidServices = ProductServicesList.filter(s => s.Paid === true);
-                let FreeServices = ProductServicesList.filter(s => s.Paid === false);
-
-                let activePaidServices = [];
-                let NewProductServices = [];
-                let NewFreeServices = [];
-
-                for (let EachService of EachProduct.ProductServices || []) {
-                    let serviceData = await ProductService.findOne({
-                        _id: EachService.ProductServiceId,
-                        companyId,
-                        isActive: true
-                    });
-
-                    if (
-                        serviceData &&
-                        PaidServices.some(
-                            (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
-                        )
-                    ) {
-                        if (EachService.ServiceActive === true) {
-                            let matchedConfig = PaidServices.find(
-                                (ps) => ps.ProductServiceId.toString() === EachService.ProductServiceId.toString()
-                            );
-
-                            if (matchedConfig) {
-                                activePaidServices.push({
-                                    ...serviceData.toObject(),
-                                    ProductServiceAmount: matchedConfig.ProductServiceAmount || 0
-                                });
-                            }
-
-                            NewProductServices.push(EachService)
-                        }
-                    }
-                }
-
-                for (let EachService of FreeServices || []) {
-                    let serviceData = await ProductService.findOne({
-                        _id: EachService.ProductServiceId,
-                        companyId,
-                        isActive: true
-                    });
-
-                    if (serviceData) {
-                        NewFreeServices.push(EachService);
-                    }
-                }
-
-                EachProduct.ProductServices = NewProductServices;
-                EachProduct.ProductFreeServices = NewFreeServices.map(s => s.ProductServiceId);
-
-
-                if (!EachProduct.Reserved) {
-                    let { total, discount, final } = calculateProductTotals(
-                        FoundVariantProduct,
-                        EachProduct.Quantity,
-                        activePaidServices
-                    );
-
-                    EachProduct.TotalPrice = total;
-                    EachProduct.DiscountPrice = discount;
-                    EachProduct.FinalPrice = final;
-                }
-
-
-                updatedProducts.push(EachProduct);
-            }
-
-
-            FoundCart.Products = updatedProducts;
-
-
-
-            let activeProducts = updatedProducts.filter(p => p.Reserved !== true && p.IsActive !== false);
-
-            FoundCart.TotalCartPrice = parseFloat(activeProducts.reduce((sum, p) => sum + (p.TotalPrice || 0), 0).toFixed(2));
-            FoundCart.DiscountCartPrice = parseFloat(activeProducts.reduce((sum, p) => sum + (p.DiscountPrice || 0), 0).toFixed(2));
-            FoundCart.FinalCartPrice = parseFloat(activeProducts.reduce((sum, p) => sum + (p.FinalPrice || 0), 0).toFixed(2));
-
-            recalcCartTotals(FoundCart)
-            await FoundCart.save();
-
-        } catch (error) {
-            console.warn("GetCartError:", error.message);
-            return res.status(500).json({
-                message: "Internal Server Error",
-                error: error.message,
-                success: false
-            });
-        }
-
-    },
-
+   
     getCartData: async (matchCondition) => {
         try {
             let data = await ProductCart.aggregate([
