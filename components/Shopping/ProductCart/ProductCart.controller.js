@@ -287,7 +287,7 @@ module.exports = {
         }
     },
 
- ValidateCart: async (req, res) => {
+    ValidateCart: async (req, res) => {
         let { UserId, companyId } = req.body;
         try {
             if (!UserId || !companyId)
@@ -864,7 +864,7 @@ module.exports = {
     },
 
 
-   
+
     getCartData: async (matchCondition) => {
         try {
             let data = await ProductCart.aggregate([
@@ -1861,7 +1861,7 @@ module.exports = {
                     if (RenderingDomain == "private" && FoundCompany.PredifinedDomain) {
                         FrontendRenderDomain = `${FoundCompany.PredifinedDomain.replace(/\/+$/, '')}/shopping`;
                     } else if (FoundCompany.CompanyDomain) {
-                         let companydomain = FoundCompany.CompanyDomain.trim();
+                        let companydomain = FoundCompany.CompanyDomain.trim();
                         FrontendRenderDomain = `https://${companydomain}.shop.readytechnologies.in/shopping`;
                     }
                 }
@@ -2052,7 +2052,7 @@ module.exports = {
                 return res.status(400).json({ message: "Orders Not Found", success: false });
             }
 
-            const allowedStatus = ['INITIATED', 'PENDING', 'SHIPPED', 'OUTFORDELIVERY', 'CANCELED', 'ASSIGNED','RETURN'];
+            const allowedStatus = ['INITIATED', 'PENDING', 'SHIPPED', 'OUTFORDELIVERY', 'CANCELED', 'ASSIGNED', 'RETURN'];
             if (Status && !allowedStatus.includes(Status)) {
                 return res.status(400).json({ message: 'Provide Proper Status Of Product', success: false });
             }
@@ -2161,7 +2161,7 @@ module.exports = {
                 });
             }
 
-            const allowedStatus = ['INITIATED', 'PENDING', 'SHIPPED', 'OUTFORDELIVERY', 'CANCELED', 'ASSIGNED','RETURN'];
+            const allowedStatus = ['INITIATED', 'PENDING', 'SHIPPED', 'OUTFORDELIVERY', 'CANCELED', 'ASSIGNED', 'RETURN'];
 
             if (Status && !allowedStatus.includes(Status)) {
                 return res.status(400).json({
