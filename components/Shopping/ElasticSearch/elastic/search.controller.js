@@ -282,15 +282,29 @@ exports.getProductsById_ES = async (req, res) => {
     const must = [];
 
     if (VariantFilters?.length) {
+
+      const grouped = {};
+
       VariantFilters.forEach(v => {
+        if (!grouped[v.VariantName]) {
+          grouped[v.VariantName] = [];
+        }
+        grouped[v.VariantName].push(v.VariantValue);
+      });
+
+      Object.keys(grouped).forEach(variantName => {
         must.push({
           nested: {
             path: "variantFields",
             query: {
               bool: {
                 must: [
-                  { term: { "variantFields.VariantId": v.VariantId } },
-                  { term: { "variantFields.VariantValue": v.VariantValue } }
+                  { term: { "variantFields.VariantName": variantName } },
+                  {
+                    terms: {
+                      "variantFields.VariantValue": grouped[variantName]
+                    }
+                  }
                 ]
               }
             }

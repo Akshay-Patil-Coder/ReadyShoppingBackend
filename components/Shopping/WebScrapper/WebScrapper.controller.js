@@ -781,7 +781,21 @@ async function scrapeProduct(browserInstance, link, config) {
 // ─── Browser factory ──────────────────────────────────────────────────────────
 
 async function launchBrowser() {
-    return puppeteer.launch({ headless: false, args: BROWSER_ARGS });
+    try {
+        return await puppeteer.launch({
+            headless: "new", // ✅ required for server
+            executablePath: process.env.CHROME_PATH || "/usr/bin/chromium-browser",
+            args: [
+                ...BROWSER_ARGS,
+                "--single-process",
+                "--no-zygote"
+            ],
+            defaultViewport: null
+        });
+    } catch (err) {
+        log("❌ Browser launch failed: " + err.message);
+        throw err;
+    }
 }
 
 // ─── Start / stop ─────────────────────────────────────────────────────────────

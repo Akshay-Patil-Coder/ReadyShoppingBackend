@@ -470,7 +470,7 @@ getCategoryWithHeadAndLeafParentNodes: async (req, res) => {
     updateCategory: async (req, res) => {
         try {
 
-            let { serviceCategoryName, companyId } = req.body;
+            let { serviceCategoryName, companyId,Description } = req.body;
             if (req.user.companyId) companyId = req.user.companyId
 
             if (!companyId) {
@@ -490,7 +490,7 @@ getCategoryWithHeadAndLeafParentNodes: async (req, res) => {
                 }
                 return res.status(404).send({ success: false, message: "Category not found" });
             }
-            let updatedData = { serviceCategoryName: serviceCategoryName, updatedAt: new Date() };
+            let updatedData = { serviceCategoryName: serviceCategoryName, updatedAt: new Date(),Description };
 
 
             if (req.file?.filename) {
@@ -548,11 +548,11 @@ getCategoryWithHeadAndLeafParentNodes: async (req, res) => {
                 return res.status(400).send({ success: false, message: "Category is already inactive" });
             }
 
-            const productData = await ServiceProductModel.serviceProductsModel.find({ SubServiceId: id });
+            const productData = await serviceProductsModel.find({ SubServiceId: id });
             let deletedProduct = '';
             if (productData && productData.length > 0) {
                 try {
-                    const deleteProduct = await ServiceProductModel.serviceProductsModel.deleteMany({ SubServiceId: id });
+                    const deleteProduct = await serviceProductsModel.serviceProductsModel.deleteMany({ SubServiceId: id });
 
                     for (const eachProduct of productData) {
                         if (Array.isArray(eachProduct?.productimages) && eachProduct.productimages.length > 0) {

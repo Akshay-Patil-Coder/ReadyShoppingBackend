@@ -35,8 +35,105 @@ module.exports = {
         }
     },
 
+    // addserviceproduct: async (req, res) => {
+    //     console.log(req.body)
+    //     try {
+    //         let {
+    //             companyId,
+    //             ServiceName,
+    //             HeadServiceId,
+    //             SubServiceId,
+    //             ProviderId,
+    //             service_description,
+    //             service_parts,
+    //             service_base_price,
+    //             offerPercentage,
+    //             serviceTime,
+    //             googleLocation,
+    //         } = req.body;
+    //         let finalPrice = 0;
+    //         console.log(req.body, 'service')
+    //         if (service_parts) {
+    //             service_parts = JSON.parse(service_parts)
+    //         }
+    //         if (!companyId || !ServiceName || !HeadServiceId || !SubServiceId || !ProviderId || !service_description || !googleLocation) {
+    //             if (req.files) {
+    //                 req.files.forEach((file) => {
+    //                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProductImage', file.filename);
+    //                     if (fs.existsSync(newImagePath)) {
+    //                         fs.unlinkSync(newImagePath);
+    //                     }
+    //                 })
+
+    //             }
+    //             return res.status(400).send({
+    //                 success: false,
+    //                 message: "Please filled all required fields"
+    //             });
+    //         }
+
+    //         if (service_parts) {
+    //             service_parts.forEach(data => {
+    //                 finalPrice = finalPrice + data.partPrice
+    //             });
+    //             console.log(finalPrice, 'price')
+    //             if (finalPrice > 0) {
+    //                 service_base_price = finalPrice;
+    //             }
+    //         }
+
+    //         const serviceImages = req.files.map(file => `${file.filename}`);
+
+    //         const newService = new serviceProductsModel({
+    //             companyId,
+    //             ServiceName,
+    //             HeadServiceId,
+    //             SubServiceId,
+    //             ProviderId,
+    //             service_description,
+    //             service_parts,
+    //             service_base_price,
+    //             offerPercentage,
+    //             serviceTime,
+    //             googleLocation,
+    //             serviceImages: serviceImages
+    //         });
+
+    //         const result = await newService.save();
+
+    //         res.status(200).send({ success: true, message: "Successfully added", data: result });
+
+    //     } catch (error) {
+    //         if (req.files) {
+    //             req.files.forEach((file) => {
+    //                 const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProductImage', file.filename);
+    //                 if (fs.existsSync(newImagePath)) {
+    //                     fs.unlinkSync(newImagePath);
+    //                 }
+    //             })
+
+    //         }
+    //         console.log("Error:", error);
+    //         res.status(500).send({ success: false, message: "Error occurred", error: error.message });
+    //     }
+    // },
+
+
     addserviceproduct: async (req, res) => {
-        console.log(req.body)
+        const deleteUploadedFiles = (files) => {
+            if (!files) return;
+
+            files.forEach((file) => {
+                const filePath = path.join(__dirname, '..', '..', 'public', 'ServiceProductImage', file.filename);
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                }
+            });
+        };
+
+        const calculateFinalPrice = (parts) => {
+            return parts.reduce((total, item) => total + (item.partPrice || 0), 0);
+        };
         try {
             let {
                 companyId,
@@ -50,40 +147,36 @@ module.exports = {
                 offerPercentage,
                 serviceTime,
                 googleLocation,
-                SubServiceName
             } = req.body;
-            let finalPrice = 0;
-            console.log(req.body, 'service')
-            if (service_parts) {
-                service_parts = JSON.parse(service_parts)
-            }
+           
             if (!companyId || !ServiceName || !HeadServiceId || !SubServiceId || !ProviderId || !service_description || !googleLocation) {
-                if (req.files) {
-                    req.files.forEach((file) => {
-                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProductImage', file.filename);
-                        if (fs.existsSync(newImagePath)) {
-                            fs.unlinkSync(newImagePath);
-                        }
-                    })
-
-                }
+                deleteUploadedFiles(req.files);
                 return res.status(400).send({
                     success: false,
-                    message: "Please filled all required fields"
+                    message: "All required fields must be filled"
                 });
             }
 
             if (service_parts) {
-                service_parts.forEach(data => {
-                    finalPrice = finalPrice + data.partPrice
-                });
-                console.log(finalPrice, 'price')
+                try {
+                    service_parts = JSON.parse(service_parts);
+                } catch (err) {
+                    deleteUploadedFiles(req.files);
+                    return res.status(400).send({
+                        success: false,
+                        message: "Invalid service_parts format"
+                    });
+                }
+            }
+
+            if (service_parts?.length) {
+                const finalPrice = calculateFinalPrice(service_parts);
                 if (finalPrice > 0) {
                     service_base_price = finalPrice;
                 }
             }
 
-            const serviceImages = req.files.map(file => `${file.filename}`);
+            const serviceImages = req.files?.map(file => file.filename) || [];
 
             const newService = new serviceProductsModel({
                 companyId,
@@ -97,29 +190,28 @@ module.exports = {
                 offerPercentage,
                 serviceTime,
                 googleLocation,
-                serviceImages: serviceImages,
-                SubServiceName
+                serviceImages
             });
 
             const result = await newService.save();
 
-            res.status(200).send({ success: true, message: "Successfully added", data: result });
+            return res.status(201).send({
+                success: true,
+                message: "Service added successfully",
+                data: result
+            });
 
         } catch (error) {
-             if (req.files) {
-                    req.files.forEach((file) => {
-                        const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProductImage', file.filename);
-                        if (fs.existsSync(newImagePath)) {
-                            fs.unlinkSync(newImagePath);
-                        }
-                    })
+            deleteUploadedFiles(req.files);
 
-                }
-            console.log("Error:", error);
-            res.status(500).send({ success: false, message: "Error occurred", error: error.message });
+            console.error("Error:", error);
+            return res.status(500).send({
+                success: false,
+                message: "Internal Server Error",
+                error: error.message
+            });
         }
     },
-
 
     getServicePrductData: async (matchCondition) => {
         return await serviceProductsModel.aggregate([
@@ -194,10 +286,10 @@ module.exports = {
             }
 
             // console.log('result of populated data', data);
-            return res.status(200).json({ data: data, success: true ,message:'Data Fetched'});
+            return res.status(200).json({ data: data, success: true, message: 'Data Fetched' });
 
         } catch (error) {
-            res.status(400).json({ error: error.message, success: false,message:'Internal Server Error' });
+            res.status(400).json({ error: error.message, success: false, message: 'Internal Server Error' });
         }
     },
 
@@ -215,7 +307,6 @@ module.exports = {
                 offerPercentage,
                 serviceTime,
                 googleLocation,
-                SubServiceName,
                 ServiceProductId
             } = req.body;
             let finalPrice = 0;
@@ -227,7 +318,7 @@ module.exports = {
             const companyId = req.query.companyId;
             console.log(req.body, 'new testing');
 
-            if (!ServiceProductId || !HeadServiceId || !serviceTime || !SubServiceId || !SubServiceName || !ProviderId || !ServiceName || !service_description || !googleLocation) {
+            if (!ServiceProductId || !HeadServiceId || !serviceTime || !SubServiceId || !ProviderId || !ServiceName || !service_description || !googleLocation) {
                 if (req.files) {
                     req.files.forEach((file) => {
                         const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProductImage', file.filename);
@@ -236,7 +327,7 @@ module.exports = {
                         }
                     });
                 }
-                return resp.status(400).send({message:'Please insert valid data',success:false});
+                return resp.status(400).send({ message: 'Please insert valid data', success: false });
             }
 
             let serviceProductData = {
@@ -247,7 +338,6 @@ module.exports = {
                 service_description,
                 serviceTime,
                 googleLocation,
-                SubServiceName,
             };
 
             if (service_parts) {
@@ -273,15 +363,6 @@ module.exports = {
                         { $push: { serviceImages: { $each: serviceImages } } },
                         { new: true }
                     );
-
-                    if (!result) {
-                        serviceImages.forEach((file) => {
-                            const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProductImage', file);
-                            if (fs.existsSync(newImagePath)) {
-                                fs.unlinkSync(newImagePath);
-                            }
-                        });
-                    }
                 }
             }
 
@@ -295,7 +376,7 @@ module.exports = {
             if (!updatedResult) {
                 return resp.status(400).json({ message: 'Service product not updated', success: false });
             } else {
-                return resp.status(200).json({ data: updatedResult, success: true ,message:"Updated"});
+                return resp.status(200).json({ data: updatedResult, success: true, message: "Updated" });
             }
 
         } catch (error) {
@@ -308,7 +389,7 @@ module.exports = {
                 });
             }
 
-            return resp.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
+            return resp.status(400).json({ error: error.message, success: false, message: "Internal Server Error" });
         }
     },
 
@@ -331,7 +412,7 @@ module.exports = {
 
 
         } catch (error) {
-            return resp.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
+            return resp.status(400).json({ error: error.message, success: false, message: "Internal Server Error" });
 
         }
     },
@@ -376,7 +457,7 @@ module.exports = {
 
         } catch (error) {
             console.error('Error deleting service image:', error);
-            return resp.status(500).json({ error: error.message, success: false ,message:"Internal Server Error"});
+            return resp.status(500).json({ error: error.message, success: false, message: "Internal Server Error" });
         }
     },
     updateServiceParts: async (req, resp) => {
@@ -433,7 +514,7 @@ module.exports = {
                 { $set: { service_base_price: finalPrice } }
             );
 
-            return resp.status(200).json({ data: newResult, success: true ,message:"Updated"});
+            return resp.status(200).json({ data: newResult, success: true, message: "Updated" });
 
         } catch (error) {
             console.error("Error:", error);

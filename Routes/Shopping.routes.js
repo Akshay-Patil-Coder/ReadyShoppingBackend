@@ -2,7 +2,6 @@ const CategoryRoutes = require('../components/Shopping/ProductCategories/Product
 // const ProductsRoutes = require('../components/Shopping/Products/Products.routes')
 const BrandRoutes = require('../components/Shopping/ProductsBrand/ProductsBrand.routes')
 const BannerRoutes = require('../components/Shopping/ShoppingBanners/ShoppingBanners.routes')
-const TrendingProductRoutes = require('../components/Shopping/TrendingProducts/TrendingProducts.routes')
 const VariantsRoutes = require('../components/Shopping/Variants/Variants.routes')
 const ProductsRoutes = require('../components/Shopping/VariantsProducts/VariantsProducts.routes')
 const ProductServiceRoutes = require('../components/Shopping/ProductServices/ProductServices.routes')
@@ -18,7 +17,6 @@ const BrandString = apiString + '/brands'
 const BannerString = apiString + '/masterbanners'
 const VariantsString = apiString + '/variants'
 const ProductServicesString = apiString + '/productservices'
-const TrendingProductString = apiString + '/trendingproducts'
 const ProductReviewString = apiString + '/productreview'
 const ProductCartString = apiString + '/productcart'
 const ProductWishlistString = apiString + '/wishlist'
@@ -29,7 +27,6 @@ exports.default = (app) => {
     app.use(ProductsString, ProductsRoutes)
     app.use(BrandString, BrandRoutes)
     app.use(BannerString, BannerRoutes)
-    app.use(TrendingProductString, TrendingProductRoutes)
     app.use(VariantsString, VariantsRoutes)
     app.use(ProductServicesString, ProductServiceRoutes)
     app.use(ProductReviewString, ProductReviewRoutes)

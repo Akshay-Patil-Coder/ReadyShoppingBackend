@@ -26,10 +26,6 @@ const serviceProductsSchema = mongoose.Schema(
             ref: 'MasterServiceCategory',
             required: true
         },
-        SubServiceName: {
-            type: String,
-            default:null
-        },
         ProviderId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'ServiceProvider',
