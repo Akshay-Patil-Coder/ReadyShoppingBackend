@@ -95,7 +95,6 @@ const serviceCartSchema = new mongoose.Schema({
 }, { timestamps: true });
 const serviceProductCartModel =mongoose.model("ServiceCart", serviceCartSchema)
 module.exports.serviceProductCartModel = serviceProductCartModel ;
-const mongoose = require("mongoose");
 
 const serviceOrderSchema = new mongoose.Schema(
     {
