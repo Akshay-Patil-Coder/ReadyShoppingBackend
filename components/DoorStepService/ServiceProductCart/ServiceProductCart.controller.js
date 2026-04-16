@@ -651,7 +651,235 @@ module.exports = {
 
             return res.redirect(`${fallbackDomain}/order-checked?paytmorderId=${paytmorderId}&status=INTERNAL-SERVER-ERROR`);
         }
+    },
+    getServiceCart: async (req, res) => {
+        let { UserId, companyId } = req.query;
+
+        if (req.user?.UserId) UserId = req.user.UserId;
+        if (req.user?.companyId) companyId = req.user.companyId;
+
+        try {
+            if (!mongoose.isValidObjectId(companyId) || !mongoose.isValidObjectId(UserId)) {
+                return res.status(400).json({
+                    message: 'Invalid User or Company',
+                    success: false
+                });
+            }
+
+            let matchCondition = {
+                companyId: new mongoose.Types.ObjectId(String(companyId)),
+                UserId: new mongoose.Types.ObjectId(String(UserId))
+            };
+
+            let data = await module.exports.getServiceCartData(matchCondition);
+
+            if (data && data[0]?.Services?.length === 0) {
+                return res.status(400).json({
+                    message: 'Cart is empty',
+                    success: false
+                });
+            }
+
+            if (data?.length) {
+                data = data.map(cart => {
+
+                    cart.Services = cart.Services.filter(s => s.IsActive !== false);
+
+                    cart.Services = cart.Services.sort(
+                        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+                    );
+
+                    return cart;
+                });
+            }
+
+            return res.status(200).json({
+                message: "Service cart fetched successfully",
+                success: true,
+                data
+            });
+
+        } catch (error) {
+            console.error("GetServiceCartError:", error.message);
+            return res.status(500).json({
+                message: "Internal Server Error",
+                success: false
+            });
+        }
+    },
+    getServiceCartData: async (matchCondition) => {
+    try {
+        let data = await serviceProductCartModel.aggregate([
+            { $match: matchCondition },
+
+            {
+                $lookup: {
+                    from: "readyshoppingusers",
+                    localField: "UserId",
+                    foreignField: "_id",
+                    as: "UserData"
+                }
+            },
+
+            {
+                $lookup: {
+                    from: "companies",
+                    localField: "companyId",
+                    foreignField: "_id",
+                    as: "CompanyData"
+                }
+            },
+
+            {
+                $lookup: {
+                    from: "serviceproducts",
+                    localField: "Services.ServiceProductId",
+                    foreignField: "_id",
+                    as: "ServiceProductInfo"
+                }
+            },
+
+            {
+                $lookup: {
+                    from: "providers",
+                    localField: "Services.ProviderId",
+                    foreignField: "_id",
+                    as: "ProviderInfo"
+                }
+            },
+
+            {
+                $lookup: {
+                    from: "serviceappointments",
+                    localField: "Services.AppointmentId",
+                    foreignField: "schedule.appointments._id",
+                    as: "AppointmentInfo"
+                }
+            },
+
+            {
+                $addFields: {
+                    Services: {
+                        $map: {
+                            input: "$Services",
+                            as: "srv",
+                            in: {
+                                $mergeObjects: [
+                                    "$$srv",
+
+                                    {
+                                        ServiceProductInfo: {
+                                            $arrayElemAt: [
+                                                {
+                                                    $filter: {
+                                                        input: "$ServiceProductInfo",
+                                                        as: "spi",
+                                                        cond: {
+                                                            $eq: ["$$spi._id", "$$srv.ServiceProductId"]
+                                                        }
+                                                    }
+                                                },
+                                                0
+                                            ]
+                                        }
+                                    },
+
+                                    {
+                                        ProviderInfo: {
+                                            $arrayElemAt: [
+                                                {
+                                                    $filter: {
+                                                        input: "$ProviderInfo",
+                                                        as: "pi",
+                                                        cond: {
+                                                            $eq: ["$$pi._id", "$$srv.ProviderId"]
+                                                        }
+                                                    }
+                                                },
+                                                0
+                                            ]
+                                        }
+                                    },
+
+                                    {
+                                        AppointmentInfo: {
+                                            $let: {
+                                                vars: {
+                                                    matchedAppointment: {
+                                                        $arrayElemAt: [
+                                                            {
+                                                                $filter: {
+                                                                    input: "$AppointmentInfo",
+                                                                    as: "ai",
+                                                                    cond: {
+                                                                        $gt: [
+                                                                            {
+                                                                                $size: {
+                                                                                    $filter: {
+                                                                                        input: "$$ai.schedule",
+                                                                                        as: "sch",
+                                                                                        cond: {
+                                                                                            $gt: [
+                                                                                                {
+                                                                                                    $size: {
+                                                                                                        $filter: {
+                                                                                                            input: "$$sch.appointments",
+                                                                                                            as: "a",
+                                                                                                            cond: {
+                                                                                                                $eq: [
+                                                                                                                    "$$a._id",
+                                                                                                                    "$$srv.AppointmentId"
+                                                                                                                ]
+                                                                                                            }
+                                                                                                        }
+                                                                                                    }
+                                                                                                },
+                                                                                                0
+                                                                                            ]
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            },
+                                                                            0
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            },
+                                                            0
+                                                        ]
+                                                    }
+                                                },
+                                                in: "$$matchedAppointment"
+                                            }
+                                        }
+                                    }
+
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+
+            {
+                $project: {
+                    Services: 1,
+                    TotalCartPrice: 1,
+                    DiscountCartPrice: 1,
+                    FinalCartPrice: 1,
+                    createdAt: 1,
+                    updatedAt: 1
+                }
+            }
+        ]);
+
+        return data || null;
+
+    } catch (error) {
+        console.error("getServiceCartDataError:", error);
+        throw new Error("Failed to fetch service cart data");
     }
+},
     // // addtocart: async (req, resp) => {
     // //     try {
     // //         let { companyId, UserId, serviceId, SelectedParts, TotalServiceParts, TotalServicePrice, SheduledTime } = req.body;
