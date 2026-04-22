@@ -14,16 +14,13 @@ router.post('/proceedToPaymentForServiceCart',(req,res)=>{
 router.post('/handleServicePaymentStatus',(req,res)=>{
     serviceProductCart.handleServicePaymentStatus(req,res)
 })
-router.put('/updateCartServiceParts',(req,res)=>{
-    serviceProductCart.updateCartServiceParts(req,res)
+router.get('/getServiceCart',(req,res)=>{
+    serviceProductCart.getServiceCart(req,res)
 })
-
-router.put('/deletetocart',(req,res)=>{
-    console.log("^^^^^^^",)
-    serviceProductCart.deletetocart(req,res)
+router.get('/getServiceOrders',(req,res)=>{
+    serviceProductCart.getServiceOrders(req,res)
 })
-
-router.get('/gettocart',(req,res)=>{
-    serviceProductCart.gettocart(req,res)
+router.get('/getAllServiceOrders',(req,res)=>{
+    serviceProductCart.getAllServiceOrders(req,res)
 })
 module.exports = router

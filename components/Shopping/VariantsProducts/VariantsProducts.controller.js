@@ -646,7 +646,7 @@ module.exports = {
 
                 let BrandId = '';
                 if (FindBrandId && FindBrandId?._id) {
-                   BrandId = FindBrandId?._id
+                    BrandId = FindBrandId?._id
                 }
                 else {
                     let CreateBrand = await new brandmodel({
@@ -678,16 +678,16 @@ module.exports = {
 
 
                 if (Array.isArray(EachProduct.CommonImages)) {
-                    EachProduct.CommonImages.forEach((EachImage)=>{
+                    EachProduct.CommonImages.forEach((EachImage) => {
                         AllImages.add(EachImage)
                     })
                 }
 
                 if (Array.isArray(EachProduct.CommonVideos)) {
-                     EachProduct.CommonVideos.forEach((EachVideo)=>{
+                    EachProduct.CommonVideos.forEach((EachVideo) => {
                         AllVideos.add(EachVideo)
                     })
-                   
+
                 }
 
                 let product = await new Product(ProductData).save();
@@ -712,13 +712,13 @@ module.exports = {
                         if (!EachVariant?.ASIN) {
                             throw new Error("ASIN Value Not Found");
                         }
-                        let FoundVariant = await VariantProduct.findOne({ASIN:EachVariant?.ASIN})
-                        if(FoundVariant && FoundVariant?._id){
+                        let FoundVariant = await VariantProduct.findOne({ ASIN: EachVariant?.ASIN })
+                        if (FoundVariant && FoundVariant?._id) {
                             throw new Error("Variant Product Already Exist")
                         }
                         let VariantData = {
                             companyId,
-                            ASIN:EachVariant?.ASIN,
+                            ASIN: EachVariant?.ASIN,
                             HeadCategoryId,
                             SubCategoryId,
                             ProductId: product._id,
@@ -756,7 +756,7 @@ module.exports = {
                         }
                         let VariantFieldsArray = Object.entries(EachVariant.VariantFields)
                         if (EachVariant.VariantFields && VariantFieldsArray.length) {
-                                  let validVariantFields = [];
+                            let validVariantFields = [];
                             VariantFieldsArray.forEach(async ([key, value]) => {
                                 let fv = await Variant.findOne({ VariantName: key });
                                 if (fv && value) {
@@ -781,18 +781,18 @@ module.exports = {
                                     }
                                 }
                             })
-                      
+
                             if (validVariantFields.length) VariantData.VariantFields = validVariantFields;
                         }
 
                         let images = [];
                         if (Array.isArray(EachVariant.VariantProductImage)) {
-                            EachVariant.VariantProductImage.forEach((EachImage)=>{
+                            EachVariant.VariantProductImage.forEach((EachImage) => {
                                 AllImages.add(EachImage)
                             })
                             images = EachVariant.VariantProductImage
                         }
-                        
+
                         VariantData.VariantProductImage =
                             images.length ? images :
                                 (product.CommonImages?.length ? [product.CommonImages[0]] : []);
@@ -1148,173 +1148,6 @@ module.exports = {
         }
     },
 
-    // previewVariantProductCSV: async (req, res) => {
-    //     let { SubCategoryId } = req.body;
-    //     const parsePipeArray = (value = "") =>
-    //         value
-    //             .split("|")
-    //             .map(v => v.trim())
-    //             .filter(Boolean);
-
-    //     const parseKeyValuePipe = (value = "") =>
-    //         value
-    //             .split("|")
-    //             .map(p => p.trim())
-    //             .filter(Boolean)
-    //             .map(p => {
-    //                 const [key, val] = p.split("=").map(v => v.trim());
-    //                 return key && val ? { key, val } : null;
-    //             })
-    //             .filter(Boolean);
-
-    //     const resolveVariantFields = async (rawValue = "", VariantModel) => {
-    //         const parsed = parseKeyValuePipe(rawValue);
-    //         const result = [];
-
-    //         for (const { key, val } of parsed) {
-    //             let variant = null;
-
-    //             if (/^[0-9a-fA-F]{24}$/.test(key)) {
-    //                 if (SubCategoryId) {
-    //                     variant = await VariantModel.findOne({ _id: key, SubCategoryId });
-    //                 }
-    //                 else {
-    //                     variant = await VariantModel.findById(key);
-    //                 }
-    //             }
-
-    //             if (!variant) {
-    //                 const nameQuery = {
-    //                     VariantName: { $regex: `^${key}$`, $options: "i" }
-    //                 };
-
-    //                 if (SubCategoryId) {
-    //                     variant = await VariantModel.findOne({
-    //                         ...nameQuery,
-    //                         SubCategoryId
-    //                     });
-    //                 } else {
-    //                     variant = await VariantModel.findOne(nameQuery);
-    //                 }
-    //             }
-
-
-    //             if (variant) {
-    //                 result.push({
-    //                     VariantId: variant._id,
-    //                     VariantValue: val
-    //                 });
-    //             }
-    //         }
-
-    //         return result;
-    //     };
-
-    //     try {
-    //         const csvFilePath = req.files?.CSVFile?.[0]?.path;
-    //         if (!csvFilePath) {
-    //             return res.status(400).json({
-    //                 success: false,
-    //                 message: "CSV file is required"
-    //             });
-    //         }
-
-    //         const rows = [];
-    //         let lastProductRow = {};
-
-    //         await new Promise((resolve, reject) => {
-    //             fs.createReadStream(csvFilePath)
-    //                 .pipe(csvParser())
-    //                 .on("data", (row) => {
-
-    //                     row.ProductName ||= lastProductRow.ProductName;
-    //                     row["CommonDescription(Head)"] ||= lastProductRow["CommonDescription(Head)"];
-    //                     row["CommonDescription(Points)"] ||= lastProductRow["CommonDescription(Points)"];
-    //                     row["CommonDescription(TextDescription)"] ||= lastProductRow["CommonDescription(TextDescription)"];
-    //                     row.CommonImages ||= lastProductRow.CommonImages;
-    //                     row.CommonVideos ||= lastProductRow.CommonVideos;
-
-    //                     if (!row.ProductName) return;
-
-    //                     lastProductRow = { ...row };
-    //                     rows.push(row);
-    //                 })
-    //                 .on("end", resolve)
-    //                 .on("error", reject);
-    //         });
-
-    //         const groupedProducts = {};
-
-    //         for (const row of rows) {
-
-    //             if (!groupedProducts[row.ProductName]) {
-    //                 groupedProducts[row.ProductName] = {
-    //                     ProductName: row.ProductName,
-    //                     CommonDescription: {
-    //                         Head: row["CommonDescription(Head)"] || "",
-    //                         Points: parsePipeArray(row["CommonDescription(Points)"]),
-    //                         TextDescription: row["CommonDescription(TextDescription)"] || ""
-    //                     },
-    //                     CommonImages: parsePipeArray(row.CommonImages),
-    //                     CommonVideos: parsePipeArray(row.CommonVideos),
-    //                     VariantProductDatas: []
-    //                 };
-    //             }
-
-    //             const specification = parseKeyValuePipe(row.Specification).map(
-    //                 ({ key, val }) => ({
-    //                     SpecificationKey: key,
-    //                     SpecificationValue: val
-    //                 })
-    //             );
-
-    //             const variantFields = await resolveVariantFields(
-    //                 row.VariantFields,
-    //                 Variant
-    //             );
-
-    //             groupedProducts[row.ProductName].VariantProductDatas.push({
-    //                 VariantProductName: row.VariantProductName || row.ProductName,
-    //                 Price: Number(row.Price || 0),
-    //                 OfferPercentage: Number(row.OfferPercentage || 0),
-    //                 BatchIds: parsePipeArray(row.BatchIds),
-    //                 InventoryBaseStock: {
-    //                     InventoryBase: row.InventoryBase?.toString().toLowerCase() == "true",
-    //                     Stock: Number(row.Stock || 0),
-    //                     AvailableStock: Number(row.AvailableStock || 0)
-    //                 },
-    //                 Specification: specification,
-    //                 VariantFields: variantFields,
-    //                 AboutProduct: {
-    //                     Head: row["AboutProduct(Head)"] || "",
-    //                     Points: parsePipeArray(row["AboutProduct(Points)"]),
-    //                     TextDescription: row["AboutProduct(TextDescription)"] || ""
-    //                 },
-    //                 VariantProductImage: parsePipeArray(row.VariantProductImage)
-    //             });
-    //         }
-
-    //         const sortedProducts = Object.values(groupedProducts).sort(
-    //             (a, b) => a.ProductName.localeCompare(b.ProductName)
-    //         );
-    //         if (fs.existsSync(csvFilePath)) {
-    //             fs.unlinkSync(csvFilePath)
-    //         }
-    //         return res.status(200).json({
-    //             success: true,
-    //             count: sortedProducts.length,
-    //             data: sortedProducts
-    //         });
-
-    //     } catch (error) {
-    //         console.error("❌ CSV Preview Error:", error);
-    //         return res.status(500).json({
-    //             success: false,
-    //             message: "Internal Server Error",
-    //             error: error.message
-    //         });
-    //     }
-    // },
     previewVariantProductCSV: async (req, res) => {
 
         let { SubCategoryId } = req.body;
@@ -1487,64 +1320,6 @@ module.exports = {
         }
     },
 
-    // getVariantProductCsv: async (req, res) => {
-    //     try {
-    //         const dirPath = path.join(__dirname, "..", "..", "public", "ProductCsv");
-    //         const csvFilePath = path.join(dirPath, "products_template.csv");
-
-    //         await fs.promises.mkdir(dirPath, { recursive: true });
-
-    //         const csvWriter = createCsvWriter({
-    //             path: csvFilePath,
-    //             header: [
-    //                 { id: 'ProductName', title: 'ProductName' },
-    //                 { id: 'CommonDescription(Head)', title: 'CommonDescription(Head)' },
-    //                 { id: 'CommonDescription(Points)', title: 'CommonDescription(Points)' },
-    //                 { id: 'CommonDescription(TextDescription)', title: 'CommonDescription(TextDescription)' },
-    //                 { id: 'CommonImages', title: 'CommonImages' },
-    //                 { id: 'CommonVideos', title: 'CommonVideos' },
-    //                 { id: 'VariantProductName', title: 'VariantProductName' },
-    //                 { id: 'Price', title: 'Price' },
-    //                 { id: 'OfferPercentage', title: 'OfferPercentage' },
-    //                 { id: 'BatchIds', title: 'BatchIds' },
-    //                 { id: 'InventoryBase', title: 'InventoryBase' },
-    //                 { id: 'Stock', title: 'Stock' },
-    //                 { id: 'AvailableStock', title: 'AvailableStock' },
-    //                 { id: 'Specification', title: 'Specification' },
-    //                 { id: 'VariantFields', title: 'VariantFields' },
-    //                 { id: 'AboutProduct(Head)', title: 'AboutProduct(Head)' },
-    //                 { id: 'AboutProduct(Points)', title: 'AboutProduct(Points)' },
-    //                 { id: 'AboutProduct(TextDescription)', title: 'AboutProduct(TextDescription)' },
-    //                 { id: 'VariantProductImage', title: 'VariantProductImage' },
-    //             ]
-    //         });
-
-    //         // Write empty template
-    //         await csvWriter.writeRecords([]);
-
-    //         console.log('✅ CSV template generated');
-
-    //         res.download(csvFilePath, 'products_template.csv', (err) => {
-    //             if (err) {
-    //                 console.error('❌ Error sending CSV:', err);
-    //                 res.status(500).json({
-    //                     success: false,
-    //                     message: 'Failed to download CSV'
-    //                 });
-    //             }
-    //         });
-
-    //     } catch (error) {
-    //         console.error('❌ CSV Generation Error:', error);
-    //         res.status(500).json({
-    //             success: false,
-    //             message: 'Internal Server Error',
-    //             error: error.message
-    //         });
-    //     }
-
-    // },
-
 
     getVariantProductCsv: async (req, res) => {
         try {
@@ -1639,6 +1414,7 @@ module.exports = {
             VariantProductId,
             Operation,
             ImageName,
+            BatchIds,
         } = req.body;
         if (req.user.companyId) companyId = req.user.companyId
 
@@ -1700,7 +1476,18 @@ module.exports = {
             Specification = req.body.Specification;
             InventoryBaseStock = req.body.InventoryBaseStock;
             AboutProduct = req.body.AboutProduct;
-
+            if (typeof BatchIds === 'string') {
+                try {
+                    BatchIds = JSON.parse(BatchIds);
+                    if (!Array.isArray(BatchIds)) {
+                        BatchIds = [BatchIds];
+                    }
+                } catch (err) {
+                    BatchIds = []; 
+                }
+            } else if (!Array.isArray(BatchIds)) {
+                BatchIds = BatchIds ? [BatchIds] : [];
+            }
             console.log('Parsed body:', req.body);
 
             if (!ProductId || !companyId) {
@@ -1724,6 +1511,7 @@ module.exports = {
                 })) : [],
                 OfferPercentage,
                 Price,
+                BatchIds: Array.isArray(BatchIds) ? BatchIds : (BatchIds ? [BatchIds] : []),
                 InventoryBaseStock: InventoryBaseStock || { InventoryBase: false, Stock: 0, AvailableStock: 0 },
                 Specification: Array.isArray(Specification) ? Specification.filter(s => s.SpecificationKey && s.SpecificationValue) : [],
                 AboutProduct: AboutProduct && (AboutProduct.Head || (Array.isArray(AboutProduct.Points) && AboutProduct.Points.length) || AboutProduct.TextDescription) ? AboutProduct : undefined

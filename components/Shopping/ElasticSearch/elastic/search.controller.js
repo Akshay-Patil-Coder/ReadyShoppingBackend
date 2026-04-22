@@ -282,37 +282,33 @@ exports.getProductsById_ES = async (req, res) => {
     const must = [];
 
     if (VariantFilters?.length) {
+      const grouped = VariantFilters.reduce((acc, { VariantName, VariantValue }) => {
+        if (!acc[VariantName]) acc[VariantName] = new Set();
+        acc[VariantName].add(VariantValue);
+        return acc;
+      }, {});
 
-      const grouped = {};
-
-      VariantFilters.forEach(v => {
-        if (!grouped[v.VariantName]) {
-          grouped[v.VariantName] = [];
-        }
-        grouped[v.VariantName].push(v.VariantValue);
-      });
-
-      Object.keys(grouped).forEach(variantName => {
-        must.push({
-          nested: {
-            path: "variantFields",
-            query: {
-              bool: {
-                must: [
-                  { term: { "variantFields.VariantName": variantName } },
-                  {
-                    terms: {
-                      "variantFields.VariantValue": grouped[variantName]
-                    }
-                  }
-                ]
-              }
+      const variantQueries = Object.entries(grouped).map(([variantName, valuesSet]) => ({
+        nested: {
+          path: "variantFields",
+          query: {
+            bool: {
+              must: [
+                { match: { "variantFields.VariantName": variantName } },
+                { terms: { "variantFields.VariantValue": Array.from(valuesSet) } }
+              ]
             }
           }
-        });
+        }
+      }));
+
+      must.push({
+        bool: {
+          should: variantQueries,
+          minimum_should_match: 1  
+        }
       });
     }
-
     if (parsedQ?.keyword) {
       must.push({
         multi_match: {
