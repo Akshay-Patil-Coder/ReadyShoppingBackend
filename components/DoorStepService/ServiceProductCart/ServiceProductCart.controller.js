@@ -952,7 +952,7 @@ const { ServiceCart, ServiceOrder } = require('./ServiceProductCart.model');
 const { ServiceAppointmentModel } = require('../ServiceAppointment/ServiceAppointment.model');
 const { serviceProductsModel } = require('../ServiceProducts/ServiceProducts.model');
 const CompanyModel = require('../../CompanyBase/Company/Company.model');
-
+const { User } = require('../../UserBase/User/User.model')
 
 
 /**
@@ -1254,49 +1254,493 @@ module.exports = {
 
 
     proceedToPaymentForServiceCart: async (req, res) => {
-        let { UserId, companyId, UserDetails = {} } = req.body;
+        let { UserId, companyId, AddressId } = req.body;
         let { RenderingDomain = 'public' } = req.query;
+
+        RenderingDomain = ['private', 'public'].includes((RenderingDomain || '').toLowerCase())
+            ? RenderingDomain.toLowerCase()
+            : 'public';
 
         if (req.user?.UserId) UserId = req.user.UserId;
         if (req.user?.companyId) companyId = req.user.companyId;
 
-        RenderingDomain = ['private', 'public'].includes(RenderingDomain?.toLowerCase())
-            ? RenderingDomain.toLowerCase()
-            : 'public';
-
-        const rollback = {
+        let rollback = {
             orderId: null,
-            appointmentUpdates: [],
-            reservedUpdates: [],
+            appointmentUpdates: [],   
+            reservedUpdates: [],  
         };
 
-        const RollBackFunction = async () => {
+        const RollBackFunction = async (rollback) => {
             try {
-                for (const { appointmentId } of rollback.appointmentUpdates) {
-                    await setAppointmentBooked(appointmentId, false);
+                try {
+                    if (rollback.appointmentUpdates?.length) {
+                        await Promise.all(
+                            rollback.appointmentUpdates.map(({ appointmentId }) =>
+                                setAppointmentBooked(appointmentId, false)
+                            )
+                        );
+                    }
+                } catch (err) {
+                    console.error('RollBackError for appointment unbook:', err.message);
                 }
 
-                for (const { _id, previousReserved } of rollback.reservedUpdates) {
-                    await ServiceCart.updateOne(
-                        { UserId, companyId, 'Services._id': _id },
-                        { $set: { 'Services.$.Reserved': previousReserved } }
-                    );
+                try {
+                    if (rollback.reservedUpdates?.length) {
+                        await Promise.all(
+                            rollback.reservedUpdates.map(({ _id, previousReserved }) =>
+                                ServiceCart.findOneAndUpdate(
+                                    { companyId, UserId, 'Services._id': _id },
+                                    { $set: { 'Services.$.Reserved': previousReserved } }
+                                )
+                            )
+                        );
+                    }
+                } catch (err) {
+                    console.error('RollBackError for reserved updates:', err.message);
                 }
 
-                if (rollback.orderId) {
-                    await ServiceOrder.findByIdAndDelete(rollback.orderId);
+                try {
+                    if (rollback.orderId) {
+                        await ServiceOrder.findOneAndDelete({ _id: rollback.orderId });
+                    }
+                } catch (err) {
+                    console.error('RollBackError for delete order:', err.message);
                 }
+
             } catch (err) {
-                console.error('Rollback error:', err.message);
+                console.error('RollBackFunction outer error:', err.message);
             }
         };
 
         try {
             await module.exports.validateServiceCart({ body: { UserId, companyId } });
 
-            const cart = await ServiceCart.findOne({ UserId, companyId });
-            if (!cart || !cart.Services.length)
+            const FoundUser = await User.findOne({ companyId, _id: UserId });
+            if (!FoundUser) {
+                return res.status(400).json({ message: 'User not found', success: false });
+            }
+
+            if (!FoundUser.Address || FoundUser.Address.length === 0) {
+                return res.status(400).json({ message: 'Address not found', success: false });
+            }
+
+            let FoundedAddress;
+            if (!AddressId) {
+                FoundedAddress = FoundUser.Address.find(a => a.DefaultAddress === true);
+                if (!FoundedAddress) FoundedAddress = FoundUser.Address[0];
+            } else {
+                FoundedAddress = FoundUser.Address.find(a => String(a._id) === String(AddressId));
+            }
+
+            if (!FoundedAddress) {
+                return res.status(400).json({ message: 'Address not found', success: false });
+            }
+
+            const FoundCart = await ServiceCart.findOne({ UserId, companyId });
+            if (!FoundCart || !FoundCart.Services?.length) {
                 return res.status(400).json({ message: 'Cart is empty', success: false });
+            }
+
+            const now = new Date();
+            const reservationExpiry = new Date(now.getTime() + 15 * 60 * 1000);
+
+            let OrderData = {
+                UserId,
+                companyId,
+                CartId: FoundCart._id,
+                Services: [],
+                ReservationStartedAt: now,
+                ReservationExpiresAt: reservationExpiry,
+                UserDetails: {
+                    UserName: FoundUser.UserName || '',
+                    Email: FoundUser.Email || '',
+                    Phone: FoundUser.Phone,
+                    AddresserName: FoundedAddress.AddresserName || FoundUser.UserName || 'Guest',
+                    AddresserNumber: FoundedAddress.AddresserNumber || FoundUser.Phone,
+                    AddressType: FoundedAddress.AddressType || 'Home',
+                    Street: FoundedAddress.Street || '',
+                    City: FoundedAddress.City || '',
+                    State: FoundedAddress.State || '',
+                    Country: FoundedAddress.Country || '',
+                    PostalCode: FoundedAddress.PostalCode || '',
+                    Latitude: FoundedAddress.Latitude || '',
+                    Longitude: FoundedAddress.Longitude || '',
+                    ManualAddress: FoundedAddress.ManualAddress || '',
+                },
+            };
+
+            let FoundOrder;
+
+            try {
+                for (const item of FoundCart.Services) {
+                    if (item.IsActive === false || item.Reserved === true) continue;
+
+                    const appointmentDoc = await ServiceAppointmentModel.findOne({
+                        'schedule.appointments._id': item.AppointmentId,
+                        companyId,
+                        isActive: true,
+                    });
+
+                    if (!appointmentDoc) {
+                        await RollBackFunction(rollback);
+                        return res.status(400).json({ message: 'Appointment not found', success: false });
+                    }
+
+                    const { foundSchedule, foundSlot } = findSlotInAppointment(
+                        appointmentDoc, item.AppointmentId
+                    );
+
+                    if (!foundSlot) {
+                        await RollBackFunction(rollback);
+                        return res.status(400).json({ message: 'Slot not found', success: false });
+                    }
+
+                    if (foundSlot.booked === true) {
+                        await RollBackFunction(rollback);
+                        return res.status(400).json({ message: 'Slot already booked', success: false });
+                    }
+
+                    const serviceProduct = await serviceProductsModel.findById(item.ServiceProductId);
+
+                    const providerDoc = await mongoose.connection
+                        .collection('serviceproviders')
+                        .findOne({ _id: new mongoose.Types.ObjectId(String(item.ProviderId)) });
+
+                    const ServiceData = {
+                        ServiceInfo: {
+                            ServiceProductId: item.ServiceProductId,
+                            ServiceName: serviceProduct?.ServiceName || '',
+                            Description: {
+                                Head: '',
+                                Points: [],
+                                TextDescription: serviceProduct?.service_description || '',
+                            },
+                            Images: serviceProduct?.serviceImages || [],
+                            BasePrice: serviceProduct?.service_base_price || 0,
+                            OfferPercentage: serviceProduct?.offerPercentage ?? null,
+                        },
+                        ProviderInfo: {
+                            ProviderId: item.ProviderId,
+                            ProviderName: providerDoc?.name || '',
+                            Phone: providerDoc?.phone || '',
+                        },
+                        AppointmentInfo: {
+                            AppointmentId: item.AppointmentId,
+                            Date: foundSchedule?.date || '',
+                            Day: foundSchedule?.day || '',
+                            StartTime: foundSlot?.ServiceStartTime || '',
+                            EndTime: foundSlot?.ServiceEndTime || '',
+                        },
+                    };
+
+                    OrderData.Services.push({
+                        CartServiceId: item._id,
+                        OrderStatus: [{ Status: 'INITIATED', StatusAt: now }],
+                        CreatedAt: now,
+                        ServiceData,
+                        Parts: item.Parts,
+                        PartsTotal: item.PartsTotal,
+                        TotalPrice: item.TotalPrice,
+                        DiscountPrice: item.DiscountPrice,
+                        FinalPrice: item.FinalPrice,
+                        IsActive: true,
+                    });
+                }
+
+                if (!OrderData.Services.length) {
+                    return res.status(400).json({ message: 'No valid services to process', success: false });
+                }
+
+                OrderData.TotalCartPrice = parseFloat(OrderData.Services.reduce((s, i) => s + (i.TotalPrice || 0), 0).toFixed(2));
+                OrderData.DiscountCartPrice = parseFloat(OrderData.Services.reduce((s, i) => s + (i.DiscountPrice || 0), 0).toFixed(2));
+                OrderData.FinalCartPrice = parseFloat(OrderData.Services.reduce((s, i) => s + (i.FinalPrice || 0), 0).toFixed(2));
+
+                const SaveOrder = await new ServiceOrder(OrderData).save();
+                rollback.orderId = SaveOrder._id;
+
+                FoundOrder = await ServiceOrder.findOne({ _id: SaveOrder._id });
+
+            } catch (err) {
+                await RollBackFunction(rollback);
+                console.error('Order Build Error:', err);
+                return res.status(500).json({ message: 'Unable to create order', success: false });
+            }
+
+            if (!FoundOrder) {
+                await RollBackFunction(rollback);
+                return res.status(500).json({ message: 'Order initialization failed', success: false });
+            }
+
+            try {
+                for (const orderSvc of FoundOrder.Services) {
+                    const apptId = orderSvc.ServiceData.AppointmentInfo.AppointmentId;
+
+                    if (!apptId) continue;
+
+                    await setAppointmentBooked(apptId, true);
+                    rollback.appointmentUpdates.push({ appointmentId: apptId });
+                }
+            } catch (err) {
+                console.error('Appointment Book Error:', err);
+                await RollBackFunction(rollback);
+                return res.status(500).json({ message: 'Failed to reserve appointment slots', success: false });
+            }
+
+            try {
+                const orderId = `SVC_${FoundOrder._id.toString().slice(-6)}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+                const totalAmount = FoundOrder.FinalCartPrice || FoundOrder.TotalCartPrice;
+
+                const paytmParams = {
+                    body: {
+                        requestType: 'Payment',
+                        mid: process.env.PAYTM_MID,
+                        websiteName: process.env.PAYTM_WEBSITE,
+                        orderId,
+                        callbackUrl: `${process.env.BASE_URL}servicecart/handlePaymentStatus?RenderingDomain=${RenderingDomain}&companyId=${companyId}`,
+                        txnAmount: { value: totalAmount.toString(), currency: 'INR' },
+                        userInfo: { custId: UserId.toString() },
+                    },
+                };
+
+                const checksum = await PaytmChecksum.generateSignature(
+                    JSON.stringify(paytmParams.body),
+                    process.env.PAYTM_KEY
+                );
+                paytmParams.head = { signature: checksum };
+
+                const post_data = JSON.stringify(paytmParams);
+                const paytmOptions = {
+                    hostname: process.env.PAYTM_HOSTNAME,
+                    port: 443,
+                    path: `/theia/api/v1/initiateTransaction?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Content-Length': Buffer.byteLength(post_data),
+                    },
+                };
+
+                const paytmResponse = await new Promise((resolve, reject) => {
+                    let raw = '';
+                    const paytmReq = https.request(paytmOptions, paytmRes => {
+                        paytmRes.on('data', chunk => (raw += chunk));
+                        paytmRes.on('end', () => {
+                            try { resolve(JSON.parse(raw)); }
+                            catch (e) { reject(e); }
+                        });
+                    });
+                    paytmReq.on('error', reject);
+                    paytmReq.write(post_data);
+                    paytmReq.end();
+                });
+
+                FoundOrder.PaymentSession = {
+                    orderId,
+                    txnId: null,
+                    status: 'INITIATED',
+                    amount: totalAmount,
+                    paymentGateway: 'Paytm',
+                };
+                FoundOrder.ReservationStartedAt = now;
+
+                for (const orderSvc of FoundOrder.Services) {
+                    const cartSvc = FoundCart.Services.find(
+                        c => c._id.toString() === orderSvc.CartServiceId?.toString()
+                    );
+                    if (cartSvc) {
+                        rollback.reservedUpdates.push({
+                            _id: cartSvc._id,
+                            previousReserved: cartSvc.Reserved,
+                        });
+                        cartSvc.Reserved = true;
+                    }
+                }
+
+                await FoundCart.save();
+                await FoundOrder.save();
+
+                if (!paytmResponse?.body?.txnToken) {
+                    await RollBackFunction(rollback);
+                    console.error('No txnToken in Paytm response:', paytmResponse);
+                    return res.status(500).json({
+                        message: 'Payment gateway did not return txnToken',
+                        success: false,
+                    });
+                }
+
+                return res.status(200).json({
+                    success: true,
+                    message: 'Payment initiated',
+                    url: `https://securegw.paytm.in/theia/api/v1/showPaymentPage?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
+                    txnToken: paytmResponse.body.txnToken,
+                    orderId,
+                    mid: process.env.PAYTM_MID,
+                    amount: totalAmount,
+                });
+
+            } catch (err) {
+                console.error('Payment Initiation Error:', err);
+                await RollBackFunction(rollback);
+                return res.status(500).json({ message: 'Failed to initiate payment', success: false });
+            }
+
+        } catch (err) {
+            console.error('proceedToPaymentForServiceCart Error:', err);
+            await RollBackFunction(rollback);
+            return res.status(500).json({ message: 'Internal Server Error', success: false });
+        }
+    },
+
+
+    proceedToPaymentForSingleService: async (req, res) => {
+        let {
+            UserId,
+            companyId,
+            AddressId,
+            ServiceProductId,
+            ProviderId,
+            AppointmentId,
+            Parts = [],
+        } = req.body;
+
+        if (req.user?.UserId) UserId = req.user.UserId;
+        if (req.user?.companyId) companyId = req.user.companyId;
+
+        let { RenderingDomain = 'public' } = req.query;
+        RenderingDomain = ['private', 'public'].includes((RenderingDomain || '').toLowerCase())
+            ? RenderingDomain.toLowerCase()
+            : 'public';
+
+        let rollback = { orderId: null, appointmentId: null };
+
+        const RollBack = async () => {
+            try {
+                if (rollback.appointmentId) {
+                    await setAppointmentBooked(rollback.appointmentId, false);
+                }
+                if (rollback.orderId) {
+                    await ServiceOrder.findByIdAndDelete(rollback.orderId);
+                }
+            } catch (rbErr) {
+                console.error('SingleService Rollback Error:', rbErr.message);
+            }
+        };
+
+        try {
+            if (!ServiceProductId || !ProviderId || !AppointmentId) {
+                return res.status(400).json({
+                    message: 'Missing required fields: ServiceProductId, ProviderId, AppointmentId',
+                    success: false,
+                });
+            }
+
+            if (!UserId || !companyId) {
+                return res.status(400).json({ message: 'User or Company not provided', success: false });
+            }
+
+            Parts = Array.isArray(Parts) ? Parts : [];
+
+            const FoundUser = await User.findOne({ _id: UserId, companyId });
+            if (!FoundUser) {
+                return res.status(404).json({ message: 'User not found', success: false });
+            }
+
+            let Address;
+            if (!AddressId) {
+                Address = FoundUser.Address?.find(a => a.DefaultAddress === true) || FoundUser.Address?.[0];
+            } else {
+                Address = FoundUser.Address?.find(a => String(a._id) === String(AddressId));
+            }
+            if (!Address) {
+                return res.status(400).json({ message: 'Address not found', success: false });
+            }
+
+            const FoundService = await serviceProductsModel.findOne({
+                _id: ServiceProductId,
+                companyId,
+                isActive: true,
+            });
+            if (!FoundService) {
+                return res.status(404).json({ message: 'Service not found', success: false });
+            }
+
+            const appointmentDoc = await ServiceAppointmentModel.findOne({
+                companyId,
+                ServiceProviderId: ProviderId,
+                ServiceProductId,
+                isActive: true,
+                'schedule.appointments._id': AppointmentId,
+            });
+            if (!appointmentDoc) {
+                return res.status(404).json({ message: 'Appointment not found', success: false });
+            }
+
+            const { foundSchedule, foundSlot } = findSlotInAppointment(appointmentDoc, AppointmentId);
+
+            if (!foundSlot) {
+                return res.status(404).json({ message: 'Slot not found', success: false });
+            }
+            if (foundSlot.booked === true) {
+                return res.status(400).json({ message: 'Slot already booked', success: false });
+            }
+
+            const providerDoc = await mongoose.connection
+                .collection('providers')
+                .findOne({ _id: new mongoose.Types.ObjectId(String(ProviderId)) });
+
+            const base = FoundService.service_base_price || 0;
+
+            const validParts = FoundService.service_parts || [];
+            const cleanedParts = Parts
+                .map(cartPart => {
+                    const match = validParts.find(p => p.partName === cartPart.partName);
+                    if (!match) return null;
+                    return {
+                        partName: match.partName,
+                        partPrice: match.partPrice,
+                        selected: cartPart.selected !== false,
+                    };
+                })
+                .filter(Boolean);
+
+            const partsTotal = cleanedParts
+                .filter(p => p.selected !== false)
+                .reduce((sum, p) => sum + (p.partPrice || 0), 0);
+
+            const discount =
+                FoundService.offerPercentage > 0
+                    ? parseFloat(((base * FoundService.offerPercentage) / 100).toFixed(2))
+                    : 0;
+
+            const totalPrice = parseFloat((base + partsTotal).toFixed(2));
+            const finalPrice = parseFloat((base - discount + partsTotal).toFixed(2));
+
+            const ServiceData = {
+                ServiceInfo: {
+                    ServiceProductId: FoundService._id,
+                    ServiceName: FoundService.ServiceName || '',
+                    Description: {
+                        Head: '',
+                        Points: [],
+                        TextDescription: FoundService.service_description || '',
+                    },
+                    Images: FoundService.serviceImages || [],
+                    BasePrice: FoundService.service_base_price || 0,
+                    OfferPercentage: FoundService.offerPercentage ?? null,
+                },
+                ProviderInfo: {
+                    ProviderId: new mongoose.Types.ObjectId(String(ProviderId)),
+                    ProviderName: providerDoc?.name || '',
+                    Phone: providerDoc?.phone || '',
+                },
+                AppointmentInfo: {
+                    AppointmentId: foundSlot._id,
+                    Date: foundSchedule?.date || '',
+                    Day: foundSchedule?.day || '',
+                    StartTime: foundSlot?.ServiceStartTime || '',
+                    EndTime: foundSlot?.ServiceEndTime || '',
+                },
+            };
 
             const now = new Date();
             const reservationExpiry = new Date(now.getTime() + 15 * 60 * 1000);
@@ -1304,137 +1748,61 @@ module.exports = {
             const OrderData = {
                 UserId,
                 companyId,
-                CartId: cart._id,
-                UserDetails,
-                Services: [],
-                TotalCartPrice: 0,
-                DiscountCartPrice: 0,
-                FinalCartPrice: 0,
                 ReservationStartedAt: now,
                 ReservationExpiresAt: reservationExpiry,
+                UserDetails: {
+                    UserName: FoundUser.UserName || '',
+                    Email: FoundUser.Email || '',
+                    Phone: FoundUser.Phone,
+                    AddresserName: Address.AddresserName || FoundUser.UserName || 'Guest',
+                    AddresserNumber: Address.AddresserNumber || FoundUser.Phone,
+                    AddressType: Address.AddressType || 'Home',
+                    Street: Address.Street || '',
+                    City: Address.City || '',
+                    State: Address.State || '',
+                    Country: Address.Country || '',
+                    PostalCode: Address.PostalCode || '',
+                    Latitude: Address.Latitude || '',
+                    Longitude: Address.Longitude || '',
+                    ManualAddress: Address.ManualAddress || '',
+                },
+                Services: [
+                    {
+                        OrderStatus: [{ Status: 'INITIATED', StatusAt: now }],
+                        CreatedAt: now,
+                        ServiceData,
+                        Parts: cleanedParts,
+                        PartsTotal: partsTotal,
+                        TotalPrice: totalPrice,
+                        DiscountPrice: discount,
+                        FinalPrice: finalPrice,
+                        IsActive: true,
+                    },
+                ],
+                TotalCartPrice: totalPrice,
+                DiscountCartPrice: discount,
+                FinalCartPrice: finalPrice,
             };
-
-            for (const item of cart.Services) {
-                if (item.IsActive === false || item.Reserved === true) continue;
-
-                const appointmentDoc = await ServiceAppointmentModel.findOne({
-                    'schedule.appointments._id': item.AppointmentId,
-                    companyId,
-                    isActive: true,
-                });
-
-                if (!appointmentDoc) {
-                    await RollBackFunction();
-                    return res.status(400).json({ message: 'Appointment not found', success: false });
-                }
-
-                const { foundSchedule, foundSlot } = findSlotInAppointment(
-                    appointmentDoc, item.AppointmentId
-                );
-
-                if (!foundSlot) {
-                    await RollBackFunction();
-                    return res.status(400).json({ message: 'Slot not found', success: false });
-                }
-
-                if (foundSlot.booked === true) {
-                    await RollBackFunction();
-                    return res.status(400).json({ message: 'Slot already booked', success: false });
-                }
-
-                const serviceProduct = await serviceProductsModel.findById(item.ServiceProductId);
-
-                const providerDoc = await mongoose.connection
-                    .collection('providers')
-                    .findOne({ _id: new mongoose.Types.ObjectId(String(item.ProviderId)) });
-
-                const ServiceData = {
-                    ServiceInfo: {
-                        ServiceProductId: item.ServiceProductId,
-                        ServiceName: serviceProduct?.ServiceName || '',
-                        Description: {
-                            Head: '',
-                            Points: [],
-                            TextDescription: serviceProduct?.service_description || '',
-                        },
-                        Images: serviceProduct?.serviceImages || [],
-                        BasePrice: serviceProduct?.service_base_price || 0,
-                        OfferPercentage: serviceProduct?.offerPercentage ?? null,
-                    },
-                    ProviderInfo: {
-                        ProviderId: item.ProviderId,
-                        ProviderName: providerDoc?.name || '',
-                        Phone: providerDoc?.phone || '',
-                    },
-                    AppointmentInfo: {
-                        AppointmentId: item.AppointmentId,
-                        Date: foundSchedule?.date || '',
-                        Day: foundSchedule?.day || '',
-                        StartTime: foundSlot?.ServiceStartTime || '',
-                        EndTime: foundSlot?.ServiceEndTime || '',
-                    },
-                };
-
-                OrderData.Services.push({
-                    CartServiceId: item._id,
-                    OrderStatus: [
-                        {
-                            Status: 'INITIATED',
-                            StatusAt: now,
-                        },
-                    ],
-                    CreatedAt: now,
-                    ServiceData,
-                    Parts: item.Parts,
-                    PartsTotal: item.PartsTotal,
-                    TotalPrice: item.TotalPrice,
-                    DiscountPrice: item.DiscountPrice,
-                    FinalPrice: item.FinalPrice,
-                    IsActive: true,
-                });
-            }
-
-            if (!OrderData.Services.length)
-                return res.status(400).json({ message: 'No valid services to process', success: false });
-
-            OrderData.TotalCartPrice = OrderData.Services.reduce((s, i) => s + (i.TotalPrice || 0), 0);
-            OrderData.DiscountCartPrice = OrderData.Services.reduce((s, i) => s + (i.DiscountPrice || 0), 0);
-            OrderData.FinalCartPrice = OrderData.Services.reduce((s, i) => s + (i.FinalPrice || 0), 0);
 
             const savedOrder = await new ServiceOrder(OrderData).save();
             rollback.orderId = savedOrder._id;
 
-            for (const orderSvc of OrderData.Services) {
-                const apptId = orderSvc.ServiceData.AppointmentInfo.AppointmentId;
-                await setAppointmentBooked(apptId, true);
-                rollback.appointmentUpdates.push({ appointmentId: apptId });
-            }
+            const FoundOrder = await ServiceOrder.findById(savedOrder._id);
 
-            for (const orderSvc of OrderData.Services) {
-                const cartSvc = cart.Services.find(
-                    c => c._id.toString() === orderSvc.CartServiceId.toString()
-                );
-                if (cartSvc) {
-                    rollback.reservedUpdates.push({
-                        _id: cartSvc._id,
-                        previousReserved: cartSvc.Reserved,
-                    });
-                    cartSvc.Reserved = true;
-                }
-            }
-            await cart.save();
+            await setAppointmentBooked(AppointmentId, true);
+            rollback.appointmentId = AppointmentId;
 
-            const paytmOrderId = `SVC_${savedOrder._id.toString().slice(-6)}_${Date.now()}`;
-            const totalAmount = OrderData.FinalCartPrice;
+            const orderId = `SVC_${FoundOrder._id.toString().slice(-6)}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+            const totalAmount = FoundOrder.FinalCartPrice || FoundOrder.TotalCartPrice || 0;
 
             const paytmParams = {
                 body: {
                     requestType: 'Payment',
                     mid: process.env.PAYTM_MID,
                     websiteName: process.env.PAYTM_WEBSITE,
-                    orderId: paytmOrderId,
+                    orderId,
                     callbackUrl: `${process.env.BASE_URL}servicecart/handlePaymentStatus?RenderingDomain=${RenderingDomain}&companyId=${companyId}`,
-                    txnAmount: { value: totalAmount.toFixed(2), currency: 'INR' },
+                    txnAmount: { value: totalAmount.toString(), currency: 'INR' },
                     userInfo: { custId: UserId.toString() },
                 },
             };
@@ -1449,7 +1817,7 @@ module.exports = {
             const paytmOptions = {
                 hostname: process.env.PAYTM_HOSTNAME,
                 port: 443,
-                path: `/theia/api/v1/initiateTransaction?mid=${process.env.PAYTM_MID}&orderId=${paytmOrderId}`,
+                path: `/theia/api/v1/initiateTransaction?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1472,36 +1840,40 @@ module.exports = {
             });
 
             if (!paytmResponse?.body?.txnToken) {
-                await RollBackFunction();
-                return res.status(500).json({ message: 'Payment initiation failed — no txnToken', success: false });
+                await RollBack();
+                console.error('Paytm response missing txnToken:', paytmResponse);
+                return res.status(500).json({
+                    message: 'Payment gateway did not return txnToken',
+                    success: false,
+                });
             }
 
-            savedOrder.PaymentSession = {
-                orderId: paytmOrderId,
+            FoundOrder.PaymentSession = {
+                orderId,
                 txnId: null,
                 status: 'INITIATED',
                 amount: totalAmount,
                 paymentGateway: 'Paytm',
             };
-            await savedOrder.save();
+            FoundOrder.ReservationStartedAt = now;
+            await FoundOrder.save();
 
             return res.status(200).json({
                 success: true,
                 message: 'Payment initiated',
-                url: `https://securegw.paytm.in/theia/api/v1/showPaymentPage?mid=${process.env.PAYTM_MID}&orderId=${paytmOrderId}`,
+                url: `https://securegw.paytm.in/theia/api/v1/showPaymentPage?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
                 txnToken: paytmResponse.body.txnToken,
-                orderId: paytmOrderId,
+                orderId,
+                mid: process.env.PAYTM_MID,
                 amount: totalAmount,
             });
 
-        } catch (err) {
-            console.error('proceedToPaymentForServiceCart Error:', err);
-            await RollBackFunction();
-            return res.status(500).json({ message: 'Internal error', success: false });
+        } catch (error) {
+            console.error('SingleService Checkout Error:', error);
+            await RollBack();
+            return res.status(500).json({ message: 'Internal Server Error', success: false });
         }
     },
-
-
     handleServicePaymentStatus: async (req, res) => {
         let FrontendRenderDomain;
 

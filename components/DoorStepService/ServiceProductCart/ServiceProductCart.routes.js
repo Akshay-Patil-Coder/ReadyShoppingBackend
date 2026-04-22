@@ -10,7 +10,9 @@ router.post('/addServiceToCart',(req,res)=>{
 router.post('/proceedToPaymentForServiceCart',(req,res)=>{
     serviceProductCart.proceedToPaymentForServiceCart(req,res)
 })
-
+router.post('/proceedToPaymentForSingleService',(req,res)=>{
+    serviceProductCart.proceedToPaymentForSingleService(req,res)
+})
 router.post('/handleServicePaymentStatus',(req,res)=>{
     serviceProductCart.handleServicePaymentStatus(req,res)
 })

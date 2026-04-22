@@ -1,6 +1,11 @@
-const ServiceAppointmentModel = require('./ServiceAppointment.model');
 const { ObjectId } = require('mongoose').Types;
 const mongoose = require('mongoose');
+const { ServiceCart, ServiceOrder } = require('../ServiceProductCart/ServiceProductCart.model');
+const { ServiceAppointmentModel } = require('./ServiceAppointment.model');
+const { serviceProductsModel } = require('../ServiceProducts/ServiceProducts.model');
+const CompanyModel = require('../../CompanyBase/Company/Company.model');
+const { User } = require('../../UserBase/User/User.model')
+
 module.exports = {
     addAppointments: async (req, resp) => {
         try {
@@ -78,7 +83,7 @@ module.exports = {
             let newSchedule = [];
             let availableShedule = [];
 
-            let result = await ServiceAppointmentModel.ServiceAppointmentModel.findOne({
+            let result = await ServiceAppointmentModel.findOne({
                 ServiceProviderId: ServiceProviderId,
                 companyId: companyId,
                 ServiceProductId: ServiceProductId
@@ -179,7 +184,7 @@ module.exports = {
 
                 existingSchedule = [...existingSchedule, ...newSchedule.filter(newDay => !existingSchedule.some(day => day.date === newDay.date))];
 
-                let updatedRecord = await ServiceAppointmentModel.ServiceAppointmentModel.findOneAndUpdate(
+                let updatedRecord = await ServiceAppointmentModel.findOneAndUpdate(
                     { ServiceProviderId: ServiceProviderId, companyId: companyId, ServiceProductId: ServiceProductId },
                     { $set: { schedule: existingSchedule, ServiceTime: ServiceTime } },
                     { new: true }
@@ -225,7 +230,7 @@ module.exports = {
                     });
 
                 });
-                const newServiceAppointment = new ServiceAppointmentModel.ServiceAppointmentModel({
+                const newServiceAppointment = new ServiceAppointmentModel({
                     ServiceProviderId: ServiceProviderId,
                     ServiceProductId: ServiceProductId,
                     companyId: companyId,
@@ -242,81 +247,246 @@ module.exports = {
             return resp.status(400).json({ message: 'Something went wrong', error: error.message });
         }
     },
-    updateTimeSlotsBooking: async (req, resp) => {
+
+
+    updateTimeSlotsBooking: async (req, res) => {
         try {
-            let { TimeSlot, ServiceProviderId, ServiceProductId } = req.body;
+            const { TimeSlot, ServiceProviderId, ServiceProductId } = req.body;
+            const { operation, companyId } = req.query;
 
-            let operation = req.query.operation;
-            let companyId = req.query.companyId;
-
-            if (!TimeSlot || !TimeSlot.ServiceStartTime || !TimeSlot.ServiceEndTime || !companyId || !ServiceProductId || !ServiceProviderId) {
-                return resp.status(400).json({ message: "Please provide all data", success: false });
+            if (
+                !companyId ||
+                !ServiceProviderId ||
+                !ServiceProductId ||
+                !TimeSlot ||
+                !TimeSlot.date ||
+                !TimeSlot.ServiceStartTime ||
+                !TimeSlot.ServiceEndTime
+            ) {
+                return res.status(400).json({
+                    message: 'Please provide all required data: companyId, ServiceProviderId, ServiceProductId, TimeSlot (date, ServiceStartTime, ServiceEndTime)',
+                    success: false,
+                });
             }
 
+            if (!mongoose.isValidObjectId(companyId) || !mongoose.isValidObjectId(ServiceProviderId) || !mongoose.isValidObjectId(ServiceProductId)) {
+                return res.status(400).json({ message: 'Invalid companyId, ServiceProviderId or ServiceProductId', success: false });
+            }
+
+            const companyObjId = new mongoose.Types.ObjectId(String(companyId));
+            const providerObjId = new mongoose.Types.ObjectId(String(ServiceProviderId));
+            const productObjId = new mongoose.Types.ObjectId(String(ServiceProductId));
+
             if (operation === 'booked') {
-                let result = await ServiceAppointmentModel.ServiceAppointmentModel.findOneAndUpdate(
+
+
+                const result = await ServiceAppointmentModel.findOneAndUpdate(
                     {
-                        companyId: companyId,
-                        ServiceProviderId: ServiceProviderId,
-                        ServiceProductId: ServiceProductId,
+                        companyId: companyObjId,
+                        ServiceProviderId: providerObjId,
+                        ServiceProductId: productObjId,
                         'schedule.date': TimeSlot.date,
                         'schedule.appointments.ServiceStartTime': TimeSlot.ServiceStartTime,
                         'schedule.appointments.ServiceEndTime': TimeSlot.ServiceEndTime,
                     },
                     {
                         $set: {
-                            'schedule.$.appointments.$[appt].booked': true
-                        }
+                            'schedule.$[sch].appointments.$[appt].booked': true,
+                        },
                     },
                     {
                         arrayFilters: [
-                            { 'appt.ServiceStartTime': TimeSlot.ServiceStartTime, 'appt.ServiceEndTime': TimeSlot.ServiceEndTime, 'appt.booked': false }
+                            { 'sch.date': TimeSlot.date },
+                            {
+                                'appt.ServiceStartTime': TimeSlot.ServiceStartTime,
+                                'appt.ServiceEndTime': TimeSlot.ServiceEndTime,
+                                'appt.booked': false,
+                            },
                         ],
-                        new: true
+                        new: true,
                     }
                 );
 
                 if (!result) {
-                    return resp.status(404).json({ message: "Time slot not found or update failed", success: false });
+                    return res.status(404).json({
+                        message: 'Time slot not found, already booked, or update failed',
+                        success: false,
+                    });
                 }
 
-                return resp.status(200).json({ message: "Time slot successfully updated for booked", success: true, result });
+                return res.status(200).json({
+                    message: 'Time slot successfully marked as booked',
+                    success: true,
+                    data: result,
+                });
             }
-            else if (operation == 'unbooked') {
-                let result = await ServiceAppointmentModel.ServiceAppointmentModel.findOneAndUpdate(
+
+            else if (operation === 'unbooked') {
+
+
+                const appointmentDoc = await ServiceAppointmentModel.findOne({
+                    companyId: companyObjId,
+                    ServiceProviderId: providerObjId,
+                    ServiceProductId: productObjId,
+                    'schedule.date': TimeSlot.date,
+                    'schedule.appointments.ServiceStartTime': TimeSlot.ServiceStartTime,
+                    'schedule.appointments.ServiceEndTime': TimeSlot.ServiceEndTime,
+                });
+
+                if (!appointmentDoc) {
+                    return res.status(404).json({ message: 'Time slot not found', success: false });
+                }
+
+                let targetSlotId = null;
+                let targetSchedule = null;
+
+                for (const sch of appointmentDoc.schedule) {
+                    if (sch.date !== TimeSlot.date) continue;
+                    for (const appt of sch.appointments) {
+                        if (
+                            appt.ServiceStartTime === TimeSlot.ServiceStartTime &&
+                            appt.ServiceEndTime === TimeSlot.ServiceEndTime
+                        ) {
+                            targetSlotId = appt._id;
+                            targetSchedule = sch;
+                            break;
+                        }
+                    }
+                    if (targetSlotId) break;
+                }
+
+                if (!targetSlotId) {
+                    return res.status(404).json({ message: 'Exact slot not found within schedule', success: false });
+                }
+
+                const updatedAppointment = await ServiceAppointmentModel.findOneAndUpdate(
                     {
-                        companyId: companyId,
-                        ServiceProviderId: ServiceProviderId,
-                        ServiceProductId: ServiceProductId,
+                        companyId: companyObjId,
+                        ServiceProviderId: providerObjId,
+                        ServiceProductId: productObjId,
+                        'schedule.date': TimeSlot.date,
                         'schedule.appointments.ServiceStartTime': TimeSlot.ServiceStartTime,
                         'schedule.appointments.ServiceEndTime': TimeSlot.ServiceEndTime,
                     },
                     {
                         $set: {
-                            'schedule.$.appointments.$[appt].booked': false
-                        }
+                            'schedule.$[sch].appointments.$[appt].booked': false,
+                        },
                     },
                     {
                         arrayFilters: [
-                            { 'appt.ServiceStartTime': TimeSlot.ServiceStartTime, 'appt.ServiceEndTime': TimeSlot.ServiceEndTime }
+                            { 'sch.date': TimeSlot.date },
+                            {
+                                'appt.ServiceStartTime': TimeSlot.ServiceStartTime,
+                                'appt.ServiceEndTime': TimeSlot.ServiceEndTime,
+                            },
                         ],
-                        new: true
+                        new: true,
                     }
                 );
 
-                if (!result) {
-                    return resp.status(404).json({ message: "Time slot not found or update failed", success: false });
+                if (!updatedAppointment) {
+                    return res.status(404).json({ message: 'Time slot update failed', success: false });
                 }
-                return resp.status(200).json({ message: "Time slot successfully updated for unbooked", success: true, result });
 
+                const affectedOrders = await ServiceOrder.find({
+                    companyId: companyObjId,
+                    'Services.ServiceData.AppointmentInfo.AppointmentId': targetSlotId,
+                });
+
+                const now = new Date();
+
+                for (const order of affectedOrders) {
+
+                    let orderModified = false;
+
+                    for (const svc of order.Services) {
+                        if (
+                            !svc.ServiceData?.AppointmentInfo?.AppointmentId?.equals(targetSlotId)
+                        ) continue;
+
+                        const lastStatus = svc.OrderStatus?.[svc.OrderStatus.length - 1]?.Status;
+                        if (lastStatus === 'COMPLETED' || lastStatus === 'CANCELLED') continue;
+
+                        svc.OrderStatus.push({
+                            Status: 'CANCELLED',
+                            StatusAt: now,
+                            Reason: 'Slot manually unbooked by admin',
+                        });
+
+                        orderModified = true;
+                    }
+
+
+                    if (
+                        orderModified &&
+                        ['INITIATED', 'PENDING'].includes(order.PaymentSession?.status)
+                    ) {
+                        order.PaymentSession.status = 'FAILED';
+                    }
+
+                    if (orderModified) {
+                        await order.save();
+                    }
+
+
+                    try {
+                        if (order.UserId) {
+                            const cart = await ServiceCart.findOne({
+                                UserId: order.UserId,
+                                companyId: companyObjId,
+                            });
+
+                            if (cart) {
+                                for (const svc of order.Services) {
+                                    if (
+                                        !svc.ServiceData?.AppointmentInfo?.AppointmentId?.equals(targetSlotId)
+                                    ) continue;
+
+                                    const cartItem = cart.Services.find(
+                                        c => c._id.toString() === svc.CartServiceId?.toString()
+                                    );
+                                    if (cartItem) {
+                                        cartItem.Reserved = false;
+                                        cartItem.IsActive = false;
+                                    }
+                                }
+
+                                let total = 0, discount = 0, final = 0;
+                                for (const s of cart.Services) {
+                                    if (s.IsActive !== false) {
+                                        total += s.TotalPrice || 0;
+                                        discount += s.DiscountPrice || 0;
+                                        final += s.FinalPrice || 0;
+                                    }
+                                }
+                                cart.TotalCartPrice = total;
+                                cart.DiscountCartPrice = discount;
+                                cart.FinalCartPrice = final;
+
+                                await cart.save();
+                            }
+                        }
+                    } catch (cartErr) {
+                        console.error('Cart update error during unbook:', cartErr.message);
+                    }
+                }
+
+                return res.status(200).json({
+                    message: 'Time slot successfully unbooked',
+                    success: true,
+                    data: updatedAppointment,
+                    affectedOrders: affectedOrders.length,
+                });
             }
+
             else {
-                return resp.status(400).json({ message: "Invalid Operation", success: false });
-
+                return res.status(400).json({ message: 'Invalid operation. Use "booked" or "unbooked"', success: false });
             }
+
         } catch (error) {
-            console.error("Error in updating time slot booking:", error);
-            return resp.status(500).json({ message: "Internal Server Error", success: false });
+            console.error('updateTimeSlotsBooking Error:', error);
+            return res.status(500).json({ message: 'Internal Server Error', success: false });
         }
     },
     deleteTimeSlotsBooking: async (req, resp) => {
@@ -325,11 +495,11 @@ module.exports = {
             if (!ServiceProviderId || !ServiceProductId || !companyId) {
                 return resp.status(400).json({ message: 'please provide required data', success: false })
             }
-            let existingAppointments = await ServiceAppointmentModel.ServiceAppointmentModel.findOne(
+            let existingAppointments = await ServiceAppointmentModel.findOne(
                 { ServiceProviderId, ServiceProductId, companyId }
             )
             if (existingAppointments) {
-                let result = await ServiceAppointmentModel.ServiceAppointmentModel.findOneAndRemove(
+                let result = await ServiceAppointmentModel.findOneAndRemove(
                     { ServiceProviderId, ServiceProductId, companyId }
                 )
                 if (!result) {
@@ -340,13 +510,75 @@ module.exports = {
             return resp.status(400).json({ message: 'appointment data not found', success: false })
 
         } catch (error) {
-            return resp.status(400).json({ error: error.message, success: false ,message:"Internal Server Error"})
+            return resp.status(400).json({ error: error.message, success: false, message: "Internal Server Error" })
 
         }
     },
+
+    // getAppointmentsData: async (matchCondition) => {
+    //     return await ServiceAppointmentModel.aggregate([
+    //         { $match: matchCondition },
+    //         {
+    //             $lookup: {
+    //                 from: "serviceproviders",
+    //                 localField: "ServiceProviderId",
+    //                 foreignField: "_id",
+    //                 as: "ServiceProviderInfo",
+    //             }
+    //         },
+    //         {
+    //             $lookup: {
+    //                 from: "serviceproducts",
+    //                 localField: "ServiceProductId",
+    //                 foreignField: "_id",
+    //                 as: "ServiceProductInfo",
+    //             }
+
+    //         }
+    //     ]);
+    // },
+    // getAppointments: async (req, res) => {
+    //     let { companyId, ServiceProductId, ServiceProviderId } = req.query;
+
+    //     try {
+    //         let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
+
+    //         if (ServiceProductId) {
+    //             if (!mongoose.Types.ObjectId.isValid(ServiceProductId)) {
+    //                 return res.status(400).json({ message: 'Invalid ID format', success: false });
+    //             }
+    //             matchCondition.ServiceProductId = mongoose.Types.ObjectId.createFromHexString(ServiceProductId);
+    //         }
+    //         if (ServiceProviderId) {
+    //             if (!mongoose.Types.ObjectId.isValid(ServiceProviderId)) {
+    //                 return res.status(400).json({ message: 'Invalid ID format', success: false });
+    //             }
+    //             matchCondition.ServiceProviderId = mongoose.Types.ObjectId.createFromHexString(ServiceProviderId);
+    //         }
+    //         const data = await module.exports.getAppointmentsData(matchCondition);
+
+    //         if (data.length === 0) {
+    //             return res.status(400).json({ message: 'Slots not available', success: false });
+    //         }
+
+    //         return res.status(200).json({ data: data, success: true, message: "Data Fetched" });
+
+    //     } catch (error) {
+    //         return res.status(400).json({ error: error.message, success: false, message: "Internal Server Error" });
+
+    //     }
+    // },
+    
     getAppointmentsData: async (matchCondition) => {
-        return await ServiceAppointmentModel.ServiceAppointmentModel.aggregate([
-            { $match: matchCondition },
+        return await ServiceAppointmentModel.aggregate([
+            {
+                $match: {
+                    ...matchCondition,
+                    isActive: true
+                }
+            },
+
+            // 🔽 Provider Info
             {
                 $lookup: {
                     from: "serviceproviders",
@@ -356,13 +588,40 @@ module.exports = {
                 }
             },
             {
+                $unwind: {
+                    path: "$ServiceProviderInfo",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+
+            // 🔽 Product Info
+            {
                 $lookup: {
                     from: "serviceproducts",
                     localField: "ServiceProductId",
                     foreignField: "_id",
                     as: "ServiceProductInfo",
                 }
+            },
+            {
+                $unwind: {
+                    path: "$ServiceProductInfo",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
 
+            // 🔽 Optional: remove unnecessary fields
+            {
+                $project: {
+                    companyId: 1,
+                    ServiceProviderId: 1,
+                    ServiceProductId: 1,
+                    ServiceTime: 1,
+                    opdDate: 1,
+                    schedule: 1,
+                    ServiceProviderInfo: 1,
+                    ServiceProductInfo: 1
+                }
             }
         ]);
     },
@@ -370,7 +629,9 @@ module.exports = {
         let { companyId, ServiceProductId, ServiceProviderId } = req.query;
 
         try {
-            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
+            let matchCondition = {
+                companyId: mongoose.Types.ObjectId.createFromHexString(companyId)
+            };
 
             if (ServiceProductId) {
                 if (!mongoose.Types.ObjectId.isValid(ServiceProductId)) {
@@ -378,23 +639,117 @@ module.exports = {
                 }
                 matchCondition.ServiceProductId = mongoose.Types.ObjectId.createFromHexString(ServiceProductId);
             }
+
             if (ServiceProviderId) {
                 if (!mongoose.Types.ObjectId.isValid(ServiceProviderId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
                 matchCondition.ServiceProviderId = mongoose.Types.ObjectId.createFromHexString(ServiceProviderId);
             }
+
             const data = await module.exports.getAppointmentsData(matchCondition);
 
-            if (data.length === 0) {
+            if (!data || data.length === 0) {
                 return res.status(400).json({ message: 'Slots not available', success: false });
             }
 
-            return res.status(200).json({ data: data, success: true,message:"Data Fetched" });
+            function isDatePast(date) {
+                let today = new Date();
+                let [day, month, year] = date.split('-');
+
+                let appointmentDate = Number(`${year}${month}${day}`);
+                let todayStr = Number(today.toISOString().split('T')[0].replace(/-/g, ''));
+
+                return appointmentDate < todayStr;
+            }
+
+            function isToday(date) {
+                let today = new Date();
+                let [day, month, year] = date.split('-');
+
+                let appointmentDate = `${year}-${month}-${day}`;
+                let todayStr = today.toISOString().split('T')[0];
+
+                return appointmentDate === todayStr;
+            }
+
+            function getCurrentMinutes() {
+                let now = new Date();
+                return now.getHours() * 60 + now.getMinutes();
+            }
+
+            function timeToMinutesSinceMidnight(timeStr) {
+                let [time, modifier] = timeStr.split(' ');
+                let [hours, minutes] = time.split(':').map(Number);
+
+                if (modifier === 'PM' && hours !== 12) hours += 12;
+                if (modifier === 'AM' && hours === 12) hours = 0;
+
+                return hours * 60 + minutes;
+            }
+
+            let currentMinutes = getCurrentMinutes();
+
+            const updatedServices = [];
+
+            for (let service of data) {
+
+                let cleanedSchedule = service.schedule
+                    .map(day => {
+
+                        if (isDatePast(day.date)) {
+                            let bookedSlots = day.appointments.filter(slot => slot.booked);
+
+                            if (bookedSlots.length === 0) return null;
+
+                            return {
+                                ...day,
+                                appointments: bookedSlots
+                            };
+                        }
+
+                        let filteredSlots = day.appointments.filter(slot => {
+                            let slotStart = timeToMinutesSinceMidnight(slot.ServiceStartTime);
+
+                            if (slot.booked) return true;
+
+                            if (isToday(day.date) && slotStart < currentMinutes) {
+                                return false;
+                            }
+
+                            return true;
+                        });
+
+                        if (filteredSlots.length === 0) return null;
+
+                        return {
+                            ...day,
+                            appointments: filteredSlots
+                        };
+                    })
+                    .filter(Boolean); 
+
+                await ServiceAppointmentModel.updateOne(
+                    { _id: service._id },
+                    { $set: { schedule: cleanedSchedule } }
+                );
+
+                service.schedule = cleanedSchedule;
+                updatedServices.push(service);
+            }
+
+            return res.status(200).json({
+                data: updatedServices,
+                success: true,
+                message: "Data Fetched & Cleaned"
+            });
 
         } catch (error) {
-            return res.status(400).json({ error:error.message,success: false,message:"Internal Server Error" });
-
+            return res.status(400).json({
+                error: error.message,
+                success: false,
+                message: "Internal Server Error"
+            });
         }
     }
 }
