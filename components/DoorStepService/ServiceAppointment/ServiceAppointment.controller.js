@@ -568,7 +568,7 @@ module.exports = {
 
     //     }
     // },
-    
+
     getAppointmentsData: async (matchCondition) => {
         return await ServiceAppointmentModel.aggregate([
             {
@@ -653,24 +653,23 @@ module.exports = {
                 return res.status(400).json({ message: 'Slots not available', success: false });
             }
 
+            function parseDate(dateStr) {
+                let [day, month, year] = dateStr.split('/');
+                return new Date(`${year}-${month}-${day}`);
+            }
+
             function isDatePast(date) {
                 let today = new Date();
-                let [day, month, year] = date.split('-');
+                today.setHours(0, 0, 0, 0);
 
-                let appointmentDate = Number(`${year}${month}${day}`);
-                let todayStr = Number(today.toISOString().split('T')[0].replace(/-/g, ''));
-
-                return appointmentDate < todayStr;
+                return parseDate(date) < today;
             }
 
             function isToday(date) {
                 let today = new Date();
-                let [day, month, year] = date.split('-');
+                today.setHours(0, 0, 0, 0);
 
-                let appointmentDate = `${year}-${month}-${day}`;
-                let todayStr = today.toISOString().split('T')[0];
-
-                return appointmentDate === todayStr;
+                return parseDate(date).getTime() === today.getTime();
             }
 
             function getCurrentMinutes() {
@@ -690,13 +689,13 @@ module.exports = {
 
             let currentMinutes = getCurrentMinutes();
 
-            const updatedServices = [];
-
-            for (let service of data) {
+            // 🔥 CLEAN WITHOUT MUTATION
+            const filteredData = data.map(service => {
 
                 let cleanedSchedule = service.schedule
                     .map(day => {
 
+                        // 🔴 Past date
                         if (isDatePast(day.date)) {
                             let bookedSlots = day.appointments.filter(slot => slot.booked);
 
@@ -708,6 +707,7 @@ module.exports = {
                             };
                         }
 
+                        // 🟢 Today / Future
                         let filteredSlots = day.appointments.filter(slot => {
                             let slotStart = timeToMinutesSinceMidnight(slot.ServiceStartTime);
 
@@ -727,21 +727,18 @@ module.exports = {
                             appointments: filteredSlots
                         };
                     })
-                    .filter(Boolean); 
+                    .filter(Boolean);
 
-                await ServiceAppointmentModel.updateOne(
-                    { _id: service._id },
-                    { $set: { schedule: cleanedSchedule } }
-                );
-
-                service.schedule = cleanedSchedule;
-                updatedServices.push(service);
-            }
+                return {
+                    ...service,
+                    schedule: cleanedSchedule
+                };
+            });
 
             return res.status(200).json({
-                data: updatedServices,
+                data: filteredData,
                 success: true,
-                message: "Data Fetched & Cleaned"
+                message: "Data Fetched"
             });
 
         } catch (error) {
