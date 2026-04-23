@@ -5,6 +5,7 @@ const fs = require('fs');
 const { ObjectId } = require('mongodb');
 const { Parser } = require("json2csv");
 const csvParser = require("csv-parser");
+const { ServiceWishlist } = require('../ServiceWishlist/ServiceWishlist.model');
 const csvgenerator = require('csv-writer').createObjectCsvWriter
 
 let searcher;
@@ -148,7 +149,7 @@ module.exports = {
                 serviceTime,
                 googleLocation,
             } = req.body;
-           
+
             if (!companyId || !ServiceName || !HeadServiceId || !SubServiceId || !ProviderId || !service_description || !googleLocation) {
                 deleteUploadedFiles(req.files);
                 return res.status(400).send({
@@ -244,7 +245,7 @@ module.exports = {
         ]);
     },
     getServiceProductByData: async (req, res) => {
-        const { HeadServiceId, SubServiceId, companyId, ServiceProductId, googleLocation, ProviderId, CategoryName } = req.query;
+        const { HeadServiceId, SubServiceId, companyId, ServiceProductId, googleLocation, ProviderId, CategoryName, UserId } = req.query;
 
         try {
             let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
@@ -255,41 +256,74 @@ module.exports = {
                 }
                 matchCondition.HeadServiceId = { $in: [mongoose.Types.ObjectId.createFromHexString(HeadServiceId)] };
             }
+
             if (ProviderId) {
                 if (!mongoose.Types.ObjectId.isValid(ProviderId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
                 matchCondition.ProviderId = { $in: [mongoose.Types.ObjectId.createFromHexString(ProviderId)] };
             }
+
             if (googleLocation) {
                 matchCondition.googleLocation = String(googleLocation);
             }
+
             if (SubServiceId) {
                 if (!mongoose.Types.ObjectId.isValid(SubServiceId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
                 matchCondition.SubServiceId = { $in: [mongoose.Types.ObjectId.createFromHexString(SubServiceId)] };
             }
+
             if (ServiceProductId) {
                 if (!mongoose.Types.ObjectId.isValid(ServiceProductId)) {
                     return res.status(400).json({ message: 'Invalid ID format', success: false });
                 }
                 matchCondition._id = mongoose.Types.ObjectId.createFromHexString(ServiceProductId);
             }
+
             if (CategoryName) {
-                matchCondition.SubServiceName = { $regex: `^${CategoryName}$`, $options: "i" }
+                matchCondition.SubServiceName = { $regex: `^${CategoryName}$`, $options: "i" };
             }
-            const data = await module.exports.getServicePrductData(matchCondition);
+
+            let data = await module.exports.getServicePrductData(matchCondition);
+
+            if (mongoose.Types.ObjectId.isValid(UserId)) {
+
+                let wishlistData = await ServiceWishlist.findOne({ UserId,companyId});
+                let WishListIds = wishlistData?.ServiceProductsIds || [];
+
+                if (WishListIds.length) {
+                    const wishSet = new Set(WishListIds.map(id => id.toString()));
+
+                    data = data.map((EachProduct) => ({
+                        ...EachProduct,
+                        Wishlist: wishSet.has(EachProduct._id.toString())
+                    }));
+                } else {
+                    data = data.map((EachProduct) => ({
+                        ...EachProduct,
+                        Wishlist: false
+                    }));
+                }
+            }
 
             if (data.length === 0) {
                 return res.status(404).json({ message: 'No Services Found', success: false });
             }
 
-            // console.log('result of populated data', data);
-            return res.status(200).json({ data: data, success: true, message: 'Data Fetched' });
+            return res.status(200).json({
+                data,
+                success: true,
+                message: 'Data Fetched'
+            });
 
         } catch (error) {
-            res.status(400).json({ error: error.message, success: false, message: 'Internal Server Error' });
+            res.status(400).json({
+                error: error.message,
+                success: false,
+                message: 'Internal Server Error'
+            });
         }
     },
 
