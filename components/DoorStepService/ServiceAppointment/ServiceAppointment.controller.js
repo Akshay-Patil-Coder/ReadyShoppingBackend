@@ -626,7 +626,7 @@ module.exports = {
         ]);
     },
     getAppointments: async (req, res) => {
-        let { companyId, ServiceProductId, ServiceProviderId } = req.query;
+        let { companyId, ServiceProductId, ServiceProviderId, Type } = req.query;
 
         try {
             let matchCondition = {
@@ -689,56 +689,86 @@ module.exports = {
 
             let currentMinutes = getCurrentMinutes();
 
-            // 🔥 CLEAN WITHOUT MUTATION
             const filteredData = data.map(service => {
 
                 let cleanedSchedule = service.schedule
                     .map(day => {
 
-                        // 🔴 Past date
-                        if (isDatePast(day.date)) {
-                            let bookedSlots = day.appointments.filter(slot => slot.booked);
 
-                            if (bookedSlots.length === 0) return null;
+                        if (Type === 'UserPanel') {
+
+                            if (isDatePast(day.date)) return null;
+
+                            let availableSlots = day.appointments.filter(slot => {
+                                let slotStart = timeToMinutesSinceMidnight(slot.ServiceStartTime);
+
+                                if (slot.booked) return false;
+
+                                if (isToday(day.date) && slotStart < currentMinutes) {
+                                    return false;
+                                }
+
+                                return true;
+                            });
+
+                            if (availableSlots.length === 0) return null;
 
                             return {
-                                ...day,
-                                appointments: bookedSlots
+                                date: day.date,
+                                appointments: availableSlots
                             };
                         }
 
-                        // 🟢 Today / Future
-                        let filteredSlots = day.appointments.filter(slot => {
-                            let slotStart = timeToMinutesSinceMidnight(slot.ServiceStartTime);
+                        else {
 
-                            if (slot.booked) return true;
+                            if (isDatePast(day.date)) {
+                                let bookedSlots = day.appointments.filter(slot => slot.booked);
 
-                            if (isToday(day.date) && slotStart < currentMinutes) {
-                                return false;
+                                if (bookedSlots.length === 0) return null;
+
+                                return {
+                                    ...day,
+                                    appointments: bookedSlots
+                                };
                             }
 
-                            return true;
-                        });
+                            let filteredSlots = day.appointments.filter(slot => {
+                                let slotStart = timeToMinutesSinceMidnight(slot.ServiceStartTime);
 
-                        if (filteredSlots.length === 0) return null;
+                                if (slot.booked) return true;
 
-                        return {
-                            ...day,
-                            appointments: filteredSlots
-                        };
+                                if (isToday(day.date) && slotStart < currentMinutes) {
+                                    return false;
+                                }
+
+                                return true;
+                            });
+
+                            if (filteredSlots.length === 0) return null;
+
+                            return {
+                                ...day,
+                                appointments: filteredSlots
+                            };
+                        }
+
                     })
                     .filter(Boolean);
+
+                if (cleanedSchedule.length === 0) return null;
 
                 return {
                     ...service,
                     schedule: cleanedSchedule
                 };
-            });
 
+            }).filter(Boolean);
             return res.status(200).json({
                 data: filteredData,
                 success: true,
-                message: "Data Fetched"
+                message: Type === 'UserPanel'
+                    ? "Available slots fetched"
+                    : "Data Fetched"
             });
 
         } catch (error) {
@@ -748,5 +778,6 @@ module.exports = {
                 message: "Internal Server Error"
             });
         }
-    }
+    },
+
 }
