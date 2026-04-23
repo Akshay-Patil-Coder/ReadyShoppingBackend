@@ -26,6 +26,7 @@ exports.default = (app) => {
     app.use(ServiceProductsString, ServiceProductsRoutes)
     app.use(ServiceProvidersString, ServiceProvidersRoutes)
     app.use(ServiceAppointmentsString, ServiceAppointmentRoutes)
+    app.use(ServiceCartString, ServiceCartRoutes)
     app.use(ServiceWishlistString,ServiceWishlistRoutes)
     app.use(ServiceRatingString,ServiceRatingRoutes)
 }
