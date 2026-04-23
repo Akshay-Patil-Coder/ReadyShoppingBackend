@@ -652,7 +652,12 @@ module.exports = {
             if (!data || data.length === 0) {
                 return res.status(400).json({ message: 'Slots not available', success: false });
             }
+            function sortByDateAsc(a, b) {
+                const [d1, m1, y1] = a.date.split('/').map(Number);
+                const [d2, m2, y2] = b.date.split('/').map(Number);
 
+                return new Date(y1, m1 - 1, d1) - new Date(y2, m2 - 1, d2);
+            }
             function parseDate(dateStr) {
                 let [day, month, year] = dateStr.split('/');
                 return new Date(`${year}-${month}-${day}`);
@@ -753,7 +758,7 @@ module.exports = {
                         }
 
                     })
-                    .filter(Boolean);
+                    .filter(Boolean).sort(sortByDateAsc);
 
                 if (cleanedSchedule.length === 0) return null;
 
