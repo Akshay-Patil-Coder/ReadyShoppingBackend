@@ -1266,8 +1266,8 @@ module.exports = {
 
         let rollback = {
             orderId: null,
-            appointmentUpdates: [],   
-            reservedUpdates: [],  
+            appointmentUpdates: [],
+            reservedUpdates: [],
         };
 
         const RollBackFunction = async (rollback) => {
@@ -2380,9 +2380,14 @@ module.exports = {
             if (req.user?.UserId) UserId = req.user.UserId;
             if (req.user?.companyId) companyId = req.user.companyId;
 
+            const toObjectId = (id) =>
+                mongoose.isValidObjectId(id)
+                    ? new mongoose.Types.ObjectId(String(id))
+                    : null;
+
             if (!mongoose.isValidObjectId(companyId) || !mongoose.isValidObjectId(UserId)) {
                 return res.status(400).json({
-                    message: 'Not found proper data of Company or User',
+                    message: 'Invalid CompanyId',
                     success: false,
                 });
             }
@@ -2405,24 +2410,24 @@ module.exports = {
             }
 
             if (OrderId && !mongoose.isValidObjectId(OrderId)) {
-                return res.status(400).json({ message: 'Provide a valid Order Id', success: false });
+                return res.status(400).json({ message: 'Invalid OrderId', success: false });
             }
 
             if (ServiceOrderId && !mongoose.isValidObjectId(ServiceOrderId)) {
-                return res.status(400).json({ message: 'Provide a valid Service Order Id', success: false });
+                return res.status(400).json({ message: 'Invalid ServiceOrderId', success: false });
             }
 
             if (AppointmentId && !mongoose.isValidObjectId(AppointmentId)) {
-                return res.status(400).json({ message: 'Provide a valid Appointment Id', success: false });
+                return res.status(400).json({ message: 'Invalid AppointmentId', success: false });
             }
 
             let matchCondition = {
-                companyId: new mongoose.Types.ObjectId(String(companyId)),
-                UserId: new mongoose.Types.ObjectId(String(UserId)),
+                companyId: toObjectId(companyId),
+                UserId: toObjectId(UserId),
             };
 
             if (OrderId) {
-                matchCondition._id = new mongoose.Types.ObjectId(String(OrderId));
+                matchCondition._id = toObjectId(OrderId);
             }
 
             if (PaymentStatus) {
@@ -2431,20 +2436,26 @@ module.exports = {
 
             if (AppointmentId || ServiceOrderId) {
                 const elemMatch = {};
+
                 if (AppointmentId) {
                     elemMatch['ServiceData.AppointmentInfo.AppointmentId'] =
-                        new mongoose.Types.ObjectId(String(AppointmentId));
+                        toObjectId(AppointmentId);
                 }
+
                 if (ServiceOrderId) {
-                    elemMatch['_id'] = new mongoose.Types.ObjectId(String(ServiceOrderId));
+                    elemMatch['_id'] = toObjectId(ServiceOrderId);
                 }
+
                 matchCondition.Services = { $elemMatch: elemMatch };
             }
 
             let Orders = await ServiceOrder.find(matchCondition).sort({ createdAt: -1 });
 
             if (!Orders.length) {
-                return res.status(404).json({ message: 'No service orders found', success: false });
+                return res.status(404).json({
+                    message: 'No service orders found',
+                    success: false,
+                });
             }
 
             let FilteredOrders = Orders.map(order => {
@@ -2454,33 +2465,36 @@ module.exports = {
 
                 if (Status) {
                     services = services.filter(s => {
-                        const lastStatus = s.OrderStatus?.[s.OrderStatus.length - 1]?.Status;
+                        const lastStatus =
+                            s.OrderStatus?.[s.OrderStatus.length - 1]?.Status;
                         return lastStatus === Status;
                     });
                 }
 
                 if (ServiceOrderId) {
-                    services = services.filter(s =>
-                        s._id.equals(new mongoose.Types.ObjectId(String(ServiceOrderId)))
-                    );
+                    const id = toObjectId(ServiceOrderId);
+                    services = services.filter(s => id && s._id.equals(id));
                 }
 
                 if (AppointmentId) {
+                    const id = toObjectId(AppointmentId);
                     services = services.filter(s =>
-                        s.ServiceData?.AppointmentInfo?.AppointmentId?.equals(
-                            new mongoose.Types.ObjectId(String(AppointmentId))
-                        )
+                        id &&
+                        s.ServiceData?.AppointmentInfo?.AppointmentId?.equals(id)
                     );
                 }
 
-                return { ...order.toObject(), Services: services };
+                return {
+                    ...order.toObject(),
+                    Services: services,
+                };
             });
 
             FilteredOrders = FilteredOrders.filter(o => o.Services.length > 0);
 
             if (!FilteredOrders.length) {
                 return res.status(404).json({
-                    message: 'No service orders found matching the given filters',
+                    message: 'No matching service orders',
                     success: false,
                 });
             }
@@ -2493,6 +2507,7 @@ module.exports = {
 
         } catch (error) {
             console.error('getServiceOrdersError:', error.message);
+
             return res.status(500).json({
                 message: 'Internal Server Error',
                 error: error.message,
@@ -2518,9 +2533,14 @@ module.exports = {
 
             if (req.user?.companyId) companyId = req.user.companyId;
 
+            const toObjectId = (id) =>
+                mongoose.isValidObjectId(id)
+                    ? new mongoose.Types.ObjectId(String(id))
+                    : null;
+
             if (!mongoose.isValidObjectId(companyId)) {
                 return res.status(400).json({
-                    message: 'Not found proper data of Company',
+                    message: 'Invalid CompanyId',
                     success: false,
                 });
             }
@@ -2543,32 +2563,27 @@ module.exports = {
             }
 
             if (UserId && !mongoose.isValidObjectId(UserId)) {
-                return res.status(400).json({ message: 'Provide a valid User Id', success: false });
+                return res.status(400).json({ message: 'Invalid UserId', success: false });
             }
 
             if (OrderId && !mongoose.isValidObjectId(OrderId)) {
-                return res.status(400).json({ message: 'Provide a valid Order Id', success: false });
+                return res.status(400).json({ message: 'Invalid OrderId', success: false });
             }
 
             if (ServiceOrderId && !mongoose.isValidObjectId(ServiceOrderId)) {
-                return res.status(400).json({ message: 'Provide a valid Service Order Id', success: false });
+                return res.status(400).json({ message: 'Invalid ServiceOrderId', success: false });
             }
 
             if (AppointmentId && !mongoose.isValidObjectId(AppointmentId)) {
-                return res.status(400).json({ message: 'Provide a valid Appointment Id', success: false });
+                return res.status(400).json({ message: 'Invalid AppointmentId', success: false });
             }
 
             let matchCondition = {
-                companyId: new mongoose.Types.ObjectId(String(companyId)),
+                companyId: toObjectId(companyId),
             };
 
-            if (UserId) {
-                matchCondition.UserId = new mongoose.Types.ObjectId(String(UserId));
-            }
-
-            if (OrderId) {
-                matchCondition._id = new mongoose.Types.ObjectId(String(OrderId));
-            }
+            if (UserId) matchCondition.UserId = toObjectId(UserId);
+            if (OrderId) matchCondition._id = toObjectId(OrderId);
 
             if (StartDate || EndDate) {
                 matchCondition.createdAt = {};
@@ -2582,20 +2597,29 @@ module.exports = {
 
             if (AppointmentId || ServiceOrderId) {
                 const elemMatch = {};
+
                 if (AppointmentId) {
                     elemMatch['ServiceData.AppointmentInfo.AppointmentId'] =
-                        new mongoose.Types.ObjectId(String(AppointmentId));
+                        toObjectId(AppointmentId);
                 }
+
                 if (ServiceOrderId) {
-                    elemMatch['_id'] = new mongoose.Types.ObjectId(String(ServiceOrderId));
+                    elemMatch['_id'] = toObjectId(ServiceOrderId);
                 }
+
                 matchCondition.Services = { $elemMatch: elemMatch };
             }
 
-            let Orders = await ServiceOrder.find(matchCondition).sort({ createdAt: -1 });
+            let sortOption = { createdAt: -1 };
+            if (SortOrder === 'older') sortOption = { createdAt: 1 };
+
+            let Orders = await ServiceOrder.find(matchCondition).sort(sortOption);
 
             if (!Orders.length) {
-                return res.status(404).json({ message: 'No service orders found', success: false });
+                return res.status(404).json({
+                    message: 'No service orders found',
+                    success: false,
+                });
             }
 
             let FilteredOrders = Orders.map(order => {
@@ -2605,41 +2629,38 @@ module.exports = {
 
                 if (Status) {
                     services = services.filter(s => {
-                        const lastStatus = s.OrderStatus?.[s.OrderStatus.length - 1]?.Status;
+                        const lastStatus =
+                            s.OrderStatus?.[s.OrderStatus.length - 1]?.Status;
                         return lastStatus === Status;
                     });
                 }
 
                 if (ServiceOrderId) {
-                    services = services.filter(s =>
-                        s._id.equals(new mongoose.Types.ObjectId(String(ServiceOrderId)))
-                    );
+                    const id = toObjectId(ServiceOrderId);
+                    services = services.filter(s => id && s._id.equals(id));
                 }
 
                 if (AppointmentId) {
+                    const id = toObjectId(AppointmentId);
                     services = services.filter(s =>
-                        s.ServiceData?.AppointmentInfo?.AppointmentId?.equals(
-                            new mongoose.Types.ObjectId(String(AppointmentId))
-                        )
+                        id &&
+                        s.ServiceData?.AppointmentInfo?.AppointmentId?.equals(id)
                     );
                 }
 
-                return { ...order.toObject(), Services: services };
+                return {
+                    ...order.toObject(),
+                    Services: services,
+                };
             });
 
             FilteredOrders = FilteredOrders.filter(o => o.Services.length > 0);
 
             if (!FilteredOrders.length) {
                 return res.status(404).json({
-                    message: 'No service orders found matching the given filters',
+                    message: 'No matching service orders',
                     success: false,
                 });
-            }
-
-            if (SortOrder === 'older') {
-                FilteredOrders.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-            } else if (SortOrder === 'newer') {
-                FilteredOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             }
 
             return res.status(200).json({
@@ -2650,6 +2671,7 @@ module.exports = {
 
         } catch (error) {
             console.error('getAllServiceOrdersError:', error.message);
+
             return res.status(500).json({
                 message: 'Internal Server Error',
                 error: error.message,
