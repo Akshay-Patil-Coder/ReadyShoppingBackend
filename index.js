@@ -20,12 +20,13 @@ const ShoppingRoutes = require('./Routes/Shopping.routes');
 const scraperRoutes = require('./components/Shopping/WebScrapper/WebScrapper.routes');
 
 const { ProductOrder } = require('./components/Shopping/ProductCart/ProductCart.model');
+const {ServiceOrder}=require('./components/DoorStepService/ServiceProductCart/ServiceProductCart.model')
 const staticPaths = require('./Routes/StaticPath.routes');
 
 const app = express();
 
-app.use(express.json({limit:'100mb'}));
-app.use(express.urlencoded({limit:'100mb', extended: true }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 app.use(cors({
   origin: '*',
@@ -77,9 +78,9 @@ app.use((req, res, next) => {
 
     let statusColor =
       res.statusCode >= 500 ? clc.bgRed.white :
-      res.statusCode >= 400 ? clc.red :
-      res.statusCode >= 300 ? clc.yellow :
-      clc.green;
+        res.statusCode >= 400 ? clc.red :
+          res.statusCode >= 300 ? clc.yellow :
+            clc.green;
 
     console.log("✔ " + statusColor(`Status: ${res.statusCode}`) + clc.blackBright(` (${duration}ms)`));
   });
@@ -97,16 +98,18 @@ app.use((req, res, next) => {
   }
 })();
 
-let cronRunning = false;
+
+let shoppingCronRunning = false;
+let serviceCronRunning = false;
 
 cron.schedule("*/10 * * * *", async () => {
-  if (cronRunning) {
-    console.log("⏳ Previous cron still running...");
+  if (shoppingCronRunning) {
+    console.log("⏳ Shopping previous cron still running...");
     return;
   }
 
-  cronRunning = true;
-  console.log("🕒 Running order processing cron...");
+  shoppingCronRunning = true;
+  console.log("🕒 Shopping: running order processing cron...");
 
   try {
     const companies = await ProductOrder.distinct("companyId", {
@@ -117,20 +120,55 @@ cron.schedule("*/10 * * * *", async () => {
     await Promise.all(companies.map(async (companyId) => {
       try {
         await axios.post(
-          `${process.env.BASE_URL}/nodeCronShopping/processOrders`,
+          `${process.env.BASE_URL}/nodeCron/processOrders`,
           { companyId },
           { timeout: 10000 }
         );
       } catch (err) {
-        console.error(`❌ Company ${companyId}:`, err.message);
+        console.error(`❌ Shopping company ${companyId}:`, err.message);
       }
     }));
 
-    console.log("✔ Cron completed");
+    console.log("✔ Shopping cron completed");
   } catch (err) {
-    console.error("❌ Cron Error:", err.message);
+    console.error("❌ Shopping cron error:", err.message);
   } finally {
-    cronRunning = false;
+    shoppingCronRunning = false;
+  }
+});
+
+cron.schedule("*/10 * * * *", async () => {
+  if (serviceCronRunning) {
+    console.log("⏳ Door Step Service previous cron still running...");
+    return;
+  }
+
+  serviceCronRunning = true;
+  console.log("🕒 Door Step Service: running order processing cron...");
+
+  try {
+    const companies = await ServiceOrder.distinct("companyId", {
+      'PaymentSession.status': { $in: ["PENDING", "INITIATED"] },
+      ReservationStartedAt: { $exists: true }
+    });
+
+    await Promise.all(companies.map(async (companyId) => {
+      try {
+        await axios.post(
+          `${process.env.BASE_URL}/nodeCron/processServiceOrders`,
+          { companyId },
+          { timeout: 10000 }
+        );
+      } catch (err) {
+        console.error(`❌ Service company ${companyId}:`, err.message);
+      }
+    }));
+
+    console.log("✔ Service cron completed");
+  } catch (err) {
+    console.error("❌ Service cron error:", err.message);
+  } finally {
+    serviceCronRunning = false;
   }
 });
 

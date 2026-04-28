@@ -1,12 +1,11 @@
 const { ObjectId } = require('mongodb');
-const { CoachingCourseModel, CoachingVideoModel, QuizModel } = require('./CoachingCourse.model');
+const { CoachingCourseModel, CoachingVideoModel, QuizModel } = require('./CoachingCource.model');
 const mongoose = require('mongoose');
 const fs = require('fs').promises;
 const fssync = require('fs');
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
-const ffprobePath = path.join("C:", "ffmpeg", "bin", "ffprobe.exe");
-
+const ffprobePath = require('ffprobe-static').path;
 ffmpeg.setFfprobePath(ffprobePath);
 class CourseService {
     constructor() {
@@ -44,7 +43,7 @@ class CourseService {
                 }
 
                 ffmpeg(videoPath)
-                    .outputOptions('-map 0:s:0') 
+                    .outputOptions('-map 0:s:0')
                     .output(outputPath)
                     .on('end', () => {
                         clearTimeout(timeout);
@@ -177,11 +176,10 @@ class CourseService {
                 if (ext === '.vtt') {
                     await fs.copyFile(s.path, vttPath);
                 } else {
-                    // Convert to VTT using ffmpeg
                     await new Promise((resolve, reject) => {
                         ffmpeg()
                             .input(s.path)
-                            .outputOptions('-c:s webvtt') // Force WebVTT output
+                            .outputOptions('-c:s webvtt') 
                             .output(vttPath)
                             .on('end', resolve)
                             .on('error', reject)
@@ -795,7 +793,7 @@ class CourseService {
         }
     }
 
-    
+
     async getCoachingCourseData(matchCondition) {
         return await CoachingCourseModel.aggregate([
             { $match: matchCondition },
@@ -968,7 +966,7 @@ class CourseService {
 
             {
                 $lookup: {
-                    from: "Coursequizes",
+                    from: "coursequizes",
                     localField: "CourseContent.Videos.Quizes",
                     foreignField: "_id",
                     as: "CourseContent.Videos.QuizesInfo"
@@ -1010,7 +1008,7 @@ class CourseService {
 
     async getCoachingCourse(req, res) {
         let { CourseId, CourseName, Skills, SkillsId, ProviderId, ProviderType, connectedId, connectedType, HeadCourseCatId, SubCourseCatId, companyId } = req.query;
-        console.log("zzzzzzzzzzzzzzz", req.query)
+
         try {
             let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
 
@@ -1096,38 +1094,35 @@ class CourseService {
             const coachingCoursedata = await CoachingCourseModel.findOne({ _id: req.params.id })
             if (coachingCoursedata) {
                 if (coachingCoursedata.CourseContent) {
-                    coachingCoursedata.CourseContent.forEach(async (EachContent) => {
-                        EachContent.ContentData.forEach(async (EachVideoId) => {
-                            let findedVideo = await CoachingVideoModel.findOne({ _id: EachVideoId })
+                    for (const EachContent of coachingCoursedata.CourseContent) {
+                        for (const EachVideoId of EachContent.CourseData) {
+                            let findedVideo = await CoachingVideoModel.findOne({ _id: EachVideoId });
                             if (findedVideo) {
                                 if (findedVideo.Quizes) {
-                                    findedVideo.Quizes.forEach(async (EachQuiz) => {
-                                        let findedQuiz = await QuizModel.findOne({ _id: EachQuiz })
-                                        if (findedQuiz) {
-                                            let deleteQuiz = await QuizModel.deleteOne({ _id: EachQuiz })
-                                        }
-                                    })
+                                    for (const EachQuiz of findedVideo.Quizes) {
+                                        await QuizModel.deleteOne({ _id: EachQuiz });
+                                    }
                                 }
-                                let deleteVideo = await CoachingVideoModel.findOneAndRemove({ _id: EachVideoId })
+                                await CoachingVideoModel.deleteOne({ _id: EachVideoId });
                             }
-                        })
-
-                    })
+                        }
+                    }
                 }
 
                 const result = await CoachingCourseModel.deleteOne({ _id: req.params.id })
                 if (!result) {
                     return resp.status(400).json({ message: "Coaching Course cannot be deleted", success: false })
                 }
-                let CoursePath = path.join(this.publicDir, `${FindCourse.CourseName}-${FindCourse.ProviderId}`)
+                let CoursePath = path.join(this.publicDir, `${coachingCoursedata.CourseName}-${coachingCoursedata.ProviderId}`)
                 let FileIsOrNot = await this.fileExists(CoursePath)
                 if (FileIsOrNot) {
-                    await fs.unlink(CoursePath)
+                    await fs.rm(CoursePath, { recursive: true, force: true })
                 }
-                let PrivateCoursePath = path.join(this.privateDir, `${FindCourse.CourseName}-${FindCourse.ProviderId}`)
+
+                let PrivateCoursePath = path.join(this.privateDir, `${coachingCoursedata.CourseName}-${coachingCoursedata.ProviderId}`)
                 let PrivateFileIsOrNot = await this.fileExists(PrivateCoursePath)
                 if (PrivateFileIsOrNot) {
-                    await fs.unlink(PrivateCoursePath)
+                    await fs.rm(PrivateCoursePath, { recursive: true, force: true })
                 }
 
 
@@ -1400,7 +1395,7 @@ class CourseService {
                 const playlistDir = path.join(this.privateDir, courseDirName, playlist.Heading);
                 const fileExistsOrNot = await this.fileExists(playlistDir);
                 if (fileExistsOrNot) {
-                    await fs.rmdir(playlistDir, { recursive: true, force: true });
+                    await fs.rm(playlistDir, { recursive: true, force: true });
                 }
 
                 const updatedResult = await CoachingCourseModel.updateOne(
@@ -1419,10 +1414,12 @@ class CourseService {
             }
 
             if (operation === 'add') {
+                const publicBaseUrl = path.join('/', courseDirName).replace(/\\/g, '/');
                 const { courseContentFinal, totalDuration } = await this.processVideoContent(
                     courseData,
                     PrivateCoursePath,
-                    uploadedFiles
+                    uploadedFiles,
+                    publicBaseUrl
                 );
                 const newDuration = FindedCourse.CourseDuration + totalDuration;
                 const result = await CoachingCourseModel.updateOne(
@@ -1502,6 +1499,10 @@ class CourseService {
                 courseData.ProviderType = FindedCourse.ProviderType;
                 courseData.companyId = FindedCourse.companyId;
                 courseData.ConnectedWith = FindedCourse.ConnectedWith
+                if (!playList) {
+                    if (filesToClean.length !== 0) await this.cleanFiles(filesToClean);
+                    return res.status(404).json({ message: 'Playlist not found', success: false });
+                }
                 courseData.Heading = playList.Heading
 
                 if (courseData.ContainedData && courseData.ContainedData.length !== 0) {
@@ -1511,12 +1512,10 @@ class CourseService {
                         uploadedFiles
                     );
 
-                    let VideoDuration = 0;
-                    VideoDuration = VideoDuration + totalDuration;
-                    console.log(videoDataIds, 'videodataids')
-                    videoDataIds.forEach(async (EachVideoId) => {
-                        await this.resolveVideoOrders(CourseId, PlayListId, EachVideoId, 'add', VideoDuration)
-                    })
+                  let VideoDuration = FindedCourse.CourseDuration + totalDuration;
+                    for (const EachVideoId of videoDataIds) {
+                        await this.resolveVideoOrders(CourseId, PlayListId, EachVideoId, 'add', VideoDuration);
+                    }
 
                     if (filesToClean.length !== 0) {
                         await this.cleanFiles(filesToClean);
@@ -1581,7 +1580,7 @@ class CourseService {
                             if (deleteQuiz) {
                                 let updatedVideo = await CoachingVideoModel.findOneAndUpdate(
                                     { _id: VideoId, companyId: companyId },
-                                    { $pull: { Quizes: { $in: QuizId } } },
+                                    { $pull: { Quizes: QuizId } },
                                     { new: true }
                                 );
                                 if (!updatedVideo) {
@@ -1602,9 +1601,9 @@ class CourseService {
                         FindedCourse.CourseContent.forEach((content) => {
                             content.CourseData.forEach((videoId, index) => {
                                 console.log(videoId, typeof videoId, VideoId, typeof VideoId)
-                                if (videoId === VideoId) {
+                                if (videoId.toString() === VideoId.toString()) {
                                     currentHeading = content.Heading;
-                                    nextVideoId = (index + 1 < content.ContentData.length) ? content.ContentData[index + 1] : (index - 1 >= 0 ? content.ContentData[index - 1] : null);
+                                    nextVideoId = (index + 1 < content.CourseData.length) ? content.CourseData[index + 1] : (index - 1 >= 0 ? content.CourseData[index - 1] : null);
                                 }
                             });
                         });
@@ -1616,35 +1615,37 @@ class CourseService {
                                 { $addToSet: { Quizes: { $each: findedVideo.Quizes } } }
                             );
                         } else {
-                            await Promise.all(findedVideo.Quizes.map(async (quizId) => {
-                                let quiz = await QuizModel.findOne({ _id: quizId });
-                                if (quiz) await QuizModel.deleteOne({ _id: quizId });
-                            }));
+                            if (findedVideo.Quizes && findedVideo.Quizes.length > 0) {
+                                await Promise.all(findedVideo.Quizes.map(async (quizId) => {
+                                    let quiz = await QuizModel.findOne({ _id: quizId });
+                                    if (quiz) await QuizModel.deleteOne({ _id: quizId });
+                                }));
+                            }
                         }
 
-                        const deleteFiles = async (filePath) => {
+                        const deleteFile = async (filePath) => {
                             let fileExists = await this.fileExists(filePath);
-                            if (fileExists) await fs.rmdir(filePath, { recursive: true, force: true });
+                            if (fileExists) await fs.unlink(filePath);
                         };
 
                         if (findedVideo.videoFile) {
                             console.log(coursePath, findedVideo.videoFile, currentHeading, 'path')
 
                             let videoPath = path.join(coursePath, currentHeading, 'VideoFiles', findedVideo.videoFile);
-                            await deleteFiles(videoPath);
+                            await deleteFile(videoPath);
                         }
 
                         if (findedVideo.VideoLanguages) {
                             await Promise.all(findedVideo.VideoLanguages.map(async (audio) => {
                                 let audioPath = path.join(coursePath, currentHeading, 'VideoAudioFiles', audio.VideoLanguagesFile);
-                                await deleteFiles(audioPath);
+                                await deleteFile(audioPath);
                             }));
                         }
 
                         if (findedVideo.Subtitles) {
                             await Promise.all(findedVideo.Subtitles.map(async (subtitle) => {
                                 let subtitlePath = path.join(coursePath, currentHeading, 'VideoSubtitlesFile', subtitle.SubtitleFile);
-                                await deleteFiles(subtitlePath);
+                                await deleteFile(subtitlePath);
                             }));
                         }
 
@@ -1655,8 +1656,7 @@ class CourseService {
                             return res.status(400).json({ message: 'Error deleting video', success: false });
                         }
 
-                        await this.resolveVideoOrders(CourseId, PlayListId, VideoId, 'delete', videoDuration);
-
+                        await this.resolveVideoOrders(CourseId, PlayListId, { _id: findedVideo._id, order: findedVideo.order }, 'delete', videoDuration);
                         if (filesToClean.length !== 0) await this.cleanFiles(filesToClean);
                         return res.status(200).json({ message: 'Video deleted', success: true });
                     }
@@ -1692,37 +1692,25 @@ class CourseService {
         try {
             let { CourseName, ProviderId, PlayListName, VideoId } = req.body;
             let companyId = req.query.companyId
-            let FindedVideo = await CoachingVideoModel.findOne({ _id, VideoId, companyId: companyId })
+            let FindedVideo = await CoachingVideoModel.findOne({ _id: VideoId, companyId: companyId })
             if (!FindedVideo) {
                 return res.status(400).json({ message: 'Video Not Found', success: false })
             }
             if (!CourseName || !ProviderId || !PlayListName) {
                 return res.status(400).json({ message: 'please provide all data', success: false })
             }
-            let VideoFilePath = path.join(this.privateDir, `${CourseName}-${ProviderId}`, PlayListName, FindedVideo.videoFile)
+            let VideoFilePath = path.join(this.privateDir, `${CourseName}-${ProviderId}`, PlayListName, 'VideoFiles', FindedVideo.videoFile)
             let FileIsOrNot = await this.fileExists(VideoFilePath)
             if (!FileIsOrNot) {
                 return res.status(400).json({ message: "video file not found", success: false })
             }
-            return res.sendFile(VideoFilePath)
+            return res.sendFile(path.resolve(VideoFilePath))
 
         } catch (error) {
             return res.status(500).json({ message: "Internal Server Error", error: error.message, success: false })
         }
     }
 
-    // async SavedCertificateData(CertificateName) {
-    //     const { templateName, config } = req.body;
-
-    //     const newConfig = new TemplateConfig({
-    //         templateName,
-    //         imageName: CertificateName,
-    //         config: JSON.parse(config)
-    //     });
-
-    //     await newConfig.save();
-    //     res.json({ message: 'Template uploaded!' });
-    // }
 
 
 }

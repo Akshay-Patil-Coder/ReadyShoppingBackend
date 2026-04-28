@@ -11,7 +11,7 @@ const AdminString = apiString + '/admin'
 const CompanyString = apiString + '/companies'
 const FunctionallityString = apiString + '/masterusers'
 const AccessManagmentString = apiString + '/adminUser'
-const NodeCronString = apiString + '/nodeCronShopping'
+const NodeCronString = apiString + '/nodeCron'
 
 
 exports.default = (app) => {

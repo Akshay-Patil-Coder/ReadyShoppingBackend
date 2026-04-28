@@ -284,7 +284,7 @@ module.exports = {
 
             if (CategoryName) {
                 matchCondition.SubServiceName = { $regex: `^${CategoryName}$`, $options: "i" };
-            }
+            } 
 
             let data = await module.exports.getServicePrductData(matchCondition);
 

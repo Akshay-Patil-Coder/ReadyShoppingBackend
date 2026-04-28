@@ -96,7 +96,7 @@ const serviceOrderSchema = new mongoose.Schema({
     UserDetails: {
         UserName: { type: String },
         Email: { type: String },
-        Phone: { type: Number },
+        Phone: { type: Number,required:true },
         AddresserName: { type: String, default: "Guest" },
         AddresserNumber: { type: Number },
         AddressType: { type: String, default: "Home" },
@@ -137,7 +137,12 @@ const serviceOrderSchema = new mongoose.Schema({
                 type: Date,
                 default: Date.now
             },
-            // Snapshot of service at order time — mirrors ProductData in ProductOrder
+            ActiveOtp: {
+                type: String
+            },
+            OtpTime: {
+                type: Date
+            },
             ServiceData: {
                 ServiceInfo: {
                     ServiceProductId: { type: mongoose.Schema.Types.ObjectId },

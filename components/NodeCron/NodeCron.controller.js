@@ -1,8 +1,9 @@
 const { ProductCart, ProductOrder } = require('../Shopping/ProductCart/ProductCart.model')
 const { VariantProduct, Product } = require('../Shopping/VariantsProducts/VariantsProducts.model')
+const { ServiceCart, ServiceOrder } = require('../DoorStepService/ServiceProductCart/ServiceProductCart.model')
+const { ServiceAppointmentModel } = require('../DoorStepService/ServiceAppointment/ServiceAppointment.model')
 const PaytmChecksum = require("paytmchecksum");
 const https = require("https");
-
 const FIFTEEN_MIN = 15 * 60 * 1000;
 
 const FIVE_HOURS = 5 * 60 * 60 * 1000;
@@ -16,6 +17,18 @@ function buildOrderProductKeySet(orderProducts = []) {
                 const pid = safeId(p?.ProductData?.ProductInfo?.ProductId);
                 const vid = safeId(p?.ProductData?.VariantProductInfo?.VariantProductId);
                 return pid && vid ? `${pid}|${vid}` : null;
+            })
+            .filter(Boolean)
+    );
+}
+function buildOrderServiceKeySet(orderServices = []) {
+    return new Set(
+        orderServices
+            .map(s => {
+                const spid = safeId(s?.ServiceData?.ServiceInfo?.ServiceProductId);
+                const prid = safeId(s?.ServiceData?.ProviderInfo?.ProviderId);
+                const aid = safeId(s?.ServiceData?.AppointmentInfo?.AppointmentId);
+                return spid && prid && aid ? `${spid}|${prid}|${aid}` : null;
             })
             .filter(Boolean)
     );
@@ -111,13 +124,95 @@ async function cleanupSimilarProducts(FoundCart, similarProducts) {
         }
     }
 }
+async function cleanupSimilarServices(FoundCart, similarServices) {
+    if (!similarServices || similarServices.length === 0) return;
 
+    if (similarServices.length > 1) {
+        const reservedServices = similarServices.filter(s => s.Reserved == true);
+        const unreservedServices = similarServices.filter(s => s.Reserved == false);
+
+        if (reservedServices.length && unreservedServices.length) {
+            for (let EachReservedService of reservedServices) {
+                try {
+                    await ServiceCart.updateOne(
+                        { _id: FoundCart._id },
+                        { $pull: { Services: { _id: EachReservedService._id } } }
+                    );
+                } catch (error) {
+                    console.error('Delete Reserved Service Error', error.message);
+                }
+            }
+        } else if (reservedServices.length) {
+            const keepService = reservedServices.reduce(
+                (latest, s) => (new Date(s.createdAt) > new Date(latest.createdAt) ? s : latest),
+                reservedServices[0]
+            );
+
+            try {
+                await Promise.all(reservedServices.map(async (s) => {
+                    if (s._id.toString() !== keepService._id.toString()) {
+                        await ServiceCart.updateOne(
+                            { _id: FoundCart._id },
+                            { $pull: { Services: { _id: s._id } } }
+                        );
+                    }
+                }));
+            } catch (error) {
+                console.error('Delete Non-Kept Reserved Service Error', error.message);
+            }
+
+            try {
+                await ServiceCart.updateOne(
+                    { _id: FoundCart._id, "Services._id": keepService._id },
+                    { $set: { "Services.$.Reserved": false } }
+                );
+            } catch (error) {
+                console.error('Unreserve Kept Service Error', error.message);
+            }
+        }
+    } else if (similarServices.length === 1 && similarServices[0].Reserved) {
+        try {
+            await ServiceCart.updateOne(
+                { _id: FoundCart._id, "Services._id": similarServices[0]._id },
+                { $set: { "Services.$.Reserved": false } }
+            );
+        } catch (error) {
+            console.error('Unreserve Single Service Error', error.message);
+        }
+    }
+}
 async function adjustVariantStock(variantId, incObj = {}) {
     if (!variantId) return;
     try {
         await VariantProduct.updateOne({ _id: variantId,'InventoryBaseStock.InventoryBase':true  }, { $inc: incObj });
     } catch (error) {
         console.error('Adjust Stock Error for variant', variantId, error.message);
+    }
+}
+async function updateAppointmentSlot(serviceProductId, providerId, appointmentId, action) {
+    if (!serviceProductId || !providerId || !appointmentId) return;
+
+    try {
+        if (action === "release") {
+            await ServiceAppointmentModel.updateOne(
+                {
+                    ServiceProductId: serviceProductId,
+                    ServiceProviderId: providerId,
+                    "schedule.appointments._id": appointmentId
+                },
+                {
+                    $set: {
+                        "schedule.$[].appointments.$[slot].booked": false,
+                        "schedule.$[].appointments.$[slot].selected": false
+                    }
+                },
+                {
+                    arrayFilters: [{ "slot._id": appointmentId }]
+                }
+            );
+        }
+    } catch (error) {
+        console.error('Update Appointment Slot Error for appointment', appointmentId, error.message);
     }
 }
 
@@ -259,6 +354,155 @@ async function processOrder(order, cutoffTime, pendingCutoff) {
     console.log(`🟡 Payment ${resultStatus}. Time not expired → No action.`);
 }
 
+async function processServiceOrder(order, cutoffTime, pendingCutoff) {
+    console.log(`📌 Checking Service Order: ${order._id}`);
+
+    const verifyPaytmStatus = await verifyPaytm(order);
+
+    if (!verifyPaytmStatus) {
+        console.warn(`⚠ Paytm verification failed for service order ${order._id}, skipping this run`);
+        return;
+    }
+
+    const resultStatus = verifyPaytmStatus?.body?.resultInfo?.resultStatus;
+
+    const FoundCart = await ServiceCart.findOne({ _id: order.CartId });
+    if (!FoundCart) {
+        console.warn(`⚠ Service Cart not found for Order ${order._id}`);
+        return;
+    }
+
+    const orderServiceKeySet = buildOrderServiceKeySet(order.Services || []);
+    const isExpired = order.ReservationStartedAt < cutoffTime;
+    const isPendingExpired = order.ReservationStartedAt < pendingCutoff;
+
+    if (resultStatus === "PENDING" && isPendingExpired) {
+        console.log(`🛑 PENDING after expiry: Removing service order ${order._id}`);
+
+        const uniqueCartGroups = groupCartByKeyForServices(FoundCart.Services || [], orderServiceKeySet);
+        for (let group of uniqueCartGroups) {
+            await cleanupSimilarServices(FoundCart, group);
+        }
+
+        order.PaymentSession.status = "EXPIRED";
+        await order.save();
+
+        for (let item of order.Services || []) {
+            const spid = safeId(item?.ServiceData?.ServiceInfo?.ServiceProductId);
+            const prid = safeId(item?.ServiceData?.ProviderInfo?.ProviderId);
+            const aid = safeId(item?.ServiceData?.AppointmentInfo?.AppointmentId);
+            await updateAppointmentSlot(spid, prid, aid, "release");
+        }
+
+        return;
+    }
+
+    // ─── 15-min reservation window expired ───
+    if (isExpired) {
+        console.log(`⏱️ Service Order ${order._id} expired (>15 mins).`);
+
+        if (resultStatus === "TXN_SUCCESS") {
+            order.PaymentSession.status = "SUCCESS";
+            order.PaymentSession.txnId = verifyPaytmStatus?.body?.txnId;
+            order.PaymentSession.amount = verifyPaytmStatus?.body?.txnAmount;
+
+            for (let svc of order.Services || []) {
+                svc.OrderStatus.push({
+                    Status: 'CONFIRMED',
+                    StatusAt: new Date()
+                });
+            }
+            order.markModified('Services');
+
+            try {
+                await Promise.all((FoundCart.Services || []).map(async (cartSvc) => {
+                    const entriesInOrder = (order.Services || []).filter(
+                        s => safeId(s?.CartServiceId) === safeId(cartSvc._id)
+                    );
+                    if (entriesInOrder.length > 0 && cartSvc.Reserved == true) {
+                        await ServiceCart.updateOne(
+                            { _id: FoundCart._id },
+                            { $pull: { Services: { _id: cartSvc._id, Reserved: true } } }
+                        );
+                    }
+                }));
+            } catch (error) {
+                console.error('Delete Reserved Service From Cart On Payment Success Error:', error.message);
+            }
+
+            await order.save();
+            return;
+        }
+
+        if (resultStatus === "TXN_FAILURE" || resultStatus === "FAILURE") {
+            console.log(`🛑 FAILED after expiry: Removing service order ${order._id}`);
+
+            const uniqueCartGroups = groupCartByKeyForServices(FoundCart.Services || [], orderServiceKeySet);
+            for (let group of uniqueCartGroups) {
+                await cleanupSimilarServices(FoundCart, group);
+            }
+
+            order.PaymentSession.status = "FAILED";
+            await order.save();
+
+            for (let item of order.Services || []) {
+                const spid = safeId(item?.ServiceData?.ServiceInfo?.ServiceProductId);
+                const prid = safeId(item?.ServiceData?.ProviderInfo?.ProviderId);
+                const aid = safeId(item?.ServiceData?.AppointmentInfo?.AppointmentId);
+                await updateAppointmentSlot(spid, prid, aid, "release");
+            }
+
+            return;
+        }
+        console.log(`⏸️ Service Order ${order._id} expired but Paytm status is "${resultStatus}". Will retry on next run.`);
+        return;
+    }
+
+    if (resultStatus === "TXN_SUCCESS") {
+        order.PaymentSession.status = "SUCCESS";
+        order.PaymentSession.txnId = verifyPaytmStatus?.body?.txnId;
+        order.PaymentSession.amount = verifyPaytmStatus?.body?.txnAmount;
+
+        for (let svc of order.Services || []) {
+            svc.OrderStatus.push({
+                Status: 'CONFIRMED',
+                StatusAt: new Date()
+            });
+        }
+      
+        order.markModified('Services');
+
+        try {
+            await Promise.all((FoundCart.Services || []).map(async (svc) => {
+                const serviceEntries = (order.Services || []).filter(
+                    (s) => safeId(s?.CartServiceId) === safeId(svc._id)
+                );
+
+                if (serviceEntries.length > 0 && svc.Reserved == true) {
+                    await ServiceCart.updateOne(
+                        { _id: FoundCart._id },
+                        {
+                            $pull: {
+                                Services: {
+                                    _id: svc._id,
+                                    Reserved: true
+                                }
+                            }
+                        }
+                    );
+                }
+            }));
+        } catch (error) {
+            console.error('Delete Reserved Service From Cart On Payment Success Error:', error.message);
+        }
+
+        await order.save();
+        return;
+    }
+
+    console.log(`🟡 Service Order ${order._id}: payment "${resultStatus}", reservation still valid → no action.`);
+}
+
 function groupCartByKey(cartProducts = [], orderProductKeySet) {
     const map = new Map();
     for (let p of cartProducts) {
@@ -266,6 +510,16 @@ function groupCartByKey(cartProducts = [], orderProductKeySet) {
         if (!orderProductKeySet.has(key)) continue;
         if (!map.has(key)) map.set(key, []);
         map.get(key).push(p);
+    }
+    return Array.from(map.values());
+}
+function groupCartByKeyForServices(cartServices = [], orderServiceKeySet) {
+    const map = new Map();
+    for (let s of cartServices) {
+        const key = `${safeId(s?.ServiceProductId)}|${safeId(s?.ProviderId)}|${safeId(s?.AppointmentId)}`;
+        if (!orderServiceKeySet.has(key)) continue;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(s);
     }
     return Array.from(map.values());
 }
@@ -303,4 +557,36 @@ async function processOrders(req, res) {
         return res.status(500).json({ message: "Internal Server Error", success: false });
     }
 }
-module.exports = { processOrders }
+async function processServiceOrders(req, res) {
+    const { companyId } = req.body;
+    if (!companyId) return res.status(400).json({ message: "companyId is required", success: false });
+
+    try {
+        const cutoffTime = new Date(Date.now() - FIFTEEN_MIN);
+        const pendingCutoff = new Date(Date.now() - FIVE_HOURS);
+
+        const orders = await ServiceOrder.find({
+            companyId,
+            'PaymentSession.status': { $in: ["PENDING", 'INITIATED'] },
+            ReservationStartedAt: { $exists: true }
+        });
+
+        if (!orders.length) {
+            return res.status(200).json({ message: `No pending service orders for company ${companyId}`, success: true });
+        }
+
+        for (let order of orders) {
+            try {
+                await processServiceOrder(order, cutoffTime, pendingCutoff);
+            } catch (err) {
+                console.error(`❌ Error processing service order ${order._id}:`, err.message);
+            }
+        }
+
+        return res.status(200).json({ message: `Processed service orders for company ${companyId}`, success: true });
+    } catch (err) {
+        console.error("❌ Error in processServiceOrders API:", err);
+        return res.status(500).json({ message: "Internal Server Error", success: false });
+    }
+}
+module.exports = { processOrders ,processServiceOrders}

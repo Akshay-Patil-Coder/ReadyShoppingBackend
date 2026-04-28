@@ -10,6 +10,7 @@ const QuizSchema = new mongoose.Schema({
     },
     ProviderType: {
         type: mongoose.Schema.Types.ObjectId,
+        ref: "CoachingProviderType",
         required: true
     },
     ConnectedWith: [{
@@ -153,7 +154,19 @@ const CourseVideoSchema = new mongoose.Schema({
     }],
     Quizes: [{
         type: mongoose.Schema.Types.ObjectId,
-    }]
+    }],
+    Streaming: {
+        masterM3U8: { type: String },
+        audioTracks: [{
+            label: { type: String },
+            url: { type: String },
+            default: { type: Boolean }
+        }],
+        subtitles: [{
+            label: { type: String },
+            url: { type: String }
+        }]
+    },
 }, {
     timestamps: true
 })
@@ -224,11 +237,8 @@ const coachingCourseSchema = new mongoose.Schema({
     Certificate: {
         type: String
     },
-    CertificateConfig:{
-      fields:{},
-    //   logoRow:{},
-    //   ProviderLogo:{},
-    //   CompanyLogo:{}
+    CertificateConfig: {
+        fields: { type: mongoose.Schema.Types.Mixed, default: {} }
     },
     CourseContent: [{
         Heading: {

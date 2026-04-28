@@ -1,37 +1,31 @@
-
-const express = require('express')
-const { accessChats, fetchChats } = require('./CoachingChatBoxForGainerCompany.controller');
+// CoachingAdminChat.routes.js
+const express = require('express');
 const router = express.Router();
-const { sendMessage, allMessage } = require('./CoachingChatBoxForGainerCompany.controller');
-const { authentication } = require('../../Middleware/Middleware.controller')
+const CoachingAdminChatController = require('./CoachingChatBoxForGainerCompany.controller');
+const { authentication } = require('../../Middleware/Middleware.controller');
 
+router.post('/accessChat', authentication, (req, res) => {
+    return CoachingAdminChatController.accessChat(req, res);
+});
 
+router.get('/fetchAllChatsForAdmin', authentication, (req, res) => {
+    return CoachingAdminChatController.fetchAllChatsForAdmin(req, res);
+});
 
-router.get('/accessChats', authentication, (req, res) => {
-    if (req.user.role === 'Admin' || req.user.role === 'Company') {
-        return accessChats(req, res);
-    }
-    res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
-})
+router.get('/fetchChatForCoachingCompany', authentication, (req, res) => {
+    return CoachingAdminChatController.fetchChatForCoachingCompany(req, res);
+});
 
-router.post('/fetchChats', authentication, (req, res) => {
-    if (req.user.role === 'Admin' || req.user.role === 'Company') {
-        return fetchChats(req, res);
-    }
-    res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
-})
-router.post('/allMessage/:chatId', authentication, (req, res) => {
-    if (req.user.role === 'Admin' || req.user.role === 'Company') {
-        return allMessage(req, res);
-    }
-    res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
-})
 router.post('/sendMessage', authentication, (req, res) => {
-    if (req.user.role === 'Admin' || req.user.role === 'Company') {
-        return sendMessage(req, res);
-    }
-    res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
-})
+    return CoachingAdminChatController.sendMessage(req, res);
+});
 
+router.get('/getAllMessages/:chatId', authentication, (req, res) => {
+    return CoachingAdminChatController.getAllMessages(req, res);
+});
+
+router.get('/getUnreadCount/:chatId', authentication, (req, res) => {
+    return CoachingAdminChatController.getUnreadCount(req, res);
+});
 
 module.exports = router;

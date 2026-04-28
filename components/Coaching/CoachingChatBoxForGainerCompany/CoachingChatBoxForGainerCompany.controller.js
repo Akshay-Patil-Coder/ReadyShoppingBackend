@@ -1,112 +1,487 @@
-// const asyncHandler = require("express-async-handler");
-const {Chat,Message} = require("./CoachingChatBoxForGainerCompany.model.");
+// CoachingAdminChat.controller.js
+const { AdminChat, AdminMessage } = require("./CoachingChatBoxForGainerCompany.model");
+const mongoose = require("mongoose");
 
-const accessChats = async (req, resp) => {
-    const { userId } = req.body;
-    if (!userId) {
-        console.log("userid cannot get");
-        return resp.sendStatus(400);
-    }
-    var isChat = await Chat.find({
-        $and: [
-            { users: { $elemMatch: { $eq: req.user._id } } },
-            { users: { $elemMatch: { $eq: userId } } },
-        ],
-    })
-        .populate("readyshoppingusers", "-password")
-        .populate("latestMessage");
-
-    isChat = await User.default.populate(isChat, {
-        path: "latestMessage.sender",
-        select: "-password",
-    });
-    if (isChat.length > 0) { 
-        resp.send(isChat[0]);
-    } else {
-        var chatData = {
-            chatName: "sender",
-            users: [req.user._id, userId],
-        };
-        try {
-            const createChat = await Chat.create(chatData);
-            const fullChat = await Chat.findOne({ _id: createChat._id }).populate(
-                "readyshoppingusers",
-                "-password"
-            );
-            resp.status(200).send(fullChat);
-        } catch (error) {
-            resp.status(400);
-            throw new Error("chat error");
-        }
-    }
-};
-
-const fetchChats = async (req, resp) => {
+const accessChat = async (req, res) => {
     try {
-        Chat.find({ users: { $elemMatch: { $eq: req.user._id } } })
-            .populate("users", "-password")
-            .populate("latestMessage")
-            .sort({ updatedAt: -1 })
-            .then(async (results) => {
-                results = await User.populate(results, {
-                    path: "latestMessage.sender",
-                    select: "-password",
-                });
-                resp.status(200).send(results);
+        const coachingCompanyId = req.user._id;
+
+        let chat = await AdminChat.aggregate([
+            {
+                $match: {
+                    coachingCompanyId: new mongoose.Types.ObjectId(coachingCompanyId)
+                }
+            },
+            {
+                $lookup: {
+                    from: "coachingcompanygainers",
+                    localField: "coachingCompanyId",
+                    foreignField: "_id",
+                    as: "coachingCompanyId",
+                    pipeline: [
+                        { $project: { password: 0 } }
+                    ]
+                }
+            },
+            { $unwind: { path: "$coachingCompanyId", preserveNullAndEmpty: true } },
+            {
+                $lookup: {
+                    from: "coachingadminmessages",
+                    localField: "latestMessage",
+                    foreignField: "_id",
+                    as: "latestMessage",
+                    pipeline: [
+                        {
+                            $lookup: {
+                                from: "coachingcompanygainers",
+                                localField: "sender",
+                                foreignField: "_id",
+                                as: "sender",
+                                pipeline: [
+                                    { $project: { password: 0 } }
+                                ]
+                            }
+                        },
+                        { $unwind: { path: "$sender", preserveNullAndEmpty: true } }
+                    ]
+                }
+            },
+            { $unwind: { path: "$latestMessage", preserveNullAndEmpty: true } }
+        ]);
+
+        if (chat.length > 0) {
+            return res.status(200).json({
+                success: true,
+                message: "Chat fetched successfully",
+                data: chat[0]
             });
+        }
+
+        const newChat = await AdminChat.create({
+            chatName: `Chat_${coachingCompanyId}`,
+            coachingCompanyId
+        });
+
+        const fullChat = await AdminChat.aggregate([
+            {
+                $match: {
+                    _id: new mongoose.Types.ObjectId(newChat._id)
+                }
+            },
+            {
+                $lookup: {
+                    from: "coachingcompanygainers",
+                    localField: "coachingCompanyId",
+                    foreignField: "_id",
+                    as: "coachingCompanyId",
+                    pipeline: [
+                        { $project: { password: 0 } }
+                    ]
+                }
+            },
+            { $unwind: { path: "$coachingCompanyId", preserveNullAndEmpty: true } }
+        ]);
+
+        return res.status(201).json({
+            success: true,
+            message: "Chat created successfully",
+            data: fullChat[0]
+        });
+
     } catch (error) {
-        resp.status(400);
-        throw new Error(error.message);
+        console.log("accessChat error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Something went wrong",
+            error: error.message
+        });
     }
 };
 
-const sendMessage = async (req, resp) => {
-    const { content, chatId } = req.body;
-
-    if (!content || !chatId) {
-        console.log("Invalid data passed into request");
-        return resp.sendStatus(400);
-    }
-
-    const newMessage = {
-        sender: req.user._id,
-        content: content,
-        chat: chatId,
-    };
-
+const fetchAllChatsForAdmin = async (req, res) => {
     try {
-        let message = await Message.create(newMessage);
-        message = await message.populate("sender", "-password");
-        message = await message.populate("chat");
-        message = await User.populate(message, {
-            path: "chat.users",
-            select: "-password",
+        const chats = await AdminChat.aggregate([
+            { $sort: { updatedAt: -1 } },
+            {
+                $lookup: {
+                    from: "coachingcompanygainers",
+                    localField: "coachingCompanyId",
+                    foreignField: "_id",
+                    as: "coachingCompanyId",
+                    pipeline: [
+                        { $project: { password: 0 } }
+                    ]
+                }
+            },
+            { $unwind: { path: "$coachingCompanyId", preserveNullAndEmpty: true } },
+            {
+                $lookup: {
+                    from: "coachingadminmessages",
+                    localField: "latestMessage",
+                    foreignField: "_id",
+                    as: "latestMessage",
+                    pipeline: [
+                        {
+                            $lookup: {
+                                from: "coachingcompanygainers",
+                                localField: "sender",
+                                foreignField: "_id",
+                                as: "sender",
+                                pipeline: [
+                                    { $project: { password: 0 } }
+                                ]
+                            }
+                        },
+                        { $unwind: { path: "$sender", preserveNullAndEmpty: true } }
+                    ]
+                }
+            },
+            { $unwind: { path: "$latestMessage", preserveNullAndEmpty: true } },
+            {
+                $lookup: {
+                    from: "coachingadminmessages",
+                    let: { chatId: "$_id" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ["$chat", "$$chatId"] },
+                                        { $eq: ["$isRead", false] },
+                                        { $eq: ["$senderType", "CoachingCompany"] }
+                                    ]
+                                }
+                            }
+                        },
+                        { $count: "count" }
+                    ],
+                    as: "unreadMessages"
+                }
+            },
+            {
+                $addFields: {
+                    unreadCount: {
+                        $ifNull: [{ $arrayElemAt: ["$unreadMessages.count", 0] }, 0]
+                    }
+                }
+            },
+            { $project: { unreadMessages: 0 } }
+        ]);
+
+        return res.status(200).json({
+            success: true,
+            message: "All chats fetched successfully",
+            data: chats
         });
 
-        await Chat.findByIdAndUpdate(chatId, {
-            latestMessage: message,
-        });
-
-        resp.json(message);
     } catch (error) {
-        resp.status(400).json({ error: error.message });
+        console.log("fetchAllChatsForAdmin error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Something went wrong",
+            error: error.message
+        });
     }
 };
 
-const allMessage = async (req, resp) => {
+const fetchChatForCoachingCompany = async (req, res) => {
     try {
-        const messages = await Message.find({ chat: req.params.chatId }).populate("sender", "name pic email").populate("chat")
-        resp.json(messages)
+        const coachingCompanyId = req.user._id;
+
+        const chat = await AdminChat.aggregate([
+            {
+                $match: {
+                    coachingCompanyId: new mongoose.Types.ObjectId(coachingCompanyId)
+                }
+            },
+            {
+                $lookup: {
+                    from: "coachingcompanygainers",
+                    localField: "coachingCompanyId",
+                    foreignField: "_id",
+                    as: "coachingCompanyId",
+                    pipeline: [
+                        { $project: { password: 0 } }
+                    ]
+                }
+            },
+            { $unwind: { path: "$coachingCompanyId", preserveNullAndEmpty: true } },
+            {
+                $lookup: {
+                    from: "coachingadminmessages",
+                    localField: "latestMessage",
+                    foreignField: "_id",
+                    as: "latestMessage",
+                    pipeline: [
+                        {
+                            $lookup: {
+                                from: "coachingcompanygainers",
+                                localField: "sender",
+                                foreignField: "_id",
+                                as: "sender",
+                                pipeline: [
+                                    { $project: { password: 0 } }
+                                ]
+                            }
+                        },
+                        { $unwind: { path: "$sender", preserveNullAndEmpty: true } }
+                    ]
+                }
+            },
+            { $unwind: { path: "$latestMessage", preserveNullAndEmpty: true } },
+            {
+                $lookup: {
+                    from: "coachingadminmessages",
+                    let: { chatId: "$_id" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ["$chat", "$$chatId"] },
+                                        { $eq: ["$isRead", false] },
+                                        { $eq: ["$senderType", "Admin"] }
+                                    ]
+                                }
+                            }
+                        },
+                        { $count: "count" }
+                    ],
+                    as: "unreadMessages"
+                }
+            },
+            {
+                $addFields: {
+                    unreadCount: {
+                        $ifNull: [{ $arrayElemAt: ["$unreadMessages.count", 0] }, 0]
+                    }
+                }
+            },
+            { $project: { unreadMessages: 0 } }
+        ]);
+
+        if (!chat.length) {
+            return res.status(404).json({
+                success: false,
+                message: "No chat found"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Chat fetched successfully",
+            data: chat[0]
+        });
 
     } catch (error) {
-        resp.status(400).json({ error: error.message });
+        console.log("fetchChatForCoachingCompany error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Something went wrong",
+            error: error.message
+        });
+    }
+};
 
+const sendMessage = async (req, res) => {
+    try {
+        const { content, chatId } = req.body;
+
+        if (!content || !chatId) {
+            return res.status(400).json({
+                success: false,
+                message: "Please provide content and chatId"
+            });
+        }
+
+        const chat = await AdminChat.findById(chatId);
+        if (!chat) {
+            return res.status(404).json({
+                success: false,
+                message: "Chat not found"
+            });
+        }
+
+        const senderType = req.user.role === "Admin" ? "Admin" : "CoachingCompany";
+
+        const newMessage = await AdminMessage.create({
+            sender: req.user._id,
+            senderType,
+            content,
+            chat: chatId
+        });
+
+        await AdminChat.findByIdAndUpdate(chatId, {
+            latestMessage: newMessage._id,
+            updatedAt: new Date()
+        });
+
+        // Aggregate full message with chat details
+        const fullMessage = await AdminMessage.aggregate([
+            {
+                $match: {
+                    _id: new mongoose.Types.ObjectId(newMessage._id)
+                }
+            },
+            {
+                $lookup: {
+                    from: "coachingadminchats",
+                    localField: "chat",
+                    foreignField: "_id",
+                    as: "chat",
+                    pipeline: [
+                        {
+                            $lookup: {
+                                from: "coachingcompanygainers",
+                                localField: "coachingCompanyId",
+                                foreignField: "_id",
+                                as: "coachingCompanyId",
+                                pipeline: [
+                                    { $project: { password: 0 } }
+                                ]
+                            }
+                        },
+                        { $unwind: { path: "$coachingCompanyId", preserveNullAndEmpty: true } }
+                    ]
+                }
+            },
+            { $unwind: { path: "$chat", preserveNullAndEmpty: true } }
+        ]);
+
+        const io = req.app.get("io");
+        io.to(chatId).emit("newMessage", {
+            success: true,
+            data: fullMessage[0]
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: "Message sent successfully",
+            data: fullMessage[0]
+        });
+
+    } catch (error) {
+        console.log("sendMessage error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Something went wrong",
+            error: error.message
+        });
+    }
+};
+
+const getAllMessages = async (req, res) => {
+    try {
+        const { chatId } = req.params;
+
+        const chat = await AdminChat.findById(chatId);
+        if (!chat) {
+            return res.status(404).json({
+                success: false,
+                message: "Chat not found"
+            });
+        }
+
+        const messages = await AdminMessage.aggregate([
+            {
+                $match: {
+                    chat: new mongoose.Types.ObjectId(chatId)
+                }
+            },
+            { $sort: { createdAt: 1 } },
+            {
+                $lookup: {
+                    from: "coachingadminchats",
+                    localField: "chat",
+                    foreignField: "_id",
+                    as: "chat",
+                    pipeline: [
+                        {
+                            $lookup: {
+                                from: "coachingcompanygainers",
+                                localField: "coachingCompanyId",
+                                foreignField: "_id",
+                                as: "coachingCompanyId",
+                                pipeline: [
+                                    { $project: { password: 0 } }
+                                ]
+                            }
+                        },
+                        { $unwind: { path: "$coachingCompanyId", preserveNullAndEmpty: true } }
+                    ]
+                }
+            },
+            { $unwind: { path: "$chat", preserveNullAndEmpty: true } },
+            // Group by date for chat UI date separators
+            {
+                $addFields: {
+                    messageDate: {
+                        $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
+                    }
+                }
+            }
+        ]);
+
+        // Mark messages as read
+        await AdminMessage.updateMany(
+            { chat: chatId, sender: { $ne: req.user._id }, isRead: false },
+            { $set: { isRead: true } }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Messages fetched successfully",
+            data: messages
+        });
+
+    } catch (error) {
+        console.log("getAllMessages error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Something went wrong",
+            error: error.message
+        });
+    }
+};
+
+const getUnreadCount = async (req, res) => {
+    try {
+        const { chatId } = req.params;
+
+        const result = await AdminMessage.aggregate([
+            {
+                $match: {
+                    chat: new mongoose.Types.ObjectId(chatId),
+                    sender: { $ne: new mongoose.Types.ObjectId(req.user._id) },
+                    isRead: false
+                }
+            },
+            {
+                $count: "unreadCount"
+            }
+        ]);
+
+        return res.status(200).json({
+            success: true,
+            message: "Unread count fetched successfully",
+            data: { unreadCount: result[0]?.unreadCount || 0 }
+        });
+
+    } catch (error) {
+        console.log("getUnreadCount error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Something went wrong",
+            error: error.message
+        });
     }
 };
 
 module.exports = {
-    accessChats,
-    fetchChats,
+    accessChat,
+    fetchAllChatsForAdmin,
+    fetchChatForCoachingCompany,
     sendMessage,
-    allMessage
+    getAllMessages,
+    getUnreadCount
 };

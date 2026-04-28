@@ -10,5 +10,9 @@ router.post("/processOrders", async(req, res) => {
   return await nodeCronController.processOrders(req, res)
 });
 
+router.post("/processServiceOrders", async(req, res) => {
+  return await nodeCronController.processServiceOrders(req, res)
+});
+
 
 module.exports = router
