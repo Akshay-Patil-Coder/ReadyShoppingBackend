@@ -14,7 +14,7 @@ const VariantSchema = new mongoose.Schema({
         required: true
     },
     VariantImage: {
-        type:String
+        type: String
     },
     VariantName: {
         type: String,
@@ -51,7 +51,10 @@ const VariantSchema = new mongoose.Schema({
 }, {
     timestamps: true
 });
-
+VariantSchema.index(
+    { VariantName: 1, companyId: 1, SubCategoryId: 1 },
+    { unique: true, collation: { locale: "en", strength: 2 } }
+);
 const Variant = mongoose.model('Variant', VariantSchema);
 
 module.exports = { Variant };

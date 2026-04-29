@@ -345,10 +345,21 @@ function extractBaseProduct() {
     };
 
     const images = [];
-    document.querySelectorAll("#altImages img").forEach((img) => {
-        if (img.src) images.push(img.src.replace(/\._.*?_\./, "._SL1500_."));
-    });
+    document.querySelectorAll("#altImages li").forEach((li) => {
+        // Skip video thumbnail containers
+        if (li.classList.contains("videoThumbnail")) return;
+        if (li.classList.contains("template-color-video")) return;
+        if (li.querySelector(".vse-video-thumb-overlay, .PKplay-button, .video-block-icon")) return;
+        if (li.querySelector('[class*="video" i]')) return;
 
+        const img = li.querySelector("img");
+        if (!img?.src) return;
+
+        // Extra safety net — Amazon's play-button overlay images
+        if (img.src.includes("PKplay") || img.src.includes("play-button")) return;
+
+        images.push(img.src.replace(/\._.*?_\./, "._SL1500_."));
+    });
     const videos = [];
     try {
         const imageBlock = window.P?.state?.("ImageBlockATF");
@@ -402,26 +413,126 @@ function extractVariant() {
     };
 
     const images = [];
-    document.querySelectorAll("#altImages img").forEach((img) => {
-        if (img.src) images.push(img.src.replace(/\._.*?_\./, "._SL1500_."));
-    });
+    document.querySelectorAll("#altImages li").forEach((li) => {
+        // Skip video thumbnail containers
+        if (li.classList.contains("videoThumbnail")) return;
+        if (li.classList.contains("template-color-video")) return;
+        if (li.querySelector(".vse-video-thumb-overlay, .PKplay-button, .video-block-icon")) return;
+        if (li.querySelector('[class*="video" i]')) return;
 
+        const img = li.querySelector("img");
+        if (!img?.src) return;
+
+        // Extra safety net — Amazon's play-button overlay images
+        if (img.src.includes("PKplay") || img.src.includes("play-button")) return;
+
+        images.push(img.src.replace(/\._.*?_\./, "._SL1500_."));
+    });
     const specs = [];
+    const seenKeys = new Set();
+
     const pushSpec = (key, val) => {
-        if (key && val) specs.push({ SpecificationKey: key.trim(), SpecificationValue: val.trim() });
+        if (!key || !val) return;
+        const cleanKey = key.trim().replace(/\s+/g, " ");
+        const cleanVal = val.trim().replace(/\s+/g, " ");
+        if (!cleanKey || !cleanVal) return;
+
+        // Skip junk values Amazon sometimes leaves in cells
+        if (cleanVal === "‎" || cleanVal === "-" || cleanVal.length > 500) return;
+
+        // Dedupe by lowercased key
+        const dedupeKey = cleanKey.toLowerCase();
+        if (seenKeys.has(dedupeKey)) return;
+        seenKeys.add(dedupeKey);
+
+        specs.push({ SpecificationKey: cleanKey, SpecificationValue: cleanVal });
     };
 
-    document.querySelectorAll("#productDetails_techSpec_section_1 tr").forEach((row) => {
-        pushSpec(row.querySelector("th")?.innerText, row.querySelector("td")?.innerText);
-    });
-    document.querySelectorAll("#productDetails_detailBullets_sections1 tr").forEach((row) => {
-        pushSpec(row.querySelector("th")?.innerText, row.querySelector("td")?.innerText);
-    });
-    document.querySelectorAll("#detailBullets_feature_div li").forEach((li) => {
-        const parts = li.innerText.split(":");
-        if (parts.length >= 2) pushSpec(parts[0], parts.slice(1).join(":"));
+    // Keys we never want (reviews, ratings, ranks, links)
+    const BLOCKED_KEYS = [
+        "customer reviews",
+        "best sellers rank",
+        "customer ratings",
+        "review",
+        "ratings",
+        "rank",
+        "feedback",
+    ];
+
+    const isBlocked = (key) => {
+        const k = key.toLowerCase();
+        return BLOCKED_KEYS.some((b) => k.includes(b));
+    };
+
+    // Strategy: walk every <tr> inside the Product Details area,
+    // skipping anything inside review/Q&A/comparison blocks.
+    const SPEC_CONTAINERS = [
+        "#productDetails_techSpec_section_1",
+        "#productDetails_techSpec_section_2",
+        "#productDetails_detailBullets_sections1",
+        "#productDetails_db_sections",
+        "#technicalSpecifications_section_1",
+        "#prodDetails",
+        "#poExpander",
+        ".product-facts-detail",
+    ];
+
+    const BLOCKED_ANCESTORS = [
+        "#reviewsMedley",
+        "#cm-cr-dp-tab-content",
+        "#askDPSearchTextID",
+        "#ask_lazy_load_div",
+        "#HLCXComparisonWidget_feature_div",
+        "#dp-ads-center-promo",
+        "#important-information",
+    ];
+
+    const isInBlockedSection = (el) => {
+        return BLOCKED_ANCESTORS.some((sel) => el.closest(sel));
+    };
+
+    // 1. Standard table-based specs
+    SPEC_CONTAINERS.forEach((containerSel) => {
+        document.querySelectorAll(`${containerSel} tr`).forEach((row) => {
+            if (isInBlockedSection(row)) return;
+            const key = row.querySelector("th")?.innerText
+                || row.querySelector("td:first-child")?.innerText;
+            const val = row.querySelector("td:last-child")?.innerText
+                || row.querySelector("td")?.innerText;
+            if (key && !isBlocked(key)) pushSpec(key, val);
+        });
     });
 
+    // 2. Bullet-list style (#detailBullets_feature_div)
+    document.querySelectorAll("#detailBullets_feature_div li").forEach((li) => {
+        if (isInBlockedSection(li)) return;
+        const spans = li.querySelectorAll("span.a-list-item > span");
+        if (spans.length >= 2) {
+            const key = spans[0].innerText.replace(/[:\s‏‎]+$/, "");
+            const val = spans[1].innerText;
+            if (key && !isBlocked(key)) pushSpec(key, val);
+        } else {
+            // Fallback: split on first colon
+            const text = li.innerText;
+            const idx = text.indexOf(":");
+            if (idx > 0) {
+                const key = text.slice(0, idx);
+                const val = text.slice(idx + 1);
+                if (key && !isBlocked(key)) pushSpec(key, val);
+            }
+        }
+    });
+
+    // 3. New-style "product overview" key-value grid (fashion/home)
+    document.querySelectorAll("#productOverview_feature_div tr").forEach((row) => {
+        if (isInBlockedSection(row)) return;
+        const cells = row.querySelectorAll("td");
+        if (cells.length >= 2) {
+            const key = cells[0].innerText;
+            const val = cells[1].innerText;
+            if (key && !isBlocked(key)) pushSpec(key, val);
+        }
+    });
     const aboutPoints = [];
     document.querySelectorAll("#feature-bullets li span").forEach((el) => {
         const text = el.innerText.trim();
@@ -653,7 +764,48 @@ async function scrapeProduct(browserInstance, link, config) {
 
         const varLimit = pLimit(5);
         const variantIds = [];
+        const uniqueVariantNames = new Set();
+        for (const { data: vData } of variantRawData) {
+            for (const key of Object.keys(vData.variantFields || {})) {
+                const trimmed = key.trim();
+                if (trimmed) uniqueVariantNames.add(trimmed);
+            }
+        }
 
+        const variantNameToId = new Map();
+        for (const name of uniqueVariantNames) {
+            try {
+                const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                const filter = {
+                    VariantName: { $regex: `^${escaped}$`, $options: "i" },
+                    companyId,
+                    SubCategoryId,
+                };
+
+                let vf = await Variant.findOne(filter);
+
+                if (!vf) {
+                    try {
+                        vf = await Variant.create({
+                            VariantName: name,
+                            VariantType: "String",
+                            companyId, HeadCategoryId, SubCategoryId,
+                        });
+                    } catch (err) {
+                        if (err.code === 11000) {
+                            // Cross-process race — another worker just inserted it. Refetch.
+                            vf = await Variant.findOne(filter);
+                        } else {
+                            throw err;
+                        }
+                    }
+                }
+
+                if (vf) variantNameToId.set(name, vf._id);
+            } catch (err) {
+                log("⚠️ Variant resolve error for '" + name + "': " + err.message);
+            }
+        }
         await Promise.all(
             variantRawData.map(({ asin, data: vData }) =>
                 varLimit(async () => {
@@ -661,33 +813,11 @@ async function scrapeProduct(browserInstance, link, config) {
                         const variantFields = [];
 
                         for (const [key, value] of Object.entries(vData.variantFields || {})) {
-                            try {
-                                const cleanedKey = key.trim();
-                                const escapedKey = cleanedKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                            const cleanedKey = key.trim();
+                            const variantId = variantNameToId.get(cleanedKey);
+                            if (!variantId || !value) continue;
 
-                                // Atomic upsert — zero race conditions
-                                const vf = await Variant.findOneAndUpdate(
-                                    {
-                                        VariantName: { $regex: `^${escapedKey}$`, $options: "i" },
-                                        companyId,
-                                        SubCategoryId
-                                    },
-                                    {
-                                        $setOnInsert: {
-                                            VariantName: cleanedKey,
-                                            VariantType: "String",
-                                            companyId, HeadCategoryId, SubCategoryId,
-                                        },
-                                    },
-                                    { new: true, upsert: true }
-                                );
-
-                                if (value) {
-                                    variantFields.push({ VariantId: vf._id, VariantValue: value.trim() });
-                                }
-                            } catch (err) {
-                                console.log("Variant field error:", err.message);
-                            }
+                            variantFields.push({ VariantId: variantId, VariantValue: value.trim() });
                         }
 
                         const variantImages = (vData.images || []).map((u) => imageMap[u]).filter(Boolean);
@@ -720,19 +850,22 @@ async function scrapeProduct(browserInstance, link, config) {
 
                         // Update VariantValues counters
                         for (const vf of variantFields) {
-                            const exists = await Variant.findOne({
-                                _id: vf.VariantId,
-                                "VariantValues.Value": vf.VariantValue,
-                            });
-                            if (exists) {
+                            // Try to increment if value already exists
+                            const incResult = await Variant.updateOne(
+                                { _id: vf.VariantId, "VariantValues.Value": vf.VariantValue },
+                                { $inc: { "VariantValues.$.Count": 1 } }
+                            );
+
+                            // If nothing matched, push the new value (guarded by $ne so concurrent pushes can't double-add)
+                            if (incResult.matchedCount === 0) {
+                                await Variant.updateOne(
+                                    { _id: vf.VariantId, "VariantValues.Value": { $ne: vf.VariantValue } },
+                                    { $push: { VariantValues: { Value: vf.VariantValue, Count: 1 } } }
+                                );
+                                // The lost race here means another worker pushed first — increment afterwards
                                 await Variant.updateOne(
                                     { _id: vf.VariantId, "VariantValues.Value": vf.VariantValue },
                                     { $inc: { "VariantValues.$.Count": 1 } }
-                                );
-                            } else {
-                                await Variant.updateOne(
-                                    { _id: vf.VariantId },
-                                    { $push: { VariantValues: { Value: vf.VariantValue, Count: 1 } } }
                                 );
                             }
                         }
@@ -781,6 +914,8 @@ async function scrapeProduct(browserInstance, link, config) {
 // ─── Browser factory ──────────────────────────────────────────────────────────
 
 async function launchBrowser() {
+    const isLocal = process.env.NODE_ENV !== "production";
+
     try {
         return await puppeteer.launch({
             headless: "new", // ✅ required for server
@@ -797,7 +932,6 @@ async function launchBrowser() {
         throw err;
     }
 }
-
 // ─── Start / stop ─────────────────────────────────────────────────────────────
 
 async function startScraping(config, onFinish) {
@@ -874,17 +1008,3 @@ function stopScraping() {
 
 module.exports = { startScraping, stopScraping, stats };
 
-/*
- * ═══════════════════════════════════════════════════════════════
- *  RECOMMENDED MongoDB indexes (run once in mongo shell):
- *
- *  db.variantproducts.createIndex(
- *    { ASIN: 1, companyId: 1 }, { unique: true }
- *  );
- *
- *  db.variants.createIndex(
- *    { VariantName: 1, companyId: 1 },
- *    { unique: true, collation: { locale: "en", strength: 2 } }
- *  );
- * ═══════════════════════════════════════════════════════════════
- */
