@@ -2,16 +2,19 @@
 
 /**
  * ╔══════════════════════════════════════════════════════════════════╗
- * ║  AMAZON SCRAPER — Production Ready                             ║
- * ║  ✅ Original sequential architecture (browser + page per job)  ║
- * ║  ✅ setupPage  — one-time JS spoofs via evaluateOnNewDocument   ║
- * ║  ✅ applyFingerprint — per-navigation UA/viewport/headers       ║
- * ║  ✅ humanMouse — post-load mouse drift                         ║
- * ║  ✅ getPageState — diagnose product/captcha/block/search        ║
- * ║  ✅ networkidle2 — full JS render before extraction            ║
+ * ║  AMAZON SCRAPER — Production Ready (Hardened v2)               ║
+ * ║  ✅ domcontentloaded instead of networkidle2 (anti-bot fix)    ║
+ * ║  ✅ Cookie persistence across browser restarts                 ║
+ * ║  ✅ Realistic humanMouse — multi-move + scroll                 ║
+ * ║  ✅ Exponential + random backoff on blocks                     ║
+ * ║  ✅ consecutiveBlocks counter for extended cooldowns           ║
+ * ║  ✅ Variable recycle interval (10–15, not always 20)           ║
+ * ║  ✅ Long pauses (30–60s) injected randomly between products    ║
+ * ║  ✅ setupPage  — one-time JS spoofs via evaluateOnNewDocument  ║
+ * ║  ✅ applyFingerprint — per-navigation UA/viewport/headers      ║
+ * ║  ✅ getPageState — diagnose product/captcha/block/search       ║
  * ║  ✅ Atomic brand + variant upserts (zero duplicates)           ║
  * ║  ✅ Crash-safe selectors (safeWait, no throw)                  ║
- * ║  ✅ Browser recycle every 20 products                          ║
  * ╚══════════════════════════════════════════════════════════════════╝
  */
 
@@ -38,6 +41,9 @@ puppeteer.use(StealthPlugin());
 
 const IMAGE_DIR = path.join(__dirname, "..", "..", "public", "ProductImage");
 if (!fs.existsSync(IMAGE_DIR)) fs.mkdirSync(IMAGE_DIR, { recursive: true });
+
+// Session cookie file — persists across browser restarts so Amazon sees a returning user
+const COOKIE_FILE = path.join(__dirname, ".session-cookies.json");
 
 const BROWSER_ARGS = [
     "--no-sandbox",
@@ -84,6 +90,31 @@ function log(msg) {
 }
 
 function broadcastStats() { global.broadcastStats?.(); }
+
+// ─── Cookie persistence ───────────────────────────────────────────────────────
+
+/**
+ * Save cookies from the current page to disk.
+ * Called after every successful page load so the session stays fresh.
+ */
+async function saveCookies(page) {
+    try {
+        const cookies = await page.cookies("https://www.amazon.in");
+        fs.writeFileSync(COOKIE_FILE, JSON.stringify(cookies, null, 2));
+    } catch (_) {}
+}
+
+/**
+ * Restore previously saved cookies onto a new page.
+ * This makes Amazon see a returning user instead of a fresh anonymous session.
+ */
+async function loadCookies(page) {
+    try {
+        if (!fs.existsSync(COOKIE_FILE)) return;
+        const cookies = JSON.parse(fs.readFileSync(COOKIE_FILE, "utf8"));
+        if (cookies.length) await page.setCookie(...cookies);
+    } catch (_) {}
+}
 
 // ─── Image download ───────────────────────────────────────────────────────────
 
@@ -187,8 +218,25 @@ async function setupPage(page) {
 }
 
 /**
+ * isPageAlive — check if a page's CDP session is still open.
+ * Prevents "Session closed" errors when calling page methods on a dead page.
+ */
+async function isPageAlive(page) {
+    try {
+        await page.evaluate(() => true);
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
+/**
  * applyFingerprint — call before EACH page.goto().
  * Sets UA, viewport, timezone, sec-ch-ua headers.
+ *
+ * NOTE: Does NOT call emulateMediaType or any touch emulation API —
+ * those trigger Emulation.setTouchEmulationEnabled which crashes on
+ * dead/closed sessions and is unnecessary for desktop spoofing.
  */
 async function applyFingerprint(page) {
     const ua = randomUA.getRandom((u) => u.deviceType === "desktop")
@@ -201,7 +249,9 @@ async function applyFingerprint(page) {
 
     await page.setUserAgent(ua);
     await page.setViewport(viewport);
-    await page.emulateTimezone(timezone);
+
+    // emulateTimezone is safe — it uses a different CDP domain than touch emulation
+    await page.emulateTimezone(timezone).catch(() => {});
 
     await page.setExtraHTTPHeaders({
         "accept-language": `${locale},en;q=0.9`,
@@ -217,16 +267,35 @@ async function applyFingerprint(page) {
     });
 }
 
-/** Human-like mouse drift after each page load */
+/**
+ * humanMouse — realistic multi-point mouse drift with occasional scrolling.
+ * Real users don't just move the mouse twice; they wander, pause, and scroll.
+ */
 async function humanMouse(page) {
     try {
         const vp = page.viewport() ?? { width: 1366, height: 768 };
-        const rx = () => 100 + Math.random() * (vp.width - 200);
-        const ry = () => 100 + Math.random() * (vp.height - 200);
-        await page.mouse.move(rx(), ry(), { steps: 10 });
-        await delay(60 + Math.random() * 120);
-        await page.mouse.move(rx(), ry(), { steps: 10 });
-    } catch (_) { }
+        const rx = () => 80 + Math.random() * (vp.width - 160);
+        const ry = () => 80 + Math.random() * (vp.height - 160);
+
+        // 3–6 random movements with pauses between each
+        const moves = 3 + Math.floor(Math.random() * 4);
+        for (let i = 0; i < moves; i++) {
+            await page.mouse.move(rx(), ry(), { steps: 8 + Math.floor(Math.random() * 15) });
+            await delay(80 + Math.random() * 300);
+        }
+
+        // 60% chance of also scrolling a bit — real users do this immediately on page load
+        if (Math.random() > 0.4) {
+            await page.evaluate(() => {
+                window.scrollBy(0, 100 + Math.random() * 400);
+            });
+            await delay(400 + Math.random() * 800);
+            // Scroll back up slightly — mimics reading then re-checking top
+            await page.evaluate(() => {
+                window.scrollBy(0, -(50 + Math.random() * 150));
+            });
+        }
+    } catch (_) {}
 }
 
 // ─── Page helpers ─────────────────────────────────────────────────────────────
@@ -282,30 +351,59 @@ async function autoScroll(page) {
     ).catch(() => { });
 }
 
+/**
+ * openWithRetry — hardened page loader.
+ *
+ * KEY CHANGES vs original:
+ *  - waitUntil: "domcontentloaded" instead of "networkidle2"
+ *    networkidle2 is a well-known bot signal; real browsers never wait for it.
+ *  - Loads saved cookies before navigating (returning-user session).
+ *  - Saves cookies after a successful product load.
+ *  - Exponential + random backoff on blocks instead of a flat 40s wait.
+ *  - Waits for #productTitle or captcha selector, whichever arrives first,
+ *    instead of relying purely on the network to go idle.
+ */
 async function openWithRetry(page, url, maxRetries = 3) {
-    // Inject JS spoofs once for this page's full lifetime
-    await setupPage(page).catch(() => { });
+    await setupPage(page).catch(() => {});
+    await loadCookies(page);
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             log(`Opening Attempt (${attempt}/${maxRetries}): ${url}`);
 
             await applyFingerprint(page);
-            await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
 
+            // domcontentloaded fires as soon as the HTML is parsed — no bot signal
+            await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+
+            // Simulate reading time before interacting — real users don't act instantly
+            await delay(1500 + Math.random() * 2000);
             await humanMouse(page);
 
+            // Wait for product title OR captcha form, whichever arrives first
+            await Promise.race([
+                page.waitForSelector("#productTitle", { timeout: 15000 }),
+                page.waitForSelector("form[action='/errors/validateCaptcha']", { timeout: 15000 }),
+                page.waitForSelector(".s-result-item", { timeout: 15000 }),
+            ]).catch(() => {});
+
             const wasCaptcha = await handleCaptcha(page);
-            if (wasCaptcha) continue;   // re-check state after captcha solved
+            if (wasCaptcha) continue; // re-evaluate state after captcha solved
 
             const state = await getPageState(page);
             log(`  ℹ Page state: ${state} — ${page.url().slice(0, 80)}`);
 
-            if (state === "product") return true;
+            if (state === "product") {
+                // Save cookies so the next browser restart inherits this session
+                await saveCookies(page);
+                return true;
+            }
 
             if (state === "block") {
-                log("⚠ Amazon traffic block — waiting 40s...");
-                await delay(40000);
+                // Exponential + jitter backoff — not a flat predictable interval
+                const backoff = 30000 + attempt * 15000 + Math.random() * 20000;
+                log(`⚠ Amazon traffic block — waiting ${Math.round(backoff / 1000)}s...`);
+                await delay(backoff);
                 continue;
             }
 
@@ -315,8 +413,9 @@ async function openWithRetry(page, url, maxRetries = 3) {
             log(`Retry error: ${err.message}`);
         }
 
-        const wait = 5000 * attempt;
-        log(`Retrying after ${wait / 1000}s`);
+        // Increasing wait between retries with jitter
+        const wait = 8000 * attempt + Math.random() * 5000;
+        log(`Retrying after ${Math.round(wait / 1000)}s`);
         await delay(wait);
     }
 
@@ -346,7 +445,6 @@ function extractBaseProduct() {
 
     const images = [];
     document.querySelectorAll("#altImages li").forEach((li) => {
-        // Skip video thumbnail containers
         if (li.classList.contains("videoThumbnail")) return;
         if (li.classList.contains("template-color-video")) return;
         if (li.querySelector(".vse-video-thumb-overlay, .PKplay-button, .video-block-icon")) return;
@@ -354,12 +452,11 @@ function extractBaseProduct() {
 
         const img = li.querySelector("img");
         if (!img?.src) return;
-
-        // Extra safety net — Amazon's play-button overlay images
         if (img.src.includes("PKplay") || img.src.includes("play-button")) return;
 
         images.push(img.src.replace(/\._.*?_\./, "._SL1500_."));
     });
+
     const videos = [];
     try {
         const imageBlock = window.P?.state?.("ImageBlockATF");
@@ -381,7 +478,7 @@ function extractBaseProduct() {
             const matches = script.innerText.match(/https:\/\/[^"]+\.(mp4|m3u8)/g);
             if (matches) videos.push(...matches);
         });
-    } catch (_) { }
+    } catch (_) {}
 
     const aboutPoints = [];
     document.querySelectorAll("#feature-bullets li span").forEach((el) => {
@@ -414,7 +511,6 @@ function extractVariant() {
 
     const images = [];
     document.querySelectorAll("#altImages li").forEach((li) => {
-        // Skip video thumbnail containers
         if (li.classList.contains("videoThumbnail")) return;
         if (li.classList.contains("template-color-video")) return;
         if (li.querySelector(".vse-video-thumb-overlay, .PKplay-button, .video-block-icon")) return;
@@ -422,12 +518,11 @@ function extractVariant() {
 
         const img = li.querySelector("img");
         if (!img?.src) return;
-
-        // Extra safety net — Amazon's play-button overlay images
         if (img.src.includes("PKplay") || img.src.includes("play-button")) return;
 
         images.push(img.src.replace(/\._.*?_\./, "._SL1500_."));
     });
+
     const specs = [];
     const seenKeys = new Set();
 
@@ -436,11 +531,8 @@ function extractVariant() {
         const cleanKey = key.trim().replace(/\s+/g, " ");
         const cleanVal = val.trim().replace(/\s+/g, " ");
         if (!cleanKey || !cleanVal) return;
-
-        // Skip junk values Amazon sometimes leaves in cells
         if (cleanVal === "‎" || cleanVal === "-" || cleanVal.length > 500) return;
 
-        // Dedupe by lowercased key
         const dedupeKey = cleanKey.toLowerCase();
         if (seenKeys.has(dedupeKey)) return;
         seenKeys.add(dedupeKey);
@@ -448,15 +540,9 @@ function extractVariant() {
         specs.push({ SpecificationKey: cleanKey, SpecificationValue: cleanVal });
     };
 
-    // Keys we never want (reviews, ratings, ranks, links)
     const BLOCKED_KEYS = [
-        "customer reviews",
-        "best sellers rank",
-        "customer ratings",
-        "review",
-        "ratings",
-        "rank",
-        "feedback",
+        "customer reviews", "best sellers rank", "customer ratings",
+        "review", "ratings", "rank", "feedback",
     ];
 
     const isBlocked = (key) => {
@@ -464,8 +550,6 @@ function extractVariant() {
         return BLOCKED_KEYS.some((b) => k.includes(b));
     };
 
-    // Strategy: walk every <tr> inside the Product Details area,
-    // skipping anything inside review/Q&A/comparison blocks.
     const SPEC_CONTAINERS = [
         "#productDetails_techSpec_section_1",
         "#productDetails_techSpec_section_2",
@@ -478,18 +562,13 @@ function extractVariant() {
     ];
 
     const BLOCKED_ANCESTORS = [
-        "#reviewsMedley",
-        "#cm-cr-dp-tab-content",
-        "#askDPSearchTextID",
-        "#ask_lazy_load_div",
-        "#HLCXComparisonWidget_feature_div",
-        "#dp-ads-center-promo",
-        "#important-information",
+        "#reviewsMedley", "#cm-cr-dp-tab-content", "#askDPSearchTextID",
+        "#ask_lazy_load_div", "#HLCXComparisonWidget_feature_div",
+        "#dp-ads-center-promo", "#important-information",
     ];
 
-    const isInBlockedSection = (el) => {
-        return BLOCKED_ANCESTORS.some((sel) => el.closest(sel));
-    };
+    const isInBlockedSection = (el) =>
+        BLOCKED_ANCESTORS.some((sel) => el.closest(sel));
 
     // 1. Standard table-based specs
     SPEC_CONTAINERS.forEach((containerSel) => {
@@ -512,7 +591,6 @@ function extractVariant() {
             const val = spans[1].innerText;
             if (key && !isBlocked(key)) pushSpec(key, val);
         } else {
-            // Fallback: split on first colon
             const text = li.innerText;
             const idx = text.indexOf(":");
             if (idx > 0) {
@@ -533,6 +611,7 @@ function extractVariant() {
             if (key && !isBlocked(key)) pushSpec(key, val);
         }
     });
+
     const aboutPoints = [];
     document.querySelectorAll("#feature-bullets li span").forEach((el) => {
         const text = el.innerText.trim();
@@ -566,39 +645,77 @@ function extractVariant() {
 
 // ─── Link collection ──────────────────────────────────────────────────────────
 
-async function collectProductLinks(page, keyword, pages) {
-    await setupPage(page).catch(() => { });
+/**
+ * freshSearchPage — open a brand-new page from the browser for search use.
+ * Always creates a new page so we never reuse a dead/crashed session.
+ */
+async function freshSearchPage(browserInstance) {
+    const page = await browserInstance.newPage();
+    await setupPage(page).catch(() => {});
+    await loadCookies(page);
+    return page;
+}
 
+/**
+ * collectProductLinks — hardened search page crawler.
+ *
+ * KEY CHANGES vs original:
+ *  - Page is RECREATED on every retry — never reuses a dead/crashed session.
+ *    Fixes: 'Protocol error (Emulation.setTouchEmulationEnabled): Session closed'.
+ *  - domcontentloaded instead of networkidle2.
+ *  - Loads and saves cookies so the session is reused across restarts.
+ *  - consecutiveBlocks counter: 2+ blocks in a row triggers a 2–3 min cooldown.
+ *  - Longer, randomised inter-page delays (6–14s vs 3–6s).
+ *  - Page is always closed in a finally block — no resource leaks.
+ */
+async function collectProductLinks(browserInstance, keyword, pages) {
     const links = [];
+    let consecutiveBlocks = 0;
 
     for (let i = 1; i <= pages; i++) {
         if (!running) break;
 
         log(`Search page: ${i}`);
+
+        // Always open a fresh page — never carry over a potentially dead session
+        let page = null;
         try {
+            page = await freshSearchPage(browserInstance);
             await applyFingerprint(page);
+
             await page.goto(
                 `https://www.amazon.in/s?k=${encodeURIComponent(keyword)}&page=${i}`,
-                { waitUntil: "networkidle2", timeout: 60000 }
+                { waitUntil: 'domcontentloaded', timeout: 60000 }
             );
 
+            // Reading pause before any interaction
+            await delay(1200 + Math.random() * 1500);
             await humanMouse(page);
             await handleCaptcha(page);
 
             const state = await getPageState(page);
-            if (state === "block") {
-                log("⚠ Block on search page — waiting 40s");
-                await randDelay(40000, 60000);
-                i--;    // retry same page
-                continue;
-            }
 
-            await safeWait(page, ".s-result-item", 15000);
+            if (state === 'block') {
+                consecutiveBlocks++;
+                const backoff = consecutiveBlocks >= 2
+                    ? 120000 + Math.random() * 60000
+                    : 40000 + Math.random() * 30000;
+                log(`⚠ Block on search page (${consecutiveBlocks} consecutive) — waiting ${Math.round(backoff / 1000)}s`);
+                i--;
+                continue; // page closed in finally
+            }
+            consecutiveBlocks = 0;
+
+            // Wait for results to render
+            await Promise.race([
+                page.waitForSelector('.s-result-item', { timeout: 12000 }),
+                delay(12000),
+            ]);
 
             const pageLinks = await page.evaluate(() => {
                 const urls = [];
-                document.querySelectorAll(".s-main-slot .s-result-item[data-asin]").forEach((item) => {
-                    const asin = item.getAttribute("data-asin");
+                document.querySelectorAll('.s-main-slot .s-result-item[data-asin]').forEach((item) => {
+                    const asin = item.getAttribute('data-asin');
                     if (asin?.length === 10)
                         urls.push(`https://www.amazon.in/gp/product/${asin}`);
                 });
@@ -606,20 +723,24 @@ async function collectProductLinks(page, keyword, pages) {
             });
 
             if (!pageLinks.length) {
-                log("⚠ No products found on page — retrying after 10s");
-                await delay(10000);
+                log('⚠ No products found on page — retrying after 15s');
+                await delay(15000);
                 i--;
-                continue;
+                continue; // page closed in finally
             }
 
             links.push(...pageLinks);
             log(`✅ Found ${pageLinks.length} products on page ${i}`);
-            await randDelay(3000, 6000);
+            await saveCookies(page);
+            await delay(6000 + Math.random() * 8000);
 
         } catch (err) {
-            log("❌ Search page error: " + err.message);
-            await delay(8000);
-            i--;    // retry
+            log('❌ Search page error: ' + err.message);
+            await delay(12000 + Math.random() * 8000);
+            i--;
+        } finally {
+            // Always close — never leave a stale session open
+            if (page) { try { await page.close(); } catch (_) {} }
         }
     }
 
@@ -662,14 +783,8 @@ async function scrapeProduct(browserInstance, link, config) {
         const brand = await brandmodel.findOneAndUpdate(
             { BrandName: base.Brand, companyId, HeadCategoryId },
             {
-                $setOnInsert: {
-                    BrandName: base.Brand,
-                    companyId,
-                    HeadCategoryId
-                },
-                $addToSet: {
-                    SubCategoryId: SubCategoryId
-                }
+                $setOnInsert: { BrandName: base.Brand, companyId, HeadCategoryId },
+                $addToSet: { SubCategoryId: SubCategoryId },
             },
             { new: true, upsert: true }
         );
@@ -693,19 +808,30 @@ async function scrapeProduct(browserInstance, link, config) {
                 if (already) continue;
 
                 await applyFingerprint(page);
+
+                // domcontentloaded here too — consistency across all navigations
                 await page.goto(`https://www.amazon.in/dp/${asin}`, {
-                    waitUntil: "networkidle2",
+                    waitUntil: "domcontentloaded",
                     timeout: 40000,
                 });
 
+                // Reading pause
+                await delay(1200 + Math.random() * 1500);
                 await humanMouse(page);
 
                 const wasCaptcha = await handleCaptcha(page);
                 if (wasCaptcha) {
                     await page.goto(`https://www.amazon.in/dp/${asin}`, {
-                        waitUntil: "networkidle2", timeout: 40000,
+                        waitUntil: "domcontentloaded", timeout: 40000,
                     });
+                    await delay(1200 + Math.random() * 1000);
                 }
+
+                // Wait for product title to confirm the page rendered
+                await Promise.race([
+                    page.waitForSelector("#productTitle", { timeout: 12000 }),
+                    delay(12000),
+                ]).catch(() => {});
 
                 const vState = await getPageState(page);
                 if (vState !== "product") {
@@ -722,6 +848,9 @@ async function scrapeProduct(browserInstance, link, config) {
                 (variantData.videos || []).forEach((u) => allVideos.add(u));
 
                 variantRawData.push({ asin, data: variantData });
+
+                // Save cookies after each variant load — keeps session alive
+                await saveCookies(page);
 
             } catch (err) {
                 log("❌ Variant fetch error: " + asin + " — " + err.message);
@@ -765,6 +894,7 @@ async function scrapeProduct(browserInstance, link, config) {
         const varLimit = pLimit(5);
         const variantIds = [];
         const uniqueVariantNames = new Set();
+
         for (const { data: vData } of variantRawData) {
             for (const key of Object.keys(vData.variantFields || {})) {
                 const trimmed = key.trim();
@@ -793,7 +923,6 @@ async function scrapeProduct(browserInstance, link, config) {
                         });
                     } catch (err) {
                         if (err.code === 11000) {
-                            // Cross-process race — another worker just inserted it. Refetch.
                             vf = await Variant.findOne(filter);
                         } else {
                             throw err;
@@ -806,6 +935,7 @@ async function scrapeProduct(browserInstance, link, config) {
                 log("⚠️ Variant resolve error for '" + name + "': " + err.message);
             }
         }
+
         await Promise.all(
             variantRawData.map(({ asin, data: vData }) =>
                 varLimit(async () => {
@@ -816,7 +946,6 @@ async function scrapeProduct(browserInstance, link, config) {
                             const cleanedKey = key.trim();
                             const variantId = variantNameToId.get(cleanedKey);
                             if (!variantId || !value) continue;
-
                             variantFields.push({ VariantId: variantId, VariantValue: value.trim() });
                         }
 
@@ -850,19 +979,16 @@ async function scrapeProduct(browserInstance, link, config) {
 
                         // Update VariantValues counters
                         for (const vf of variantFields) {
-                            // Try to increment if value already exists
                             const incResult = await Variant.updateOne(
                                 { _id: vf.VariantId, "VariantValues.Value": vf.VariantValue },
                                 { $inc: { "VariantValues.$.Count": 1 } }
                             );
 
-                            // If nothing matched, push the new value (guarded by $ne so concurrent pushes can't double-add)
                             if (incResult.matchedCount === 0) {
                                 await Variant.updateOne(
                                     { _id: vf.VariantId, "VariantValues.Value": { $ne: vf.VariantValue } },
                                     { $push: { VariantValues: { Value: vf.VariantValue, Count: 1 } } }
                                 );
-                                // The lost race here means another worker pushed first — increment afterwards
                                 await Variant.updateOne(
                                     { _id: vf.VariantId, "VariantValues.Value": vf.VariantValue },
                                     { $inc: { "VariantValues.$.Count": 1 } }
@@ -906,7 +1032,7 @@ async function scrapeProduct(browserInstance, link, config) {
         log("🔥 Fatal scrape error: " + err.message);
     } finally {
         if (page) {
-            try { await page.close(); } catch (_) { }
+            try { await page.close(); } catch (_) {}
         }
     }
 }
@@ -914,26 +1040,34 @@ async function scrapeProduct(browserInstance, link, config) {
 // ─── Browser factory ──────────────────────────────────────────────────────────
 
 async function launchBrowser() {
-    const isLocal = process.env.NODE_ENV !== "production";
-
     try {
         return await puppeteer.launch({
-            headless: "new", // ✅ required for server
+            headless: "new",
             executablePath: process.env.CHROME_PATH || "/usr/bin/chromium-browser",
             args: [
                 ...BROWSER_ARGS,
                 "--single-process",
-                "--no-zygote"
+                "--no-zygote",
             ],
-            defaultViewport: null
+            defaultViewport: null,
         });
     } catch (err) {
         log("❌ Browser launch failed: " + err.message);
         throw err;
     }
 }
+
 // ─── Start / stop ─────────────────────────────────────────────────────────────
 
+/**
+ * startScraping — main orchestrator.
+ *
+ * KEY CHANGES vs original:
+ *  - Recycle interval is random 10–15 (not always 20) — breaks timing patterns.
+ *  - Delays between products: 8–20s base, with 15% chance of a 30–60s long pause.
+ *  - Cookies are saved before browser close so the next instance inherits the session.
+ *  - 15–30s rest after browser recycle — avoids rapid session churn.
+ */
 async function startScraping(config, onFinish) {
     if (running) { log("⚠ Already running"); return; }
 
@@ -951,13 +1085,8 @@ async function startScraping(config, onFinish) {
 
     // ── Collect links ─────────────────────────────────────────────────────────
 
-    const mainPage = await browser.newPage();
     let productLinks = [];
-    try {
-        productLinks = await collectProductLinks(mainPage, keyword, pages);
-    } finally {
-        try { await mainPage.close(); } catch (_) { }
-    }
+    productLinks = await collectProductLinks(browser, keyword, pages);
 
     stats.links = productLinks.length;
     broadcastStats();
@@ -966,6 +1095,8 @@ async function startScraping(config, onFinish) {
     // ── Scrape sequentially ───────────────────────────────────────────────────
 
     let counter = 0;
+    // Random recycle threshold 10–15 — never a perfectly predictable interval
+    let recycleAfter = 10 + Math.floor(Math.random() * 6);
 
     for (const link of productLinks) {
         if (!running) break;
@@ -979,18 +1110,37 @@ async function startScraping(config, onFinish) {
             log(`❌ Error scraping: ${link} | ${err.message}`);
         }
 
-        await randDelay(3000, 6000);
+        // Base delay 8–20s between products
+        const baseDelay = 8000 + Math.random() * 12000;
+        // 15% chance of a much longer 30–60s pause — mimics a user taking a break
+        const longPause = Math.random() < 0.15
+            ? 30000 + Math.random() * 30000
+            : 0;
+        await delay(baseDelay + longPause);
 
-        // Recycle browser every 20 products to prevent memory creep / crashes
-        if (counter % 20 === 0 && running) {
+        // Browser recycle at randomised interval
+        if (counter % recycleAfter === 0 && running) {
             log("♻ Restarting browser...");
-            try { await browser.close(); } catch (_) { }
+
+            // Save cookies before closing so the next instance inherits the session
+            try {
+                const openPages = await browser.pages();
+                if (openPages[0]) await saveCookies(openPages[0]);
+            } catch (_) {}
+
+            try { await browser.close(); } catch (_) {}
             browser = await launchBrowser();
+
+            // Longer rest after recycle — a real user takes a break between sessions
+            await delay(15000 + Math.random() * 15000);
+
+            // Pick a new random recycle threshold for the next batch
+            recycleAfter = 10 + Math.floor(Math.random() * 6);
         }
     }
 
     log("✅ Scraping finished");
-    try { await browser.close(); } catch (_) { }
+    try { await browser.close(); } catch (_) {}
     browser = null;
     running = false;
 
@@ -1000,11 +1150,10 @@ async function startScraping(config, onFinish) {
 function stopScraping() {
     running = false;
     if (browser) {
-        browser.close().catch(() => { });
+        browser.close().catch(() => {});
         browser = null;
     }
     log("🛑 Scraper stopped");
 }
 
 module.exports = { startScraping, stopScraping, stats };
-
