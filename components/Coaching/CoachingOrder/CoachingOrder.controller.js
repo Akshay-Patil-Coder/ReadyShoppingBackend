@@ -17,7 +17,6 @@ class CourseOrderService {
 
 
     async deleteData(req, resp) {
-        console.log("^^^^^^^", req.body)
         try {
             // let { id } = req.params;
             let { UserId, courseId } = req.body;
@@ -30,7 +29,6 @@ class CourseOrderService {
             }
 
             let result = await CoachingCourseOrder.deleteOne({ _id: courseId, UserId: UserId, companyId, companyId })
-            console.log("result", result)
             if (!result) {
                 res.status(400).json({ success: false, message: "Course not deleted" })
             }
@@ -48,10 +46,8 @@ class CourseOrderService {
 
 
     async addCoachingCourseOrder(req, res) {
-        console.log("xxxxxxxxxxxxxx", req.body)
         try {
             let { UserId, CourseId, companyId, TotalAmount, OfferPercentage } = req.body
-            //  UserId    CourseId   companyId  TotalAmount  OfferPercentage
             if (!UserId || !CourseId || !companyId || !TotalAmount || !OfferPercentage) {
                 throw new Error('please provide valid data')
             }
@@ -102,15 +98,12 @@ class CourseOrderService {
                     CourseData.CourseContent = PlayList
                     let token = jwt.sign({ CourseId: CourseId, UserId: UserId }, 'secret-for-now')
                     CourseData.TokenOfCourse = token
-                    console.log("vvvvvvvvvv", token)
                     let result = new CoachingCourseOrder(CourseData)
-                    console.log("vvvvvvvvvv", result)
 
                     result = await result.save();
                     if (!result) {
                         return res.status(400).json({ message: 'Data not added something went wrong', success: false })
                     }
-                    console.log("rrrrrrrrrrrrrrrrr", result)
                     return res.status(200).json({ data: result, success: true });
 
                 }
@@ -193,7 +186,6 @@ class CourseOrderService {
                     as: "CourseContent.VideoData.QuizData.QuizInfo"
                 }
             },
-            //pri
             {
                 $lookup: {
                     from: "coachingCourses",
@@ -202,7 +194,6 @@ class CourseOrderService {
                     as: "CourseData"
                 }
             },
-            //
             {
                 $group: {
                     _id: {
@@ -242,11 +233,9 @@ class CourseOrderService {
                         $push: {
                             Heading: "$_id.CourseHeading",
                             VideoData: "$Videos",
-                            //pri
                             CourseDuration: "$_id.CourseDuration",
                             CourseName: "$_id.CourseName",
                             CourseThumbnail: "$_id.CourseThumbnail"
-                            //
                         }
                     },
                     baseDoc: { $first: "$baseDoc" }
@@ -260,17 +249,14 @@ class CourseOrderService {
                     }
                 }
             },
-            //pri
             {
-                $sort: { _id: -1 } // <-- add this
+                $sort: { _id: -1 } 
             },
             {
-                $limit: 1          // <-- and this
+                $limit: 1         
             }
-            //
         ]);
 
-        console.log("bbbbbbbbbbbbbb", result)
         if (result) {
             let CourseInfo = await Promise.all(result.map(async (EachResult) => {
                 let data = await CoachingCourseController.getCoachingCourseData({ _id: EachResult.CourseId });

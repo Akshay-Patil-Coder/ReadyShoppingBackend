@@ -397,7 +397,6 @@ async function processServiceOrder(order, cutoffTime, pendingCutoff) {
         return;
     }
 
-    // ─── 15-min reservation window expired ───
     if (isExpired) {
         console.log(`⏱️ Service Order ${order._id} expired (>15 mins).`);
 
