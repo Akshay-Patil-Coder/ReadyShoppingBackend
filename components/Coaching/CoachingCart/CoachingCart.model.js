@@ -158,6 +158,8 @@ const CoachingOrderSchema = new mongoose.Schema(
             type: Number,
         },
 
+
+
         PaymentStatus: {
             type:    String,
             enum:    ['Pending', 'Completed', 'Cancelled', 'In Progress'],
