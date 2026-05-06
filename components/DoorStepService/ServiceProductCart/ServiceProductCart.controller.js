@@ -1579,6 +1579,7 @@ module.exports = {
                 EndDate,
                 OrderId,
                 PaymentStatus,
+                ProviderId
             } = req.query;
 
             if (req.user?.companyId) companyId = req.user.companyId;
@@ -1659,7 +1660,14 @@ module.exports = {
 
                 matchCondition.Services = { $elemMatch: elemMatch };
             }
+            if (ProviderId) {
+                const elemMatch = {};
 
+                elemMatch['ServiceData.ProviderInfo.ProviderId'] =
+                    toObjectId(ProviderId);
+
+                matchCondition.Services = { $elemMatch: elemMatch };
+            }
             let sortOption = { createdAt: -1 };
             if (SortOrder === 'older') sortOption = { createdAt: 1 };
 
