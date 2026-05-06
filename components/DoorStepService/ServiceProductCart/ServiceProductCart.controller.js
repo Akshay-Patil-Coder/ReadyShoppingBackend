@@ -1661,12 +1661,9 @@ module.exports = {
                 matchCondition.Services = { $elemMatch: elemMatch };
             }
             if (ProviderId) {
-                const elemMatch = {};
-
-                elemMatch['ServiceData.ProviderInfo.ProviderId'] =
+                matchCondition['Services.ServiceData.ProviderInfo.ProviderId'] =
                     toObjectId(ProviderId);
 
-                matchCondition.Services = { $elemMatch: elemMatch };
             }
             let sortOption = { createdAt: -1 };
             if (SortOrder === 'older') sortOption = { createdAt: 1 };
@@ -1703,6 +1700,13 @@ module.exports = {
                     services = services.filter(s =>
                         id &&
                         s.ServiceData?.AppointmentInfo?.AppointmentId?.equals(id)
+                    );
+                }
+                if (ProviderId) {
+                    const id = toObjectId(ProviderId);
+                    services = services.filter(s =>
+                        id &&
+                        s.ServiceData?.ProviderInfo?.ProviderId?.equals(id)
                     );
                 }
 

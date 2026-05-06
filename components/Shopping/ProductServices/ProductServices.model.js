@@ -19,7 +19,6 @@ const ProductServiceSchema = new mongoose.Schema({
         trim: true
     },
     Description: {
-
         Head: {
             type: String
         },

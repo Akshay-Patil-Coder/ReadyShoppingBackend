@@ -25,9 +25,9 @@ module.exports = {
                 SubServiceId = JSON.parse(SubServiceId);
             }
             if (googleLocation) {
-                googleLocation = json.parse(googleLocation)
+                googleLocation = JSON.parse(googleLocation)
             }
-            if (!FirstName || !LastName || !companyId || !HeadServiceId || !SubServiceId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation.LocationName || !googleLocation.Lattitude || googleLocation.Longitude || !Password) {
+            if (!FirstName || !LastName || !companyId || !HeadServiceId || !SubServiceId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation.LocationName || !googleLocation.Lattitude || !googleLocation.Longitude || !Password) {
                 if (req.file?.filename) {
                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
@@ -261,12 +261,12 @@ module.exports = {
                 SubServiceId = JSON.parse(SubServiceId)
             }
             if (googleLocation) {
-                googleLocation = json.parse(googleLocation)
+                googleLocation = JSON.parse(googleLocation)
             }
             const companyId = req.query.companyId;
             console.log(req.body, 'new testing');
 
-            if (!ServiceProviderId || !HeadServiceId || !SubServiceId || !FirstName || !LastName || !companyId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation.LocationName || !googleLocation.Lattitude || googleLocation.Longitude) {
+            if (!ServiceProviderId || !HeadServiceId || !SubServiceId || !FirstName || !LastName || !companyId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation.LocationName || !googleLocation.Lattitude || !googleLocation.Longitude) {
                 if (req.file?.filename) {
                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
                     if (fs.existsSync(newImagePath)) {

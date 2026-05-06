@@ -25,7 +25,9 @@ module.exports = {
                     message: 'Please fill in all required fields'
                 });
             }
-
+            if (Description && typeof Description == 'string') {
+                Description = JSON.parse(Description)
+            }
             let ServiceImages = [];
             if (req.files?.length) {
                 ServiceImages = req.files.map(file => file.filename);
@@ -157,6 +159,10 @@ module.exports = {
             }
 
             let updateData = { $set: { ServiceName } };
+
+            if (Description && typeof Description == 'string') {
+                Description = JSON.parse(Description)
+            }
             if (Description) updateData.$set.Description = Description;
 
             if (req.files?.length) {
