@@ -5,13 +5,117 @@ const https = require('https');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const PaytmChecksum = require('paytmchecksum');
-
+const PDFDocument = require('pdfkit');
+const sizeOf = require('image-size');
+const path = require('path');
+const fs = require('fs');
 const CoachingCourseOrder = require('../CoachingOrder/CoachingOrder.model');
 const { CoachingCart, CoachingOrder } = require('./CoachingCart.model');
 const { CoachingCourseModel, CoachingVideoModel } = require('../CoachingCourse/CoachingCourse.model');
 const CompanyModel = require('../../CompanyBase/Company/Company.model');
 const { User } = require('../../UserBase/User/User.model');
+const { CertificateModel } = require('../CoachingOrder/CoachingOrder.model');
+const { QuizModel } = require('../CoachingCourse/CoachingCourse.model');
+const CoachingTutorModel = require('../CoachingTutors/CoachingTutors.model');
+const CoachingClassModel = require('../CoachingClasses/CoachingClasses.model');
+const CoachingUniversityModel = require('../CoachingUniversity/CoachingUniversity.model');
+const CoachingCompanyModel = require('../CoachingCompanies/CoachingCompanies.model');
+const CoachingProviderType = require('../CoachingProviderType/CoachingProviderType.model');
 
+
+const PRIVATE_DIR = path.join(__dirname, '..', '..', 'private');
+const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
+const CERTIFICATE_OUT = path.join(PUBLIC_DIR, 'MyCertificate');
+
+
+const resolveOrder = async (orderId, UserId, companyId) => {
+    if (!mongoose.isValidObjectId(orderId))
+        throw Object.assign(new Error('Invalid orderId'), { status: 400 });
+
+    const order = await CoachingOrder.findOne({
+        _id: orderId,
+        UserId,
+        companyId,
+    });
+    if (!order)
+        throw Object.assign(new Error('Order not found'), { status: 404 });
+    if (order.PaymentStatus !== 'Completed')
+        throw Object.assign(new Error('Course not yet paid'), { status: 403 });
+
+    return order;
+};
+
+const verifyToken = (token) => {
+    try {
+        return jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    } catch {
+        throw Object.assign(new Error('Invalid or expired course token'), { status: 401 });
+    }
+};
+
+const resolveProvider = async (courseDoc) => {
+    const providerType = await CoachingProviderType.findById(courseDoc.ProviderType);
+    const type = providerType?.CourseProviderType || '';
+
+    let providerName = '';
+    let logoFile = '';
+    let logoSubDir = '';
+
+    if (type === 'Tutor') {
+        const p = await CoachingTutorModel.findById(courseDoc.ProviderId);
+        providerName = p?.TutorName || '';
+        logoFile = p?.TutorImage || '';
+        logoSubDir = 'CoachingTutorImage';
+    } else if (type === 'Class') {
+        const p = await CoachingClassModel.findById(courseDoc.ProviderId);
+        providerName = p?.ClassName || '';
+        logoFile = p?.ClassLogo || '';
+        logoSubDir = 'CoachingClassesImage';
+    } else if (type === 'University') {
+        const p = await CoachingUniversityModel.findById(courseDoc.ProviderId);
+        providerName = p?.UniversityName || '';
+        logoFile = p?.UniversityLogo || '';
+        logoSubDir = 'CoachingUniversityImage';
+    } else if (type === 'Company') {
+        const p = await CoachingCompanyModel.findById(courseDoc.ProviderId);
+        providerName = p?.CourseCompanyName || '';
+        logoFile = p?.CourseCompanyLogo || '';
+        logoSubDir = 'CoachingCompanyImage';
+    }
+
+    return { type, providerName, logoFile, logoSubDir };
+};
+
+const computeProgress = (order) => {
+    let totalVideos = 0, doneVideos = 0;
+    let totalQuizzes = 0, doneQuizzes = 0;
+    let totalPlaylists = 0, donePlaylists = 0;
+
+    for (const pl of order.CourseContent || []) {
+        totalPlaylists++;
+        if (pl.PlayListCompleted) donePlaylists++;
+
+        for (const v of pl.VideoData || []) {
+            totalVideos++;
+            if (v.VideoCompleted) doneVideos++;
+
+            for (const q of v.QuizData || []) {
+                totalQuizzes++;
+                if (q.QuizCompleted) doneQuizzes++;
+            }
+        }
+    }
+
+    const pct = (done, total) => (total === 0 ? 100 : Math.round((done / total) * 100));
+
+    return {
+        playlists: { done: donePlaylists, total: totalPlaylists, pct: pct(donePlaylists, totalPlaylists) },
+        videos: { done: doneVideos, total: totalVideos, pct: pct(doneVideos, totalVideos) },
+        quizzes: { done: doneQuizzes, total: totalQuizzes, pct: pct(doneQuizzes, totalQuizzes) },
+        overall: pct(doneVideos + doneQuizzes, totalVideos + totalQuizzes),
+        courseCompleted: order.CourseCompleted,
+    };
+};
 /**
  * @param {Object} courseDoc
  * @returns {{ total, discount, final }}
@@ -37,7 +141,7 @@ const calculateCourse = (courseDoc) => {
 const recalcCartTotals = (cart) => {
     let total = 0, discount = 0, final = 0;
     for (const c of cart.Courses) {
-        if (c.IsActive !== false) {
+        if (c.IsActive !== false && c.Reserved !== true) {
             total += c.TotalPrice || 0;
             discount += c.DiscountPrice || 0;
             final += c.FinalPrice || 0;
@@ -87,7 +191,6 @@ module.exports = {
             if (!['add', 'remove'].includes(Operation))
                 return res.status(400).json({ message: 'Invalid operation. Use "add" or "remove"', success: false });
 
-            // Validate course existence
             const foundCourse = await CoachingCourseModel.findOne({
                 _id: CourseId,
                 companyId,
@@ -96,7 +199,6 @@ module.exports = {
             if (!foundCourse)
                 return res.status(404).json({ message: 'Course not found', success: false });
 
-            // Check if user already purchased this course
             const alreadyPurchased = await CoachingCourseOrder.findOne({
                 UserId,
                 companyId,
@@ -106,7 +208,6 @@ module.exports = {
             if (alreadyPurchased)
                 return res.status(400).json({ message: 'Course already purchased', success: false });
 
-            // Load or create cart
             let cart = await CoachingCart.findOne({ UserId, companyId });
             if (!cart) cart = new CoachingCart({ UserId, companyId, Courses: [] });
 
@@ -118,7 +219,6 @@ module.exports = {
                 const { total, discount, final } = calculateCourse(foundCourse);
 
                 if (existingIndex !== -1) {
-                    // Re-activate if it was soft-removed
                     cart.Courses[existingIndex].IsActive = true;
                     cart.Courses[existingIndex].TotalPrice = total;
                     cart.Courses[existingIndex].DiscountPrice = discount;
@@ -170,7 +270,6 @@ module.exports = {
             });
             if (!course) continue;
 
-            // Drop if already paid
             const purchased = await CoachingCourseOrder.findOne({
                 UserId,
                 companyId,
@@ -995,6 +1094,726 @@ module.exports = {
         } catch (err) {
             console.error('getAllCoachingOrders Error:', err.message);
             return res.status(500).json({ message: 'Internal Server Error', error: err.message, success: false });
+        }
+    },
+
+
+    verifyCourseAccess: async (req, res) => {
+        try {
+            const { TokenOfCourse } = req.body;
+            if (!TokenOfCourse)
+                return res.status(400).json({ message: 'TokenOfCourse is required', success: false });
+
+            const payload = verifyToken(TokenOfCourse);
+
+            // Token must belong to the authenticated user
+            const UserId = req.user?.UserId || payload.UserId;
+            const companyId = req.user?.companyId;
+
+            const order = await CoachingOrder.findOne({
+                CourseId: payload.CourseId,
+                UserId,
+                companyId,
+                TokenOfCourse,
+                PaymentStatus: 'Completed',
+            });
+
+            if (!order)
+                return res.status(403).json({ message: 'Access denied – course not purchased', success: false });
+
+            return res.status(200).json({
+                success: true,
+                message: 'Access granted',
+                data: {
+                    orderId: order._id,
+                    CourseId: order.CourseId,
+                    TokenOfCourse: order.TokenOfCourse,
+                    PaymentStatus: order.PaymentStatus,
+                    CourseCompleted: order.CourseCompleted,
+                    progress: computeProgress(order),
+                },
+            });
+        } catch (err) {
+            const status = err.status || 500;
+            return res.status(status).json({ message: err.message, success: false });
+        }
+    },
+
+
+    getMyCourseContent: async (req, res) => {
+        try {
+            const { orderId } = req.params;
+            const { TokenOfCourse } = req.query;
+            const UserId = req.user?.UserId;
+            const companyId = req.user?.companyId;
+
+            let order;
+            if (TokenOfCourse) {
+                const payload = verifyToken(TokenOfCourse);
+                order = await CoachingOrder.findOne({
+                    CourseId: payload.CourseId,
+                    UserId: payload.UserId,
+                    companyId,
+                    TokenOfCourse,
+                    PaymentStatus: 'Completed',
+                });
+            } else {
+                order = await resolveOrder(orderId, UserId, companyId);
+            }
+
+            if (!order)
+                return res.status(403).json({ message: 'Access denied', success: false });
+
+            const enrichedContent = await Promise.all(
+                (order.CourseContent || []).map(async (playlist) => {
+                    const enrichedVideos = await Promise.all(
+                        (playlist.VideoData || []).map(async (v) => {
+                            const videoDoc = await CoachingVideoModel.findById(v.VideoId).select(
+                                'title description VideoDuration order Streaming paid Subtitles VideoLanguages Quizes'
+                            );
+
+                            const quizMeta = await Promise.all(
+                                (v.QuizData || []).map(async (q) => {
+                                    const quiz = await QuizModel.findById(q.QuizId).select(
+                                        'QuizType McqQuiz.McqQuestion McqQuiz.McqOptions PractiseTestQuiz.PractiseTestQuestion CodingQuiz.CodingQuestion'
+                                    );
+                                    return {
+                                        QuizId: q.QuizId,
+                                        QuizCompleted: q.QuizCompleted,
+                                        QuizInfo: quiz || null,
+                                    };
+                                })
+                            );
+
+                            return {
+                                VideoId: v.VideoId,
+                                VideoCompleted: v.VideoCompleted,
+                                VideoInfo: videoDoc || null,
+                                QuizData: quizMeta,
+                            };
+                        })
+                    );
+
+                    return {
+                        Heading: playlist.Heading,
+                        PlayListId: playlist.PlayListId,
+                        PlayListCompleted: playlist.PlayListCompleted,
+                        VideoData: enrichedVideos,
+                    };
+                })
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: 'Course content fetched',
+                data: {
+                    orderId: order._id,
+                    CourseId: order.CourseId,
+                    CourseCompleted: order.CourseCompleted,
+                    progress: computeProgress(order),
+                    CourseContent: enrichedContent,
+                },
+            });
+        } catch (err) {
+            const status = err.status || 500;
+            return res.status(status).json({ message: err.message, success: false });
+        }
+    },
+
+
+    accessVideo: async (req, res) => {
+        try {
+            const { orderId, videoId } = req.params;
+            const { TokenOfCourse } = req.query;
+            const UserId = req.user?.UserId;
+            const companyId = req.user?.companyId;
+
+            // Verify ownership via user-JWT or course token
+            let order;
+            if (TokenOfCourse) {
+                const payload = verifyToken(TokenOfCourse);
+                order = await CoachingOrder.findOne({
+                    CourseId: payload.CourseId,
+                    UserId: payload.UserId,
+                    companyId,
+                    TokenOfCourse,
+                    PaymentStatus: 'Completed',
+                });
+            } else {
+                order = await resolveOrder(orderId, UserId, companyId);
+            }
+
+            if (!order)
+                return res.status(403).json({ message: 'Access denied', success: false });
+
+            // Confirm the requested video is actually in this order
+            let videoExistsInOrder = false;
+            for (const pl of order.CourseContent || []) {
+                if (pl.VideoData.some(v => v.VideoId.toString() === videoId)) {
+                    videoExistsInOrder = true;
+                    break;
+                }
+            }
+            if (!videoExistsInOrder)
+                return res.status(403).json({ message: 'Video not part of this course order', success: false });
+
+            const videoDoc = await CoachingVideoModel.findById(videoId);
+            if (!videoDoc)
+                return res.status(404).json({ message: 'Video not found', success: false });
+
+            if (videoDoc.Streaming?.masterM3U8) {
+                return res.status(200).json({
+                    success: true,
+                    streamType: 'hls',
+                    masterM3U8: videoDoc.Streaming.masterM3U8,
+                    audioTracks: videoDoc.Streaming.audioTracks || [],
+                    subtitles: videoDoc.Streaming.subtitles || [],
+                    title: videoDoc.title,
+                    duration: videoDoc.VideoDuration,
+                });
+            }
+
+            const courseDoc = await CoachingCourseModel.findOne({ _id: order.CourseId, companyId });
+            if (!courseDoc)
+                return res.status(404).json({ message: 'Course not found', success: false });
+
+            let playlistHeading = '';
+            for (const pl of order.CourseContent || []) {
+                if (pl.VideoData.some(v => v.VideoId.toString() === videoId)) {
+                    playlistHeading = pl.Heading;
+                    break;
+                }
+            }
+
+            const courseDirName = `${courseDoc.CourseName}-${courseDoc.ProviderId}`;
+            const videoFilePath = path.join(
+                PRIVATE_DIR,
+                courseDirName,
+                playlistHeading,
+                'VideoFiles',
+                videoDoc.videoFile
+            );
+
+            if (!fs.existsSync(videoFilePath))
+                return res.status(404).json({ message: 'Video file not found on server', success: false });
+
+            return res.sendFile(path.resolve(videoFilePath));
+
+        } catch (err) {
+            const status = err.status || 500;
+            return res.status(status).json({ message: err.message, success: false });
+        }
+    },
+
+
+    getQuizForVideo: async (req, res) => {
+        try {
+            const { orderId, videoId } = req.params;
+            const UserId = req.user?.UserId;
+            const companyId = req.user?.companyId;
+
+            const order = await resolveOrder(orderId, UserId, companyId);
+
+            let quizIds = [];
+            for (const pl of order.CourseContent || []) {
+                for (const v of pl.VideoData || []) {
+                    if (v.VideoId.toString() === videoId) {
+                        quizIds = v.QuizData.map(q => q.QuizId);
+                    }
+                }
+            }
+
+            if (!quizIds.length)
+                return res.status(404).json({ message: 'No quizzes found for this video', success: false });
+
+            const quizzes = await QuizModel.find({ _id: { $in: quizIds } }).select(
+                '-CodingQuiz.CodingAnswer -McqQuiz.McqAnswer -PractiseTestQuiz.PractiseTestAnswer'
+            );
+
+            // Annotate with completion status from the order
+            const orderVideo = order.CourseContent
+                .flatMap(pl => pl.VideoData)
+                .find(v => v.VideoId.toString() === videoId);
+
+            const annotated = quizzes.map(quiz => ({
+                ...quiz.toObject(),
+                QuizCompleted: orderVideo?.QuizData.find(
+                    q => q.QuizId.toString() === quiz._id.toString()
+                )?.QuizCompleted || false,
+            }));
+
+            return res.status(200).json({
+                success: true,
+                message: 'Quizzes fetched',
+                data: annotated,
+            });
+        } catch (err) {
+            const status = err.status || 500;
+            return res.status(status).json({ message: err.message, success: false });
+        }
+    },
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 5. SUBMIT QUIZ ANSWER
+    //    POST /coaching-access/quiz/:orderId/:videoId/:quizId/submit
+    //    Body: { answer } – string for MCQ/Coding, string for PractiseTest
+    //    Grades the answer and marks the quiz as completed if correct.
+    // ──────────────────────────────────────────────────────────────────────────
+    submitQuizAnswer: async (req, res) => {
+        try {
+            const { orderId, videoId, quizId } = req.params;
+            const { answer } = req.body;
+            const UserId = req.user?.UserId;
+            const companyId = req.user?.companyId;
+
+            if (answer === undefined || answer === null || answer === '')
+                return res.status(400).json({ message: 'answer is required', success: false });
+
+            const order = await resolveOrder(orderId, UserId, companyId);
+
+            // Find the playlist + video + quiz entry inside the order
+            let targetPlaylist = null, targetVideo = null, targetQuiz = null;
+            for (const pl of order.CourseContent) {
+                for (const v of pl.VideoData) {
+                    if (v.VideoId.toString() === videoId) {
+                        for (const q of v.QuizData) {
+                            if (q.QuizId.toString() === quizId) {
+                                targetPlaylist = pl;
+                                targetVideo = v;
+                                targetQuiz = q;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!targetQuiz)
+                return res.status(404).json({ message: 'Quiz not found in order', success: false });
+
+            if (targetQuiz.QuizCompleted)
+                return res.status(200).json({ success: true, message: 'Quiz already completed', correct: true });
+
+            // Fetch the real quiz document with answers
+            const quizDoc = await QuizModel.findById(quizId);
+            if (!quizDoc)
+                return res.status(404).json({ message: 'Quiz document not found', success: false });
+
+            let correct = false;
+            let correctAnswer = null;
+
+            if (quizDoc.QuizType === 'MCQ') {
+                // answer should be the McqAnswer string
+                const matched = quizDoc.McqQuiz.find(
+                    q => q.McqAnswer?.toLowerCase().trim() === String(answer).toLowerCase().trim()
+                );
+                correct = !!matched;
+                correctAnswer = null; // don't reveal on wrong attempt
+            } else if (quizDoc.QuizType === 'Coding') {
+                correct = quizDoc.CodingQuiz?.CodingAnswer?.trim() === String(answer).trim();
+                correctAnswer = null;
+            } else if (quizDoc.QuizType === 'PractiseTest') {
+                // PractiseTest is treated as open-ended – auto-mark complete on submission
+                correct = true;
+            }
+
+            if (correct) {
+                targetQuiz.QuizCompleted = true;
+                order.markModified('CourseContent');
+                await order.save();
+            }
+
+            return res.status(200).json({
+                success: true,
+                correct,
+                message: correct ? 'Correct answer – quiz marked as completed!' : 'Incorrect answer – please try again.',
+                ...(correct ? {} : {}),
+            });
+        } catch (err) {
+            const status = err.status || 500;
+            return res.status(status).json({ message: err.message, success: false });
+        }
+    },
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 6. MARK VIDEO COMPLETED
+    //    PATCH /coaching-access/progress/:orderId/video
+    //    Body: { PlayListId, VideoId }
+    // ──────────────────────────────────────────────────────────────────────────
+    markVideoCompleted: async (req, res) => {
+        try {
+            const { orderId } = req.params;
+            const { PlayListId, VideoId } = req.body;
+            const UserId = req.user?.UserId;
+            const companyId = req.user?.companyId;
+
+            if (!PlayListId || !VideoId)
+                return res.status(400).json({ message: 'PlayListId and VideoId are required', success: false });
+
+            const order = await resolveOrder(orderId, UserId, companyId);
+
+            let updated = false;
+            for (const pl of order.CourseContent) {
+                if (pl.PlayListId.toString() === PlayListId) {
+                    for (const v of pl.VideoData) {
+                        if (v.VideoId.toString() === VideoId) {
+                            v.VideoCompleted = true;
+                            updated = true;
+                        }
+                    }
+                }
+            }
+
+            if (!updated)
+                return res.status(404).json({ message: 'Video not found in this order', success: false });
+
+            order.markModified('CourseContent');
+            await order.save();
+
+            return res.status(200).json({
+                success: true,
+                message: 'Video marked as completed',
+                progress: computeProgress(order),
+            });
+        } catch (err) {
+            const status = err.status || 500;
+            return res.status(status).json({ message: err.message, success: false });
+        }
+    },
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 7. MARK PLAYLIST COMPLETED
+    //    PATCH /coaching-access/progress/:orderId/playlist
+    //    Body: { PlayListId }
+    //    (auto-marks all videos + quizzes inside it)
+    // ──────────────────────────────────────────────────────────────────────────
+    markPlaylistCompleted: async (req, res) => {
+        try {
+            const { orderId } = req.params;
+            const { PlayListId } = req.body;
+            const UserId = req.user?.UserId;
+            const companyId = req.user?.companyId;
+
+            if (!PlayListId)
+                return res.status(400).json({ message: 'PlayListId is required', success: false });
+
+            const order = await resolveOrder(orderId, UserId, companyId);
+
+            let updated = false;
+            for (const pl of order.CourseContent) {
+                if (pl.PlayListId.toString() === PlayListId) {
+                    pl.PlayListCompleted = true;
+                    // Also mark all videos and quizzes inside
+                    for (const v of pl.VideoData) {
+                        v.VideoCompleted = true;
+                        for (const q of v.QuizData) q.QuizCompleted = true;
+                    }
+                    updated = true;
+                }
+            }
+
+            if (!updated)
+                return res.status(404).json({ message: 'Playlist not found in this order', success: false });
+
+            order.markModified('CourseContent');
+            await order.save();
+
+            return res.status(200).json({
+                success: true,
+                message: 'Playlist marked as completed',
+                progress: computeProgress(order),
+            });
+        } catch (err) {
+            const status = err.status || 500;
+            return res.status(status).json({ message: err.message, success: false });
+        }
+    },
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 8. GET COURSE PROGRESS
+    //    GET /coaching-access/progress/:orderId
+    // ──────────────────────────────────────────────────────────────────────────
+    getCourseProgress: async (req, res) => {
+        try {
+            const { orderId } = req.params;
+            const UserId = req.user?.UserId;
+            const companyId = req.user?.companyId;
+
+            const order = await resolveOrder(orderId, UserId, companyId);
+
+            return res.status(200).json({
+                success: true,
+                message: 'Progress fetched',
+                data: computeProgress(order),
+            });
+        } catch (err) {
+            const status = err.status || 500;
+            return res.status(status).json({ message: err.message, success: false });
+        }
+    },
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 9. GENERATE CERTIFICATE
+    //    POST /coaching-access/certificate/:orderId/generate
+    //    Builds a PDF from the course's Certificate template + CertificateConfig.
+    //    Requires: all videos watched + all quizzes done (100 % progress).
+    // ──────────────────────────────────────────────────────────────────────────
+    generateCertificate: async (req, res) => {
+        try {
+            const { orderId } = req.params;
+            const UserId = req.user?.UserId;
+            const companyId = req.user?.companyId;
+
+            const order = await resolveOrder(orderId, UserId, companyId);
+
+            // ── Guard: already generated ──────────────────────────────────────
+            if (order.CertificatePath && fs.existsSync(order.CertificatePath)) {
+                return res.status(200).json({
+                    success: true,
+                    message: 'Certificate already generated',
+                    CertificatePath: order.CertificatePath,
+                    CertificateId: order.CertificateId || null,
+                });
+            }
+
+            // ── Guard: course must be 100 % complete ─────────────────────────
+            const progress = computeProgress(order);
+            if (progress.overall < 100) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Course not yet completed (${progress.overall}% done). Finish all videos and quizzes first.`,
+                    progress,
+                });
+            }
+
+            // ── Load course + user + company ──────────────────────────────────
+            const courseDoc = await CoachingCourseModel.findOne({ _id: order.CourseId, companyId });
+            if (!courseDoc)
+                return res.status(404).json({ message: 'Course not found', success: false });
+
+            if (!courseDoc.Certificate || !courseDoc.CertificateConfig?.fields)
+                return res.status(400).json({ message: 'Certificate template not configured for this course', success: false });
+
+            const user = await User.findById(UserId);
+            if (!user)
+                return res.status(404).json({ message: 'User not found', success: false });
+
+            const company = await CompanyModel.findById(companyId);
+            const { providerName, logoFile, logoSubDir } = await resolveProvider(courseDoc);
+
+            // ── Resolve file paths ────────────────────────────────────────────
+            const courseDirName = `${courseDoc.CourseName}-${courseDoc.ProviderId}`;
+            const templatePath = path.join(PRIVATE_DIR, courseDirName, 'Certificate', courseDoc.Certificate);
+
+            if (!fs.existsSync(templatePath))
+                return res.status(404).json({ message: 'Certificate template file not found on server', success: false });
+
+            // Ensure output directory exists
+            if (!fs.existsSync(CERTIFICATE_OUT))
+                fs.mkdirSync(CERTIFICATE_OUT, { recursive: true });
+
+            const safeUser = (user.UserName || UserId).toString().replace(/\s+/g, '_');
+            const fileName = `${courseDoc.CourseName}-${order.CourseId}-${safeUser}-${Date.now()}.pdf`;
+            const outputPath = path.join(CERTIFICATE_OUT, fileName);
+
+            // ── Build PDF ─────────────────────────────────────────────────────
+            const { width, height } = sizeOf(templatePath);
+            const doc = new PDFDocument({ size: [width, height], margin: 0 });
+            const writeStream = fs.createWriteStream(outputPath);
+            doc.pipe(writeStream);
+
+            // Background: the certificate template image
+            doc.image(templatePath, 0, 0, { width, height }).fillColor('black');
+
+            const config = courseDoc.CertificateConfig.fields;
+
+            // Helper: draw text at a configured position
+            const drawField = (key, text) => {
+                const pos = config[key];
+                if (pos && text) {
+                    doc.fontSize(pos.fontSize || 16).text(String(text), pos.x, pos.y, { lineBreak: false });
+                }
+            };
+
+            // ── Standard fields ───────────────────────────────────────────────
+            drawField('UserName', user.UserName || user.name || '');
+            drawField('Email', user.Email || user.email || '');
+            drawField('CourseName', courseDoc.CourseName);
+            drawField('startDate', order.OrderDate || '');
+            drawField('endDate', new Date(order.updatedAt).toLocaleDateString());
+            drawField('Level', courseDoc.Level || '');
+
+            // Provider name
+            drawField('Provider', providerName);
+
+            // Provider logo
+            if (logoFile && logoSubDir && config.ProviderLogo) {
+                const pLogoPath = path.join(PUBLIC_DIR, logoSubDir, logoFile);
+                if (fs.existsSync(pLogoPath)) {
+                    const lc = config.ProviderLogo;
+                    doc.image(pLogoPath, lc.x, lc.y, { width: lc.width, height: lc.height });
+                }
+            }
+
+            // Company name + logo
+            if (company) {
+                drawField('Company', company.CompanyName);
+                if (config.CompanyLogo && company.CompanyLogo) {
+                    const cLogoPath = path.join(PUBLIC_DIR, 'CompanyLogos', company.CompanyLogo);
+                    if (fs.existsSync(cLogoPath)) {
+                        const lc = config.CompanyLogo;
+                        doc.image(cLogoPath, lc.x, lc.y, { width: lc.width, height: lc.height });
+                    }
+                }
+            }
+
+            // ── Create & embed certificate token ──────────────────────────────
+            const certPayload = {
+                CourseId: order.CourseId,
+                UserId: UserId,
+                CourseName: courseDoc.CourseName,
+                UserName: user.UserName || user.name || '',
+                UserEmail: user.Email || user.email || '',
+                IssuedAt: new Date().toISOString(),
+            };
+            const certJwt = jwt.sign(certPayload, process.env.ACCESS_TOKEN_SECRET);
+
+            // Save certificate token record
+            const certRecord = await new CertificateModel({
+                companyId,
+                CertificateToken: certJwt,
+            }).save();
+
+            // Embed certificate ID on the PDF
+            if (config.CertificateId) {
+                const cid = config.CertificateId;
+                doc.fontSize(cid.fontSize || 10).text(certRecord._id.toString(), cid.x, cid.y, { lineBreak: false });
+            }
+
+            doc.end();
+
+            // Wait for write to finish before responding
+            await new Promise((resolve, reject) => {
+                writeStream.on('finish', resolve);
+                writeStream.on('error', reject);
+            });
+
+            // Mark order as completed + save cert reference
+            order.CourseCompleted = true;
+            order.CertificatePath = outputPath;
+            order.CertificateId = certRecord._id;
+            order.valid = true;
+            await order.save();
+
+            return res.status(200).json({
+                success: true,
+                message: 'Certificate generated successfully',
+                CertificatePath: outputPath,
+                CertificateId: certRecord._id,
+            });
+
+        } catch (err) {
+            console.error('generateCertificate Error:', err);
+            return res.status(err.status || 500).json({ message: err.message, success: false });
+        }
+    },
+
+
+    downloadCertificate: async (req, res) => {
+        try {
+            const { orderId } = req.params;
+            const UserId = req.user?.UserId;
+            const companyId = req.user?.companyId;
+
+            const order = await resolveOrder(orderId, UserId, companyId);
+
+            if (!order.CertificatePath)
+                return res.status(404).json({
+                    success: false,
+                    message: 'Certificate not generated yet. Call /generate first.',
+                });
+
+            if (!fs.existsSync(order.CertificatePath))
+                return res.status(404).json({
+                    success: false,
+                    message: 'Certificate file missing from server. Please regenerate.',
+                });
+
+            const fileName = path.basename(order.CertificatePath);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+            return fs.createReadStream(order.CertificatePath).pipe(res);
+
+        } catch (err) {
+            const status = err.status || 500;
+            return res.status(status).json({ message: err.message, success: false });
+        }
+    },
+
+    verifyCertificate: async (req, res) => {
+        try {
+            const certificateId = req.params.certificateId || req.body.CertificateId;
+            const companyId = req.query.companyId || req.body.companyId;
+
+            if (!certificateId)
+                return res.status(400).json({ message: 'CertificateId is required', success: false });
+            if (!companyId)
+                return res.status(400).json({ message: 'companyId is required', success: false });
+
+            if (!mongoose.isValidObjectId(certificateId))
+                return res.status(400).json({ message: 'Invalid CertificateId format', success: false });
+
+            const certRecord = await CertificateModel.findOne({
+                _id: certificateId,
+                companyId,
+            });
+
+            if (!certRecord)
+                return res.status(404).json({
+                    success: false,
+                    message: 'Certificate not found. It may be invalid or belong to a different organisation.',
+                });
+
+            let payload;
+            try {
+                payload = jwt.verify(certRecord.CertificateToken, process.env.ACCESS_TOKEN_SECRET);
+            } catch {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Certificate token is invalid or has been tampered with.',
+                });
+            }
+
+            // Confirm the underlying order still exists and is valid
+            const order = await CoachingOrder.findOne({
+                CourseId: payload.CourseId,
+                UserId: payload.UserId,
+                companyId,
+                PaymentStatus: 'Completed',
+                CourseCompleted: true,
+            });
+
+            if (!order)
+                return res.status(400).json({
+                    success: false,
+                    message: 'Certificate exists but the associated course order could not be verified.',
+                });
+
+            return res.status(200).json({
+                success: true,
+                message: 'Certificate is valid ✓',
+                data: {
+                    CertificateId: certRecord._id,
+                    IssuedAt: certRecord.createdAt,
+                    CourseName: payload.CourseName,
+                    UserName: payload.UserName,
+                    UserEmail: payload.UserEmail,
+                    CourseId: payload.CourseId,
+                },
+            });
+
+        } catch (err) {
+            console.error('verifyCertificate Error:', err);
+            return res.status(500).json({ message: err.message, success: false });
         }
     },
 };

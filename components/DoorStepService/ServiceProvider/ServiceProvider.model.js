@@ -66,11 +66,16 @@ const serviceProviderSchema = mongoose.Schema(
             type: String,
             required: true
         },
-        Lattitude: {
-            type: Number
-        },
-        Longitude: {
-            type: Number
+        googleLocation: {
+            LocationName: {
+                type: String
+            },
+            Lattitude: {
+                type: Number
+            },
+            Longitude: {
+                type: Number
+            },
         },
         isActive: {
             type: Boolean,

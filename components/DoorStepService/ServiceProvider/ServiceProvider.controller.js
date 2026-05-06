@@ -24,8 +24,10 @@ module.exports = {
             if (SubServiceId) {
                 SubServiceId = JSON.parse(SubServiceId);
             }
-
-            if (!FirstName || !LastName || !companyId || !HeadServiceId || !SubServiceId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation || !Password) {
+            if (googleLocation) {
+                googleLocation = json.parse(googleLocation)
+            }
+            if (!FirstName || !LastName || !companyId || !HeadServiceId || !SubServiceId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation.LocationName || !googleLocation.Lattitude || googleLocation.Longitude || !Password) {
                 if (req.file?.filename) {
                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
@@ -69,7 +71,7 @@ module.exports = {
 
 
             if (!result) {
-                  if (req.file?.filename) {
+                if (req.file?.filename) {
                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
                     if (fs.existsSync(newImagePath)) {
                         fs.unlinkSync(newImagePath);
@@ -80,16 +82,16 @@ module.exports = {
                 return resp.status(400).json({ message: 'Something went wrong while saving the brand', success: false });
             }
 
-            return resp.status(200).json({ data: result, success: true,message:"Service Provider Added" });
+            return resp.status(200).json({ data: result, success: true, message: "Service Provider Added" });
         } catch (error) {
-              if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
-                    }
-
+            if (req.file?.filename) {
+                const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
+                if (fs.existsSync(newImagePath)) {
+                    fs.unlinkSync(newImagePath);
                 }
-            return resp.status(500).json({ error: error.message, success: false,message:"Internal Server Error" });
+
+            }
+            return resp.status(500).json({ error: error.message, success: false, message: "Internal Server Error" });
         }
     },
 
@@ -151,10 +153,10 @@ module.exports = {
             }
 
             // console.log('result of populated data', data);
-            return res.status(200).json({ data: data, success: true,message:"Data Fetched" });
+            return res.status(200).json({ data: data, success: true, message: "Data Fetched" });
 
         } catch (error) {
-            res.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
+            res.status(400).json({ error: error.message, success: false, message: "Internal Server Error" });
         }
     },
 
@@ -164,7 +166,7 @@ module.exports = {
             const companyId = req.query.companyId;
             const operation = req.query.operation;
             if (!ServiceProviderId || !SubServiceId || SubServiceId.length === 0) {
-                return resp.status(400).send({message:'Please insert valid data',success:false});
+                return resp.status(400).send({ message: 'Please insert valid data', success: false });
             }
 
 
@@ -176,7 +178,7 @@ module.exports = {
                         { new: true }
                     );
 
-                    return resp.status(200).json({ data: updatedResult, success: true ,message:"Deleted"});
+                    return resp.status(200).json({ data: updatedResult, success: true, message: "Deleted" });
                 }
                 if (operation === 'add') {
                     let updatedResult = await serviceProviderModel.serviceProviderModel.findOneAndUpdate(
@@ -185,13 +187,13 @@ module.exports = {
                         { new: true }
                     );
 
-                    return resp.status(200).json({ data: updatedResult, success: true ,message:"Added"});
+                    return resp.status(200).json({ data: updatedResult, success: true, message: "Added" });
                 }
 
             }
         } catch (error) {
             console.error(error);
-            return resp.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
+            return resp.status(400).json({ error: error.message, success: false, message: "Internal Server Error" });
         }
 
     },
@@ -201,7 +203,7 @@ module.exports = {
             const companyId = req.query.companyId;
             const operation = req.query.operation;
             if (!ServiceProviderId || !HeadServiceId || HeadServiceId.length === 0) {
-                return resp.status(400).send({message:'Please insert valid data',success:false});
+                return resp.status(400).send({ message: 'Please insert valid data', success: false });
             }
 
 
@@ -213,7 +215,7 @@ module.exports = {
                         { new: true }
                     );
 
-                    return resp.status(200).json({ data: updatedResult, success: true,message:"Deleted" });
+                    return resp.status(200).json({ data: updatedResult, success: true, message: "Deleted" });
                 }
                 if (operation === 'add') {
                     let updatedResult = await serviceProviderModel.serviceProviderModel.findOneAndUpdate(
@@ -222,13 +224,13 @@ module.exports = {
                         { new: true }
                     );
 
-                    return resp.status(200).json({ data: updatedResult, success: true,message:"Added" });
+                    return resp.status(200).json({ data: updatedResult, success: true, message: "Added" });
                 }
 
             }
         } catch (error) {
             console.error(error);
-            return resp.status(400).json({ error: error.message, success: false ,message:"Internal Server Error"});
+            return resp.status(400).json({ error: error.message, success: false, message: "Internal Server Error" });
         }
 
     },
@@ -258,17 +260,20 @@ module.exports = {
             if (SubServiceId) {
                 SubServiceId = JSON.parse(SubServiceId)
             }
+            if (googleLocation) {
+                googleLocation = json.parse(googleLocation)
+            }
             const companyId = req.query.companyId;
             console.log(req.body, 'new testing');
 
-            if (!ServiceProviderId || !HeadServiceId || !SubServiceId || !FirstName || !LastName || !companyId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation) {
-                if(req.file?.filename){
+            if (!ServiceProviderId || !HeadServiceId || !SubServiceId || !FirstName || !LastName || !companyId || !Street || !City || !State || !Country || !PostalCode || !Email || !Phone || !PanCardNo || !GstNo || !googleLocation.LocationName || !googleLocation.Lattitude || googleLocation.Longitude) {
+                if (req.file?.filename) {
                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
-                if (fs.existsSync(newImagePath)) {
-                    fs.unlinkSync(newImagePath);
+                    if (fs.existsSync(newImagePath)) {
+                        fs.unlinkSync(newImagePath);
+                    }
                 }
-                }
-                return resp.status(400).send({message:'Please insert valid data',success:false});
+                return resp.status(400).send({ message: 'Please insert valid data', success: false });
 
             }
 
@@ -291,6 +296,7 @@ module.exports = {
                     HeadServiceId,
                     SubServiceId
                 }
+
                 if (req.file) {
                     const existingServiceProvider = await serviceProviderModel.serviceProviderModel.findOne({ _id: ServiceProviderId, companyId: companyId })
                     if (existingServiceProvider && existingServiceProvider?.ProviderImage) {
@@ -312,19 +318,19 @@ module.exports = {
                     return resp.status(400).json({ message: 'not updated', success: false });
                 }
                 else {
-                    return resp.status(200).json({ data: updatedResult, success: true,message:"Service Provider Detail Updated"  });
+                    return resp.status(200).json({ data: updatedResult, success: true, message: "Service Provider Detail Updated" });
                 }
 
             }
         } catch (error) {
-             if (req.file?.filename) {
-                    const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
-                    if (fs.existsSync(newImagePath)) {
-                        fs.unlinkSync(newImagePath);
-                    }
-
+            if (req.file?.filename) {
+                const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProviderImage', req.file.filename);
+                if (fs.existsSync(newImagePath)) {
+                    fs.unlinkSync(newImagePath);
                 }
-            return resp.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
+
+            }
+            return resp.status(400).json({ error: error.message, success: false, message: "Internal Server Error" });
         }
     },
     deleteServiceProvider: async (req, resp) => {
@@ -351,7 +357,7 @@ module.exports = {
 
 
         } catch (error) {
-            return resp.status(400).json({ error: error.message, success: false,message:"Internal Server Error" });
+            return resp.status(400).json({ error: error.message, success: false, message: "Internal Server Error" });
 
         }
     },

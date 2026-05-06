@@ -13,4 +13,5 @@ module.exports = {
   '/api/v1/ServiceCategoryImage': './components/public/ServiceCategoryImage',
   '/api/v1/ServiceBannerImage': './components/public/ServiceBannerImage',
   '/api/v1/ServiceProductImage': './components/public/ServiceProductImage',
+  '/api/v1/ServiceProviderImage': './components/public/ServiceProviderImage',
 };

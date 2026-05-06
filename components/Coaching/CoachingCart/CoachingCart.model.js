@@ -6,27 +6,27 @@ const mongoose = require('mongoose');
 const CoachingCartCourseSchema = new mongoose.Schema(
     {
         CourseId: {
-            type:     mongoose.Schema.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             required: true,
         },
         TotalPrice: {
-            type:    Number,
+            type: Number,
             default: 0,
         },
         DiscountPrice: {
-            type:    Number,
+            type: Number,
             default: 0,
         },
         FinalPrice: {
-            type:    Number,
+            type: Number,
             default: 0,
         },
         IsActive: {
-            type:    Boolean,
+            type: Boolean,
             default: true,
         },
         Reserved: {
-            type:    Boolean,
+            type: Boolean,
             default: false,
         },
     },
@@ -36,25 +36,25 @@ const CoachingCartCourseSchema = new mongoose.Schema(
 const CoachingCartSchema = new mongoose.Schema(
     {
         UserId: {
-            type:     mongoose.Schema.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             required: true,
         },
         companyId: {
-            type:     mongoose.Schema.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             required: true,
         },
         Courses: [CoachingCartCourseSchema],
 
         TotalCartPrice: {
-            type:    Number,
+            type: Number,
             default: 0,
         },
         DiscountCartPrice: {
-            type:    Number,
+            type: Number,
             default: 0,
         },
         FinalCartPrice: {
-            type:    Number,
+            type: Number,
             default: 0,
         },
     },
@@ -67,30 +67,30 @@ module.exports.CoachingCart = CoachingCart;
 
 const UserDetailsSchema = new mongoose.Schema(
     {
-        UserName:        { type: String, default: '' },
-        Email:           { type: String, default: '' },
-        Phone:           { type: mongoose.Schema.Types.Mixed },
-        AddresserName:   { type: String, default: '' },
+        UserName: { type: String, default: '' },
+        Email: { type: String, default: '' },
+        Phone: { type: mongoose.Schema.Types.Mixed },
+        AddresserName: { type: String, default: '' },
         AddresserNumber: { type: mongoose.Schema.Types.Mixed },
-        AddressType:     { type: String, default: 'Home' },
-        Street:          { type: String, default: '' },
-        City:            { type: String, default: '' },
-        State:           { type: String, default: '' },
-        Country:         { type: String, default: '' },
-        PostalCode:      { type: String, default: '' },
-        Latitude:        { type: mongoose.Schema.Types.Mixed, default: '' },
-        Longitude:       { type: mongoose.Schema.Types.Mixed, default: '' },
-        ManualAddress:   { type: String, default: '' },
+        AddressType: { type: String, default: 'Home' },
+        Street: { type: String, default: '' },
+        City: { type: String, default: '' },
+        State: { type: String, default: '' },
+        Country: { type: String, default: '' },
+        PostalCode: { type: String, default: '' },
+        Latitude: { type: mongoose.Schema.Types.Mixed, default: '' },
+        Longitude: { type: mongoose.Schema.Types.Mixed, default: '' },
+        ManualAddress: { type: String, default: '' },
     },
     { _id: false }
 );
 
 const PaymentSessionSchema = new mongoose.Schema(
     {
-        orderId:        { type: String },
-        txnId:          { type: String, default: null },
-        status:         { type: String, default: 'INITIATED' },
-        amount:         { type: Number },
+        orderId: { type: String },
+        txnId: { type: String, default: null },
+        status: { type: String, default: 'INITIATED' },
+        amount: { type: Number },
         paymentGateway: { type: String, default: 'Paytm' },
     },
     { _id: false }
@@ -106,11 +106,11 @@ const CoachingOrderSchema = new mongoose.Schema(
         },
 
         CartId: {
-            type:    mongoose.Schema.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             default: null,
         },
         CartCourseId: {
-            type:    mongoose.Schema.Types.ObjectId,
+            type: mongoose.Schema.Types.ObjectId,
             default: null,
         },
 
@@ -124,12 +124,12 @@ const CoachingOrderSchema = new mongoose.Schema(
                 PlayListId: { type: mongoose.Schema.Types.ObjectId },
                 VideoData: [
                     {
-                        VideoId:       { type: mongoose.Schema.Types.ObjectId },
-                        VideoCompleted:{ type: Boolean, default: false },
+                        VideoId: { type: mongoose.Schema.Types.ObjectId },
+                        VideoCompleted: { type: Boolean, default: false },
                         QuizData: [
                             {
-                                QuizId:       { type: mongoose.Schema.Types.ObjectId },
-                                QuizCompleted:{ type: Boolean, default: false },
+                                QuizId: { type: mongoose.Schema.Types.ObjectId },
+                                QuizCompleted: { type: Boolean, default: false },
                             },
                         ],
                     },
@@ -139,7 +139,7 @@ const CoachingOrderSchema = new mongoose.Schema(
         ],
 
         CourseCompleted: {
-            type:    Boolean,
+            type: Boolean,
             default: false,
         },
 
@@ -147,26 +147,23 @@ const CoachingOrderSchema = new mongoose.Schema(
             type: Number,
         },
         OfferPercentage: {
-            type:    Number,
+            type: Number,
             default: 0,
         },
         PaidAmount: {
-            type:    Number,
+            type: Number,
             default: 0,
         },
         PendingAmount: {
             type: Number,
         },
-
-
-
         PaymentStatus: {
-            type:    String,
-            enum:    ['Pending', 'Completed', 'Cancelled', 'In Progress'],
+            type: String,
+            enum: ['Pending', 'Completed', 'Cancelled', 'In Progress'],
             default: 'Pending',
         },
         PaymentMethod: {
-            type:    String,
+            type: String,
             default: '',
         },
         PaymentSession: PaymentSessionSchema,
@@ -175,17 +172,17 @@ const CoachingOrderSchema = new mongoose.Schema(
         OrderTime: { type: String },
 
         TokenOfCourse: {
-            type:     String,
+            type: String,
             required: true,
         },
 
         CertificatePath: {
-            type:    String,
+            type: String,
             default: null,
         },
 
         valid: {
-            type:    Boolean,
+            type: Boolean,
             default: false,
         },
 

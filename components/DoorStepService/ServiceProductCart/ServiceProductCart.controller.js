@@ -1417,6 +1417,7 @@ module.exports = {
                 AppointmentId,
                 OrderId,
                 PaymentStatus,
+                ProviderId
             } = req.query;
 
             if (req.user?.UserId) UserId = req.user.UserId;
@@ -1490,7 +1491,14 @@ module.exports = {
 
                 matchCondition.Services = { $elemMatch: elemMatch };
             }
+            if (ProviderId) {
+                const elemMatch = {};
 
+                elemMatch['ServiceData.ProviderInfo.ProviderId'] =
+                    toObjectId(ProviderId);
+
+                matchCondition.Services = { $elemMatch: elemMatch };
+            }
             let Orders = await ServiceOrder.find(matchCondition).sort({ createdAt: -1 });
 
             if (!Orders.length) {

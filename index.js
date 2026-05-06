@@ -18,6 +18,7 @@ const ShoppingRoutes = require('./Routes/Shopping.routes');
 // require('./components/Shopping/ElasticSearch/elastic/createindex.js');
 // require('./components/Shopping/ElasticSearch/elastic/reindexAll.js');
 const scraperRoutes = require('./components/Shopping/WebScrapper/WebScrapper.routes');
+const UrbanScraperRoutes = require('./components/DoorStepService/UrbanScraper/UrbanScraper.routes');
 
 const { ProductOrder } = require('./components/Shopping/ProductCart/ProductCart.model');
 const {ServiceOrder}=require('./components/DoorStepService/ServiceProductCart/ServiceProductCart.model')
@@ -51,6 +52,7 @@ global.broadcastLog = (log) => io.emit("scraper-log", log);
 
 
 app.use('/api/v1/scraper', scraperRoutes(io));
+app.use('/api/v1/scraper-urban', UrbanScraperRoutes(io));
 
 OtherRoutes.default(app);
 ShoppingRoutes.default(app);
