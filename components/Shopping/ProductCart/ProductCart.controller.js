@@ -8,7 +8,323 @@ const PaytmChecksum = require("paytmchecksum");
 const https = require("https");
 const crypto = require('crypto');
 const cron = require('node-cron');
-const { brandmodel } = require('../ProductsBrand/ProductsBrand.model')
+const { brandmodel } = require('../ProductsBrand/ProductsBrand.model');
+const PDFDocument = require('pdfkit');
+const fs = require('fs');
+const path = require('path');
+const sendWhatsAppInvoice = async (order, pdfUrl) => {
+    try {
+        const phone = order?.UserDetails?.Phone;
+        if (!phone) {
+            console.error('sendWhatsAppInvoice: No phone number on order', safeId(order._id));
+            return;
+        }
+
+        const userName = order?.UserDetails?.UserName || order?.UserDetails?.AddresserName || "Customer";
+        const orderId = safeId(order._id);
+        const amount = String(order.FinalCartPrice || order.PaymentSession?.amount || "");
+        const now = new Date();
+
+        const date = now.toLocaleDateString("en-IN", {
+            day: "2-digit", month: "2-digit", year: "numeric"
+        }).replace(/\//g, "-");
+
+        const time = now.toLocaleTimeString("en-IN", {
+            hour: "2-digit", minute: "2-digit", hour12: true
+        }).toUpperCase();
+
+        const orderTrackUrl = `https://dealshopping.in/order/DS${orderId}`;
+
+        const payload = {
+            template_name: process.env.WATI_TEMPLATE,
+            broadcast_name: "invoice_message",
+            parameters: [
+                { name: "1", value: userName },
+                { name: "2", value: orderId },
+                { name: "3", value: amount },
+                { name: "4", value: date },
+                { name: "5", value: time },
+                { name: "6", value: orderTrackUrl },
+                { name: "pdfLink", value: pdfUrl }
+            ],
+            headerParams: [pdfUrl],
+            channel_number: process.env.WATI_CHANNEL_NUMBER
+        };
+
+        const whatsappNumber = `91${phone}`;
+        const url = `https://live-mt-server.wati.io/${process.env.WATI_CODE}/api/v1/sendTemplateMessage?whatsappNumber=${whatsappNumber}`;
+
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${process.env.WATI_TOKEN}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            console.error('sendWhatsAppInvoice WATI Error:', JSON.stringify(result));
+        } else {
+            console.log('sendWhatsAppInvoice WATI Success:', JSON.stringify(result));
+        }
+    } catch (err) {
+        console.error('sendWhatsAppInvoice Exception:', err?.message || err);
+    }
+};
+
+
+const generateInvoicePdf = async (order) => {
+    return new Promise((resolve, reject) => {
+        try {
+            const orderId = safeId(order._id);
+            const invoiceDir = path.join(__dirname, '..', '..', 'public', 'invoices');
+
+            if (!fs.existsSync(invoiceDir)) {
+                fs.mkdirSync(invoiceDir, { recursive: true });
+            }
+
+            const fileName = `Invoice_${orderId}.pdf`;
+            const filePath = path.join(invoiceDir, fileName);
+            const fileUrl = `${process.env.BACKEND_URL}/invoices/${fileName}`;
+
+            const doc = new PDFDocument({ margin: 50, size: 'A4' });
+            const stream = fs.createWriteStream(filePath);
+            doc.pipe(stream);
+
+            const now = new Date();
+            const dateStr = now.toLocaleDateString("en-IN", {
+                day: "2-digit", month: "2-digit", year: "numeric"
+            }).replace(/\//g, "-");
+            const timeStr = now.toLocaleTimeString("en-IN", {
+                hour: "2-digit", minute: "2-digit", hour12: true
+            }).toUpperCase();
+
+            const userName = order?.UserDetails?.UserName || order?.UserDetails?.AddresserName || "Customer";
+            const phone = order?.UserDetails?.Phone || "";
+            const email = order?.UserDetails?.Email || "";
+            const addresserName = order?.UserDetails?.AddresserName || "";
+            const addresserNum = order?.UserDetails?.AddresserNumber || "";
+            const addressType = order?.UserDetails?.AddressType || "Home";
+            const street = order?.UserDetails?.Street || "";
+            const city = order?.UserDetails?.City || "";
+            const state = order?.UserDetails?.State || "";
+            const country = order?.UserDetails?.Country || "";
+            const postalCode = order?.UserDetails?.PostalCode || "";
+            const manualAddress = order?.UserDetails?.ManualAddress || "";
+
+            const addressParts = [street, city, state, postalCode, country].filter(Boolean);
+            const fullAddress = manualAddress || (addressParts.length ? addressParts.join(', ') : '');
+
+            const totalCartPrice = Number(order.TotalCartPrice || 0);
+            const discountCartPrice = Number(order.DiscountCartPrice || 0);
+            const shippingCharges = Number(order.ShippingCharges || 0);
+            const finalCartPrice = Number(order.FinalCartPrice || order.PaymentSession?.amount || 0);
+
+            const txnId = order?.PaymentSession?.txnId || "N/A";
+            const paymentGateway = order?.PaymentSession?.paymentGateway || "Paytm";
+            const paymentStatus = order?.PaymentSession?.status || "SUCCESS";
+            const pageW = doc.page.width;
+            const pageH = doc.page.height;
+            const mL = 50;
+            const mR = 545;
+            doc.rect(0, 0, pageW, 85).fill('#6200EE');
+
+            doc.fillColor('#ffffff')
+                .fontSize(28).font('Helvetica-Bold')
+                .text('DealShopping', mL, 20, { align: 'left' });
+            doc.fontSize(10).font('Helvetica')
+                .text('Your one-stop shopping destination', mL, 55, { align: 'left' });
+
+            doc.fontSize(22).font('Helvetica-Bold')
+                .text('INVOICE', 0, 28, { align: 'right', width: pageW - mL });
+
+            doc.y = 105;
+
+            const infoY = doc.y;
+            const halfW = 220;
+            const leftX = mL;
+            const rightX = 320;
+
+            const drawKV = (label, value, x, y, valueColor = '#111111') => {
+                doc.fontSize(9).font('Helvetica-Bold').fillColor('#777777')
+                    .text(label, x, y, { width: 90, continued: false });
+                doc.fontSize(9).font('Helvetica').fillColor(valueColor)
+                    .text(value, x + 95, y, { width: halfW - 95 });
+            };
+
+            drawKV('Order ID :', `DS${orderId}`, leftX, infoY);
+            drawKV('Date :', dateStr, leftX, infoY + 16);
+            drawKV('Time :', timeStr, leftX, infoY + 32);
+            drawKV('Txn ID :', txnId, leftX, infoY + 48);
+
+            drawKV('Gateway :', paymentGateway, rightX, infoY);
+            drawKV('Status :', paymentStatus, rightX, infoY + 16,
+                paymentStatus === 'SUCCESS' ? '#27ae60' : '#e74c3c');
+            drawKV('Address Type :', addressType, rightX, infoY + 32);
+
+            doc.y = infoY + 72;
+
+            doc.moveTo(mL, doc.y).lineTo(mR, doc.y)
+                .strokeColor('#dddddd').lineWidth(1).stroke();
+            doc.moveDown(0.6);
+
+            doc.fontSize(12).font('Helvetica-Bold').fillColor('#6200EE')
+                .text('Bill To', mL, doc.y);
+            doc.moveDown(0.3);
+
+            doc.fontSize(9).font('Helvetica').fillColor('#333333');
+            doc.text(`Customer Name  : ${userName}`);
+            if (addresserName && addresserName !== userName)
+                doc.text(`Addressee      : ${addresserName}`);
+            if (addresserNum)
+                doc.text(`Addressee Ph   : ${addresserNum}`);
+            if (phone)
+                doc.text(`Phone          : ${phone}`);
+            if (email)
+                doc.text(`Email          : ${email}`);
+            if (fullAddress)
+                doc.text(`Address        : ${fullAddress}`);
+
+            doc.moveDown(0.6);
+            doc.moveTo(mL, doc.y).lineTo(mR, doc.y)
+                .strokeColor('#dddddd').lineWidth(1).stroke();
+            doc.moveDown(0.6);
+            doc.fontSize(12).font('Helvetica-Bold').fillColor('#6200EE')
+                .text('Order Items', mL, doc.y);
+            doc.moveDown(0.4);
+
+            const col = {
+                no: mL,       
+                name: 75,
+                variant: 220,
+                qty: 355,
+                unit: 385,
+                total: 470
+            };
+
+            const tHeaderY = doc.y;
+            doc.rect(mL, tHeaderY, 495, 20).fill('#6200EE');
+            doc.fillColor('#ffffff').fontSize(8).font('Helvetica-Bold');
+            doc.text('#', col.no, tHeaderY + 6);
+            doc.text('Product', col.name, tHeaderY + 6, { width: 140 });
+            doc.text('Variant', col.variant, tHeaderY + 6, { width: 130 });
+            doc.text('Qty', col.qty, tHeaderY + 6, { width: 25 });
+            doc.text('Unit Price', col.unit, tHeaderY + 6, { width: 80 });
+            doc.text('Total', col.total, tHeaderY + 6, { width: 70 });
+
+            let rowY = tHeaderY + 22;
+
+            (order.Products || []).forEach((item, index) => {
+                const productName = item?.ProductData?.ProductInfo?.ProductName || 'Product';
+
+                const variantName = item?.ProductData?.VariantProductInfo?.VariantProductName || '';
+                const variantFields = (item?.ProductData?.VariantProductInfo?.VariantFields || [])
+                    .map(f => `${f.VariantName}: ${f.VariantValue}${f.Extension ? f.Extension : ''}`)
+                    .join(', ');
+                const variantLabel = variantFields || variantName || '-';
+
+                const qty = Number(item.Quantity) || 1;
+                const unitPrice = Number(item?.ProductData?.VariantProductInfo?.Price || 0);
+                const totalPrice = Number(item.TotalPrice || 0);
+                const discount = Number(item.DiscountPrice || 0);
+                const finalPrice = Number(item.FinalPrice || 0);
+
+                const rowH = 22;
+                if (index % 2 === 0) {
+                    doc.rect(mL, rowY - 3, 495, rowH).fill('#f5f0ff');
+                }
+
+                doc.fillColor('#333333').fontSize(8).font('Helvetica');
+                doc.text(String(index + 1), col.no, rowY, { width: 20 });
+                doc.text(productName, col.name, rowY, { width: 140, ellipsis: true });
+                doc.text(variantLabel, col.variant, rowY, { width: 130, ellipsis: true });
+                doc.text(String(qty), col.qty, rowY, { width: 25 });
+                doc.text(`Rs.${unitPrice.toFixed(2)}`, col.unit, rowY, { width: 80 });
+                doc.text(`Rs.${finalPrice.toFixed(2)}`, col.total, rowY, { width: 70 });
+
+                rowY += rowH;
+
+                if (discount > 0) {
+                    doc.fillColor('#e74c3c').fontSize(7.5).font('Helvetica')
+                        .text(`  Discount applied: -Rs.${discount.toFixed(2)}`,
+                            col.name, rowY, { width: 400 });
+                    rowY += 14;
+                }
+
+                const allServices = [
+                    ...(item.ProductServices || []),
+                    ...(item.ProductFreeServices || [])
+                ];
+                allServices.forEach(svc => {
+                    const svcAmt = Number(svc.ProductServiceAmount || 0);
+                    doc.fillColor('#555577').fontSize(7.5).font('Helvetica')
+                        .text(`  + Service: ${svc.ServiceName || 'Service'} — Rs.${svcAmt.toFixed(2)}`,
+                            col.name, rowY, { width: 400 });
+                    rowY += 13;
+                });
+            });
+
+            doc.moveTo(mL, rowY).lineTo(mR, rowY)
+                .strokeColor('#dddddd').lineWidth(1).stroke();
+            rowY += 12;
+
+            
+            const sumLabelX = 360;
+            const sumValX = 460;
+            const sumWidth = 80;
+
+            const drawSummaryRow = (label, value, bold = false, color = '#333333') => {
+                doc.fontSize(9)
+                    .font(bold ? 'Helvetica-Bold' : 'Helvetica')
+                    .fillColor('#666666')
+                    .text(label, sumLabelX, rowY, { width: 95 });
+                doc.font(bold ? 'Helvetica-Bold' : 'Helvetica')
+                    .fillColor(color)
+                    .text(value, sumValX, rowY, { width: sumWidth, align: 'right' });
+                rowY += 17;
+            };
+
+            drawSummaryRow('Subtotal :', `Rs.${totalCartPrice.toFixed(2)}`);
+            if (discountCartPrice > 0)
+                drawSummaryRow('Discount :', `-Rs.${discountCartPrice.toFixed(2)}`, false, '#e74c3c');
+            if (shippingCharges > 0)
+                drawSummaryRow('Shipping :', `Rs.${shippingCharges.toFixed(2)}`);
+
+            doc.moveTo(sumLabelX, rowY).lineTo(mR, rowY)
+                .strokeColor('#6200EE').lineWidth(1).stroke();
+            rowY += 6;
+
+            drawSummaryRow('Grand Total :', `Rs.${finalCartPrice.toFixed(2)}`, true, '#6200EE');
+
+            
+            const footerY = pageH - 70;
+            doc.moveTo(mL, footerY).lineTo(mR, footerY)
+                .strokeColor('#6200EE').lineWidth(2).stroke();
+
+            doc.fontSize(9).font('Helvetica-Bold').fillColor('#6200EE')
+                .text('Thank you for shopping with DealShopping!', mL, footerY + 10, { align: 'center', width: 495 });
+            doc.fontSize(8).font('Helvetica').fillColor('#888888')
+                .text('support@dealshopping.in  |  https://dealshopping.in', mL, footerY + 25, { align: 'center', width: 495 });
+            doc.fontSize(7).fillColor('#aaaaaa')
+                .text(`Invoice generated on ${dateStr} at ${timeStr}  |  Txn: ${txnId}`,
+                    mL, footerY + 40, { align: 'center', width: 495 });
+
+            doc.end();
+            stream.on('finish', () => resolve(fileUrl));
+            stream.on('error', (err) => reject(err));
+
+        } catch (err) {
+            reject(err);
+        }
+    });
+};
+
+
+const getInvoicePdfUrl = async (order) => {
+    return await generateInvoicePdf(order);
+};
 module.exports = {
 
 
@@ -1877,7 +2193,7 @@ module.exports = {
                 const checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), process.env.PAYTM_KEY);
                 paytmParams.head = { signature: checksum };
                 const post_data = JSON.stringify(paytmParams);
- 
+
                 const options = {
                     hostname: "securegw.paytm.in",
                     port: 443,
@@ -1911,6 +2227,7 @@ module.exports = {
                 return res.redirect(`${FrontendRenderDomain}/order-checked?paytmorderId=${encodeURIComponent(paymentInfo.orderId || "")}&status=ORDER-NOT-FOUND`);
             }
 
+
             const UserId = FoundOrder.UserId;
             const orderCompanyId = FoundOrder.companyId;
             const FoundCart = await ProductCart.findOne({ UserId, companyId: orderCompanyId, _id: FoundOrder.CartId });
@@ -1936,7 +2253,14 @@ module.exports = {
                 FoundOrder.PaymentSession.txnId = paymentInfo.txnId;
                 FoundOrder.PaymentSession.amount = paymentInfo.amount;
                 await FoundOrder.save();
-
+                (async () => {
+                    try {
+                        const pdfUrl = await getInvoicePdfUrl(FoundOrder);
+                        await sendWhatsAppInvoice(FoundOrder, pdfUrl);
+                    } catch (err) {
+                        console.error('Invoice Send Error:', err?.message || err);
+                    }
+                })();
                 try {
                     for (const cartProd of (FoundCart?.Products || [])) {
                         const referenced = (FoundOrder.Products || []).filter(p => safeId(p?.CartProductId) == safeId(cartProd._id));
@@ -2212,7 +2536,8 @@ module.exports = {
                 success: false
             });
         }
-    }
+    },
+
 
 
 

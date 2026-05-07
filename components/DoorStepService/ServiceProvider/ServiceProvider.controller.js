@@ -8,10 +8,7 @@ const ServiceAppointmentModel = require('../ServiceAppointment/ServiceAppointmen
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcryptjs')
 
-
-
 module.exports = {
-
 
     addServiceProvider: async (req, resp) => {
 

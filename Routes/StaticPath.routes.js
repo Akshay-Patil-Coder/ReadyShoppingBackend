@@ -14,4 +14,5 @@ module.exports = {
   '/api/v1/ServiceBannerImage': './components/public/ServiceBannerImage',
   '/api/v1/ServiceProductImage': './components/public/ServiceProductImage',
   '/api/v1/ServiceProviderImage': './components/public/ServiceProviderImage',
+  '/api/v1/invoices': './components/public/invoices',
 };
