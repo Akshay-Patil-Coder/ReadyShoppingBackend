@@ -1177,242 +1177,243 @@ module.exports = {
     },
 
 
-   getServiceCartData: async (matchCondition) => {
-    try {
-        const data = await ServiceCart.aggregate([
-            { $match: matchCondition },
+    getServiceCartData: async (matchCondition) => {
+        try {
+            const data = await ServiceCart.aggregate([
+                { $match: matchCondition },
 
-            {
-                $lookup: {
-                    from: 'serviceproducts',
-                    localField: 'Services.ServiceProductId',
-                    foreignField: '_id',
-                    as: '_ServiceProducts',
+                {
+                    $lookup: {
+                        from: 'serviceproducts',
+                        localField: 'Services.ServiceProductId',
+                        foreignField: '_id',
+                        as: '_ServiceProducts',
+                    },
                 },
-            },
 
-            {
-                $lookup: {
-                    from: 'serviceproviders',
-                    localField: 'Services.ProviderId',
-                    foreignField: '_id',
-                    as: '_Providers',
+                {
+                    $lookup: {
+                        from: 'serviceproviders',
+                        localField: 'Services.ProviderId',
+                        foreignField: '_id',
+                        as: '_Providers',
+                    },
                 },
-            },
 
-            {
-                $lookup: {
-                    from: 'serviceappointments',
-                    localField: 'Services.AppointmentId',
-                    foreignField: 'schedule.appointments._id',
-                    as: '_Appointments',
+                {
+                    $lookup: {
+                        from: 'serviceappointments',
+                        localField: 'Services.AppointmentId',
+                        foreignField: 'schedule.appointments._id',
+                        as: '_Appointments',
+                    },
                 },
-            },
 
-            {
-                $addFields: {
-                    Services: {
-                        $map: {
-                            input: '$Services',
-                            as: 'srv',
-                            in: {
-                                $mergeObjects: [
-                                    '$$srv',
+                {
+                    $addFields: {
+                        Services: {
+                            $map: {
+                                input: '$Services',
+                                as: 'srv',
+                                in: {
+                                    $mergeObjects: [
+                                        '$$srv',
 
-                                    {
-                                        ServiceProductInfo: {
-                                            $let: {
-                                                vars: {
-                                                    product: {
-                                                        $arrayElemAt: [
-                                                            {
-                                                                $filter: {
-                                                                    input: '$_ServiceProducts',
-                                                                    as: 'sp',
-                                                                    cond: { $eq: ['$$sp._id', '$$srv.ServiceProductId'] },
+                                        {
+                                            ServiceProductInfo: {
+                                                $let: {
+                                                    vars: {
+                                                        product: {
+                                                            $arrayElemAt: [
+                                                                {
+                                                                    $filter: {
+                                                                        input: '$_ServiceProducts',
+                                                                        as: 'sp',
+                                                                        cond: { $eq: ['$$sp._id', '$$srv.ServiceProductId'] },
+                                                                    },
                                                                 },
-                                                            },
-                                                            0,
-                                                        ],
+                                                                0,
+                                                            ],
+                                                        },
                                                     },
-                                                },
-                                                in: {
-                                                    ServiceProductId: '$$product._id',
-                                                    ServiceName:      '$$product.ServiceName',
-                                                    Images:           '$$product.serviceImages',
-                                                    Description:      '$$product.service_description',
-                                                    BasePrice:        '$$product.service_base_price',
-                                                    OfferPercentage:  '$$product.offerPercentage',
-                                                    ServiceTime:      '$$product.serviceTime',
+                                                    in: {
+                                                        ServiceProductId: '$$product._id',
+                                                        ServiceName: '$$product.ServiceName',
+                                                        Images: '$$product.serviceImages',
+                                                        Description: '$$product.service_description',
+                                                        BasePrice: '$$product.service_base_price',
+                                                        OfferPercentage: '$$product.offerPercentage',
+                                                        ServiceTime: '$$product.serviceTime',
+                                                    },
                                                 },
                                             },
                                         },
-                                    },
 
-                                    {
-                                        RemainingServicePart: {
-                                            $let: {
-                                                vars: {
-                                                    product: {
-                                                        $arrayElemAt: [
-                                                            {
-                                                                $filter: {
-                                                                    input: '$_ServiceProducts',
-                                                                    as: 'sp',
-                                                                    cond: { $eq: ['$$sp._id', '$$srv.ServiceProductId'] },
-                                                                },
-                                                            },
-                                                            0,
-                                                        ],
-                                                    },
-                                                },
-                                                in: {
-                                                    $filter: {
-                                                        input: '$$product.service_parts',
-                                                        as: 'allPart',
-                                                        cond: {
-                                                            $not: {
-                                                                $in: [
-                                                                    '$$allPart.partName',
-                                                                    {
-                                                                        $map: {
-                                                                            input: '$$srv.Parts',
-                                                                            as: 'selectedPart',
-                                                                            in: '$$selectedPart.partName',
-                                                                        },
+                                        {
+                                            RemainingServicePart: {
+                                                $let: {
+                                                    vars: {
+                                                        product: {
+                                                            $arrayElemAt: [
+                                                                {
+                                                                    $filter: {
+                                                                        input: '$_ServiceProducts',
+                                                                        as: 'sp',
+                                                                        cond: { $eq: ['$$sp._id', '$$srv.ServiceProductId'] },
                                                                     },
-                                                                ],
+                                                                },
+                                                                0,
+                                                            ],
+                                                        },
+                                                    },
+                                                    in: {
+                                                        $filter: {
+                                                            input: '$$product.service_parts',
+                                                            as: 'allPart',
+                                                            cond: {
+                                                                $not: {
+                                                                    $in: [
+                                                                        '$$allPart.partName',
+                                                                        {
+                                                                            $map: {
+                                                                                input: '$$srv.Parts',
+                                                                                as: 'selectedPart',
+                                                                                in: '$$selectedPart.partName',
+                                                                            },
+                                                                        },
+                                                                    ],
+                                                                },
                                                             },
                                                         },
                                                     },
                                                 },
                                             },
                                         },
-                                    },
 
-                                    {
-                                        ProviderInfo: {
-                                            $let: {
-                                                vars: {
-                                                    provider: {
-                                                        $arrayElemAt: [
-                                                            {
-                                                                $filter: {
-                                                                    input: '$_Providers',
-                                                                    as: 'pv',
-                                                                    cond: { $eq: ['$$pv._id', '$$srv.ProviderId'] },
+                                        {
+                                            ProviderInfo: {
+                                                $let: {
+                                                    vars: {
+                                                        provider: {
+                                                            $arrayElemAt: [
+                                                                {
+                                                                    $filter: {
+                                                                        input: '$_Providers',
+                                                                        as: 'pv',
+                                                                        cond: { $eq: ['$$pv._id', '$$srv.ProviderId'] },
+                                                                    },
                                                                 },
-                                                            },
-                                                            0,
-                                                        ],
+                                                                0,
+                                                            ],
+                                                        },
                                                     },
-                                                },
-                                                in: {
-                                                    ProviderId:        '$$provider._id',
-                                                    ProviderFirstName: '$$provider.FirstName',
-                                                    ProviderLastName:  '$$provider.LastName',
-                                                    Phone:             '$$provider.Phone',
+                                                    in: {
+                                                        ProviderId: '$$provider._id',
+                                                        ProviderFirstName: '$$provider.FirstName',
+                                                        ProviderLastName: '$$provider.LastName',
+                                                        Phone: '$$provider.Phone',
+                                                    },
                                                 },
                                             },
                                         },
-                                    },
 
-                                    {
-                                        AppointmentInfo: {
-                                            $let: {
-                                                vars: {
-                                                    apptDoc: {
-                                                        $arrayElemAt: [
-                                                            {
-                                                                $filter: {
-                                                                    input: '$_Appointments',
-                                                                    as: 'ad',
-                                                                    cond: {
-                                                                        $gt: [
-                                                                            {
-                                                                                $size: {
-                                                                                    $filter: {
-                                                                                        input: '$$ad.schedule',
-                                                                                        as: 'sch',
-                                                                                        cond: {
-                                                                                            $gt: [
-                                                                                                {
-                                                                                                    $size: {
-                                                                                                        $filter: {
-                                                                                                            input: '$$sch.appointments',
-                                                                                                            as: 'a',
-                                                                                                            cond: { $eq: ['$$a._id', '$$srv.AppointmentId'] },
+                                        {
+                                            AppointmentInfo: {
+                                                $let: {
+                                                    vars: {
+                                                        apptDoc: {
+                                                            $arrayElemAt: [
+                                                                {
+                                                                    $filter: {
+                                                                        input: '$_Appointments',
+                                                                        as: 'ad',
+                                                                        cond: {
+                                                                            $gt: [
+                                                                                {
+                                                                                    $size: {
+                                                                                        $filter: {
+                                                                                            input: '$$ad.schedule',
+                                                                                            as: 'sch',
+                                                                                            cond: {
+                                                                                                $gt: [
+                                                                                                    {
+                                                                                                        $size: {
+                                                                                                            $filter: {
+                                                                                                                input: '$$sch.appointments',
+                                                                                                                as: 'a',
+                                                                                                                cond: { $eq: ['$$a._id', '$$srv.AppointmentId'] },
+                                                                                                            },
                                                                                                         },
                                                                                                     },
-                                                                                                },
-                                                                                                0,
-                                                                                            ],
-                                                                                        },
-                                                                                    },
-                                                                                },
-                                                                            },
-                                                                            0,
-                                                                        ],
-                                                                    },
-                                                                },
-                                                            },
-                                                            0,
-                                                        ],
-                                                    },
-                                                },
-                                                in: {
-                                                    $let: {
-                                                        vars: {
-                                                            scheduleEntry: {
-                                                                $arrayElemAt: [
-                                                                    {
-                                                                        $filter: {
-                                                                            input: '$$apptDoc.schedule',
-                                                                            as: 'sch',
-                                                                            cond: {
-                                                                                $gt: [
-                                                                                    {
-                                                                                        $size: {
-                                                                                            $filter: {
-                                                                                                input: '$$sch.appointments',
-                                                                                                as: 'a',
-                                                                                                cond: { $eq: ['$$a._id', '$$srv.AppointmentId'] },
+                                                                                                    0,
+                                                                                                ],
                                                                                             },
                                                                                         },
                                                                                     },
-                                                                                    0,
-                                                                                ],
-                                                                            },
+                                                                                },
+                                                                                0,
+                                                                            ],
                                                                         },
                                                                     },
-                                                                    0,
-                                                                ],
-                                                            },
+                                                                },
+                                                                0,
+                                                            ],
                                                         },
-                                                        in: {
-                                                            $let: {
-                                                                vars: {
-                                                                    appt: {
-                                                                        $arrayElemAt: [
-                                                                            {
-                                                                                $filter: {
-                                                                                    input: '$$scheduleEntry.appointments',
-                                                                                    as: 'a',
-                                                                                    cond: { $eq: ['$$a._id', '$$srv.AppointmentId'] },
+                                                    },
+                                                    in: {
+                                                        $let: {
+                                                            vars: {
+                                                                scheduleEntry: {
+                                                                    $arrayElemAt: [
+                                                                        {
+                                                                            $filter: {
+                                                                                input: '$$apptDoc.schedule',
+                                                                                as: 'sch',
+                                                                                cond: {
+                                                                                    $gt: [
+                                                                                        {
+                                                                                            $size: {
+                                                                                                $filter: {
+                                                                                                    input: '$$sch.appointments',
+                                                                                                    as: 'a',
+                                                                                                    cond: { $eq: ['$$a._id', '$$srv.AppointmentId'] },
+                                                                                                },
+                                                                                            },
+                                                                                        },
+                                                                                        0,
+                                                                                    ],
                                                                                 },
                                                                             },
-                                                                            0,
-                                                                        ],
-                                                                    },
+                                                                        },
+                                                                        0,
+                                                                    ],
                                                                 },
-                                                                in: {
-                                                                    AppointmentId: '$$appt._id',
-                                                                    Date:          '$$scheduleEntry.date',
-                                                                    Day:           '$$scheduleEntry.day',
-                                                                    StartTime:     '$$appt.ServiceStartTime',
-                                                                    EndTime:       '$$appt.ServiceEndTime',
-                                                                    Booked:        '$$appt.booked',
-                                                                    Selected:      '$$appt.selected',
+                                                            },
+                                                            in: {
+                                                                $let: {
+                                                                    vars: {
+                                                                        appt: {
+                                                                            $arrayElemAt: [
+                                                                                {
+                                                                                    $filter: {
+                                                                                        input: '$$scheduleEntry.appointments',
+                                                                                        as: 'a',
+                                                                                        cond: { $eq: ['$$a._id', '$$srv.AppointmentId'] },
+                                                                                    },
+                                                                                },
+                                                                                0,
+                                                                            ],
+                                                                        },
+                                                                    },
+                                                                    in: {
+                                                                        AppointmentId: '$$appt._id',
+                                                                        Date: '$$scheduleEntry.date',
+                                                                        Day: '$$scheduleEntry.day',
+                                                                        StartTime: '$$appt.ServiceStartTime',
+                                                                        EndTime: '$$appt.ServiceEndTime',
+                                                                        Booked: '$$appt.booked',
+                                                                        Selected: '$$appt.selected',
+                                                                    },
                                                                 },
                                                             },
                                                         },
@@ -1420,31 +1421,30 @@ module.exports = {
                                                 },
                                             },
                                         },
-                                    },
 
-                                ],
+                                    ],
+                                },
                             },
                         },
                     },
                 },
-            },
 
-            {
-                $project: {
-                    _ServiceProducts: 0,
-                    _Providers:       0,
-                    _Appointments:    0,
+                {
+                    $project: {
+                        _ServiceProducts: 0,
+                        _Providers: 0,
+                        _Appointments: 0,
+                    },
                 },
-            },
-        ]);
+            ]);
 
-        return data || null;
+            return data || null;
 
-    } catch (error) {
-        console.error('getServiceCartDataError:', error);
-        throw new Error('Failed to fetch service cart data');
-    }
-},
+        } catch (error) {
+            console.error('getServiceCartDataError:', error);
+            throw new Error('Failed to fetch service cart data');
+        }
+    },
 
     getServiceOrders: async (req, res) => {
         try {
@@ -1848,7 +1848,8 @@ module.exports = {
     },
     sendOtpSms: async (phoneno, otp) => {
         const msg = encodeURIComponent(
-            `Use ${otp} as your service confirmation OTP. Your OTP is confidential. familycare never calls you asking for OTP.`
+            // `Use ${otp} as your service confirmation OTP. Your OTP is confidential. familycare never calls you asking for OTP.`
+            `Use ${OTP} as your website login OTP. Your OTP is confidential. familycare never calls you asking for OTP.`
         );
         const to = '91' + phoneno;
         const url = `https://sms.cell24x7.com:1111/mspProducerM/sendSMS?user=familycare&pwd=Info@2020&sender=FMLYCR&mobile=${to}&msg=${msg}&mt=0&tempId=1007457883683974747`;
