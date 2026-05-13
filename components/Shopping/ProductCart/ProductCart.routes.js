@@ -47,4 +47,16 @@ router.get('/getAllOrders', authentication, (req, res) => {
     
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 })
+router.post('/requestOtp/:orderId/:productId', authentication, (req, res) => {
+    serviceProductCart.requestOtp(req, res)
+})
+router.post('/verifyOtpAndComplete/:orderId/:productId', authentication, (req, res) => {
+    serviceProductCart.verifyOtpAndComplete(req, res)
+})
+router.post('/resendOtp/:orderId/:productId', authentication, (req, res) => {
+    serviceProductCart.resendOtp(req, res)
+})
+router.post('/updateServiceStatus/:orderId/:productId', authentication, (req, res) => {
+    serviceProductCart.updateServiceStatus(req, res)
+})
 module.exports = router

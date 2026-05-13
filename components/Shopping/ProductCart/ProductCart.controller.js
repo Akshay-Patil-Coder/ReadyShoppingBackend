@@ -196,7 +196,7 @@ const generateInvoicePdf = async (order) => {
             doc.moveDown(0.4);
 
             const col = {
-                no: mL,       
+                no: mL,
                 name: 75,
                 variant: 220,
                 qty: 355,
@@ -270,7 +270,7 @@ const generateInvoicePdf = async (order) => {
                 .strokeColor('#dddddd').lineWidth(1).stroke();
             rowY += 12;
 
-            
+
             const sumLabelX = 360;
             const sumValX = 460;
             const sumWidth = 80;
@@ -298,7 +298,7 @@ const generateInvoicePdf = async (order) => {
 
             drawSummaryRow('Grand Total :', `Rs.${finalCartPrice.toFixed(2)}`, true, '#6200EE');
 
-            
+
             const footerY = pageH - 70;
             doc.moveTo(mL, footerY).lineTo(mR, footerY)
                 .strokeColor('#6200EE').lineWidth(2).stroke();
@@ -2537,7 +2537,208 @@ module.exports = {
             });
         }
     },
+    resendOtp: async (req, res) => {
+        try {
+            const { orderId, productId } = req.params;
 
+            const order = await ProductOrder.findById(orderId);
+            if (!order) return res.status(404).json({ message: 'Order not found' });
+
+            const service = order.Products.id(productId);
+            if (!service) return res.status(404).json({ message: 'Product not found' });
+
+            const currentStatus = service.OrderStatus.at(-1)?.Status;
+            if (currentStatus !== 'IN_PROGRESS') {
+                return res.status(400).json({ message: 'Service must be IN_PROGRESS to resend OTP' });
+            }
+
+            const phoneno = order.UserDetails.Phone?.toString();
+            if (!phoneno) return res.status(400).json({ message: 'Customer phone not found' });
+            let OTP = Math.floor(1000 + Math.random() * 9000);;
+            await module.exports.sendOtpSms(phoneno, OTP);
+
+            const hashedOtp = bcrypt.hashSync(OTP.toString(), 10);
+
+            service.ActiveOtp = hashedOtp;
+            service.OtpTime = new Date(Date.now() + 5 * 60 * 1000);
+
+            await order.save();
+
+            res.status(200).json({ message: 'New OTP sent to customer successfully' });
+        } catch (err) {
+            res.status(500).json({ message: err.message });
+        }
+    },
+    requestOtp: async (req, res) => {
+        try {
+            const { orderId, productId } = req.params;
+
+            const order = await ServiceOrder.findById(orderId);
+            if (!order) return res.status(404).json({ message: 'Order not found' });
+
+            const service = order.Services.id(productId);
+            if (!service) return res.status(404).json({ message: 'Service not found' });
+
+            const currentStatus = service.OrderStatus.at(-1)?.Status;
+            if (currentStatus !== 'IN_PROGRESS') {
+                return res.status(400).json({ message: `Cannot request OTP. Current status: ${currentStatus}` });
+            }
+
+            const phoneno = order.UserDetails.Phone?.toString();
+            if (!phoneno) return res.status(400).json({ message: 'Customer phone number not found' });
+
+            let OTP = Math.floor(1000 + Math.random() * 9000);;
+            await module.exports.sendOtpSms(phoneno, OTP);
+
+            const hashedOtp = bcrypt.hashSync(OTP.toString(), 10);
+
+            service.ActiveOtp = hashedOtp;
+            service.OtpTime = new Date(Date.now() + 5 * 60 * 1000);
+
+            await order.save();
+
+            res.status(200).json({ message: 'OTP sent to customer successfully' });
+        } catch (err) {
+            res.status(500).json({ message: err.message });
+        }
+    },
+    sendOtpSms: async (phoneno, otp) => {
+        const msg = encodeURIComponent(
+            `Use ${otp} as your service confirmation OTP. Your OTP is confidential. familycare never calls you asking for OTP.`
+        );
+        const to = '91' + phoneno;
+        const url = `https://sms.cell24x7.com:1111/mspProducerM/sendSMS?user=familycare&pwd=Info@2020&sender=FMLYCR&mobile=${to}&msg=${msg}&mt=0&tempId=1007457883683974747`;
+
+        try {
+            await superagent.get(url);
+        } catch (err) {
+            console.log('SMS send error:', err);
+            throw err;
+        }
+    },
+    verifyOtpAndComplete: async (req, res) => {
+        try {
+            const { orderId, productId } = req.params;
+            const { otp } = req.body;
+            const providerId = req.user.id;
+
+            if (!otp) return res.status(400).json({ message: 'OTP is required' });
+
+            const order = await ServiceOrder.findById(orderId);
+            if (!order) return res.status(404).json({ message: 'Order not found' });
+
+            const service = order.Services.id(productId);
+            if (!service) return res.status(404).json({ message: 'Service not found' });
+
+            const currentStatus = service.OrderStatus.at(-1)?.Status;
+            if (currentStatus !== 'IN_PROGRESS') {
+                return res.status(400).json({ message: `Service is not in progress. Status: ${currentStatus}` });
+            }
+
+            if (!service.ActiveOtp || !service.OtpTime) {
+                return res.status(400).json({ message: 'No OTP found. Request a new OTP first.' });
+            }
+
+            if (new Date() > new Date(service.OtpTime)) {
+                service.ActiveOtp = null;
+                service.OtpTime = null;
+                await order.save();
+                return res.status(400).json({ message: 'OTP expired. Please request a new one.' });
+            }
+
+            const isMatch = bcrypt.compareSync(otp.toString(), service.ActiveOtp);
+            if (!isMatch) {
+                return res.status(400).json({ message: 'Invalid OTP. Please check and try again.' });
+            }
+
+            service.OrderStatus.push({
+                Status: 'COMPLETED',
+                StatusAt: new Date(),
+                AssignedTo: providerId,
+                Reason: 'Service confirmed by customer OTP'
+            });
+
+            service.ActiveOtp = null;
+            service.OtpTime = null;
+
+            await order.save();
+
+            res.status(200).json({
+                message: 'Service confirmed and marked as completed',
+                service: {
+                    id: service._id,
+                    status: 'COMPLETED',
+                    serviceName: service.ServiceData.ServiceInfo.ServiceName
+                }
+            });
+        } catch (err) {
+            res.status(500).json({ message: err.message });
+        }
+    },
+    updateServiceStatus: async (req, res) => {
+        try {
+            const { orderId, productId } = req.params;
+            const { status, reason } = req.body;
+            const providerId = req.user._id;
+
+            if (!status) {
+                return res.status(400).json({ message: 'Status is required' });
+            }
+
+            const VALID_TRANSITIONS = {
+                INITIATED: ['CONFIRMED', 'CANCELLED'],
+                CONFIRMED: ['IN_PROGRESS', 'CANCELLED'],
+                IN_PROGRESS: ['CANCELLED'],
+                COMPLETED: [],
+                CANCELLED: []
+            };
+
+            const order = await ServiceOrder.findById(orderId);
+            if (!order) return res.status(404).json({ message: 'Order not found' });
+
+            const service = order.Services.id(productId);
+            if (!service) return res.status(404).json({ message: 'Service not found' });
+
+            const currentStatus = service.OrderStatus.at(-1)?.Status ?? 'INITIATED';
+
+            if (status === 'COMPLETED') {
+                return res.status(400).json({
+                    message: 'Cannot manually set COMPLETED. Use the OTP verification endpoint.'
+                });
+            }
+
+            const allowed = VALID_TRANSITIONS[currentStatus];
+            if (!allowed || !allowed.includes(status)) {
+                return res.status(400).json({
+                    message: `Invalid transition: ${currentStatus} → ${status}`,
+                    allowedTransitions: allowed
+                });
+            }
+
+            service.OrderStatus.push({
+                Status: status,
+                StatusAt: new Date(),
+                AssignedTo: providerId,
+                Reason: reason || null
+            });
+
+            if (status === 'CANCELLED') {
+                service.ActiveOtp = null;
+                service.OtpTime = null;
+            }
+
+            await order.save();
+
+            res.status(200).json({
+                message: `Service status updated to ${status}`,
+                currentStatus: status,
+                statusHistory: service.OrderStatus
+            });
+
+        } catch (err) {
+            res.status(500).json({ message: err.message });
+        }
+    },
 
 
 

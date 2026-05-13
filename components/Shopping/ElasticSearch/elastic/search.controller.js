@@ -1,5 +1,6 @@
 const client = require('./client');
 const { parseSearchQuery } = require('../utils/queryParser');
+const ProductBanner = require('../../ShoppingBanners/ShoppingBanners.model')
 
 exports.searchSuggestions = async (req, res) => {
   try {
@@ -305,7 +306,7 @@ exports.getProductsById_ES = async (req, res) => {
       must.push({
         bool: {
           should: variantQueries,
-          minimum_should_match: 1  
+          minimum_should_match: 1
         }
       });
     }
@@ -364,7 +365,8 @@ exports.getProductsById_ES = async (req, res) => {
       PriceSort,
       BatchName,
       UserId,
-      VariantProductId
+      VariantProductId,
+      BannerId
     } = req.query;
 
     const {
@@ -382,6 +384,41 @@ exports.getProductsById_ES = async (req, res) => {
 
     let derivedProductId = null;
 
+    if (BannerId) {
+
+      if (!mongoose.Types.ObjectId.isValid(BannerId)) {
+
+        return res.status(400).json({
+          success: false,
+          message: "Invalid BannerId"
+        });
+
+      }
+
+      let FoundBanner = await ProductBanner.findOne({
+        _id: mongoose.Types.ObjectId.createFromHexString(BannerId),
+        companyId: mongoose.Types.ObjectId.createFromHexString(companyId)
+      });
+
+      if (!FoundBanner) {
+
+        return res.status(404).json({
+          success: false,
+          message: "Banner Not Found"
+        });
+
+      }
+
+      VariantProductIds = FoundBanner?.VariantsProductsIds || [];
+
+      if (!VariantProductIds.length) {
+        return res.status(404).json({
+          success: false,
+          message: "No Products Found In Banner"
+        });
+      }
+
+    }
     if (VariantProductId) {
       const vpRes = await client.search({
         index: "search_suggestions",

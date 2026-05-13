@@ -4,7 +4,6 @@ const path = require('path')
 const fs = require('fs')
 const { VariantProduct } = require('../VariantsProducts/VariantsProducts.model');
 const { updateElasticById } = require('../ElasticSearch/elastic/CRUD');
-
 module.exports = {
 
     addbanner: async (req, res) => {
