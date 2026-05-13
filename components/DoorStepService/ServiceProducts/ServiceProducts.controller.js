@@ -7,7 +7,7 @@ const { Parser } = require("json2csv");
 const csvParser = require("csv-parser");
 const { ServiceWishlist } = require('../ServiceWishlist/ServiceWishlist.model');
 const csvgenerator = require('csv-writer').createObjectCsvWriter
-
+const ServiceBanner = require('../ServiceBanners/ServiceBanners.model')
 let searcher;
 module.exports = {
 
@@ -214,7 +214,7 @@ module.exports = {
         }
     },
 
-    getServicePrductData: async (matchCondition) => {
+    getServicePrductData: async (matchCondition, skip = 0, limit = 10) => {
         return await serviceProductsModel.aggregate([
             { $match: matchCondition },
 
@@ -241,14 +241,44 @@ module.exports = {
                     foreignField: "_id",
                     as: "Providers",
                 }
+            },
+            {
+                $sort: {
+                    createdAt: -1
+                }
+            },
+            {
+                $skip: skip
+            },
+            {
+                $limit: limit
             }
         ]);
     },
     getServiceProductByData: async (req, res) => {
-        const { HeadServiceId, SubServiceId, companyId, ServiceProductId, googleLocation, ProviderId, CategoryName, UserId } = req.query;
+        let {
+            HeadServiceId,
+            Search,
+            BannerId,
+            SubServiceId,
+            ServiceProductsIds,
+            companyId,
+            ServiceProductId,
+            googleLocation,
+            ProviderId,
+            CategoryName,
+            UserId,
+            page = 1,
+            limit = 10
+        } = req.query;
 
         try {
-            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
+
+            const currentPage = Number(page) || 1;
+            const perPage = Number(limit) || 10;
+
+            const skip = (currentPage - 1) * perPage;
+            let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId), isActive: true };
 
             if (HeadServiceId) {
                 if (!mongoose.Types.ObjectId.isValid(HeadServiceId)) {
@@ -265,7 +295,10 @@ module.exports = {
             }
 
             if (googleLocation) {
-                matchCondition.googleLocation = String(googleLocation);
+                matchCondition.googleLocation = {
+                    $regex: googleLocation,
+                    $options: "i"
+                };
             }
 
             if (SubServiceId) {
@@ -282,15 +315,107 @@ module.exports = {
                 matchCondition._id = mongoose.Types.ObjectId.createFromHexString(ServiceProductId);
             }
 
-            if (CategoryName) {
-                matchCondition.SubServiceName = { $regex: `^${CategoryName}$`, $options: "i" };
-            } 
+            if (Search) {
 
-            let data = await module.exports.getServicePrductData(matchCondition);
+                matchCondition.$or = [
+
+                    {
+                        ServiceName: {
+                            $regex: Search,
+                            $options: "i"
+                        }
+                    },
+
+                    {
+                        service_description: {
+                            $regex: Search,
+                            $options: "i"
+                        }
+                    },
+
+                    {
+                        googleLocation: {
+                            $regex: Search,
+                            $options: "i"
+                        }
+                    },
+
+                    {
+                        "service_parts.partName": {
+                            $regex: Search,
+                            $options: "i"
+                        }
+                    }
+
+                ];
+
+            }
+            if (typeof ServiceProductsIds === "string") {
+                ServiceProductsIds = ServiceProductsIds.split(",");
+            }
+            if (BannerId) {
+
+                if (!mongoose.Types.ObjectId.isValid(BannerId)) {
+
+                    return res.status(400).json({
+                        success: false,
+                        message: "Invalid BannerId"
+                    });
+
+                }
+
+                let FoundBanner = await ServiceBanner.findOne({
+                    _id: mongoose.Types.ObjectId.createFromHexString(BannerId),
+                    companyId: mongoose.Types.ObjectId.createFromHexString(companyId)
+                });
+
+                if (!FoundBanner) {
+
+                    return res.status(404).json({
+                        success: false,
+                        message: "Banner Not Found"
+                    });
+
+                }
+
+                ServiceProductsIds = FoundBanner?.ServicesId || [];
+
+                if (ServiceProductsIds.length) {
+
+                    matchCondition._id = {
+                        $in: ServiceProductsIds.map(id =>
+                            mongoose.Types.ObjectId.createFromHexString(id.toString())
+                        )
+                    };
+
+                } else {
+
+                    return res.status(404).json({
+                        success: false,
+                        message: "No Services Found In Banner"
+                    });
+
+                }
+
+            }
+            if (ServiceProductsIds?.length) {
+
+                matchCondition._id = {
+                    $in: ServiceProductsIds.map(id =>
+                        mongoose.Types.ObjectId.createFromHexString(id.toString())
+                    )
+                };
+            }
+            const total = await serviceProductsModel.countDocuments(matchCondition);
+            let data = await module.exports.getServicePrductData(
+                matchCondition,
+                skip,
+                perPage
+            );
 
             if (mongoose.Types.ObjectId.isValid(UserId)) {
 
-                let wishlistData = await ServiceWishlist.findOne({ UserId,companyId});
+                let wishlistData = await ServiceWishlist.findOne({ UserId, companyId });
                 let WishListIds = wishlistData?.ServiceProductsIds || [];
 
                 if (WishListIds.length) {
@@ -315,11 +440,14 @@ module.exports = {
             return res.status(200).json({
                 data,
                 success: true,
-                message: 'Data Fetched'
+                message: 'Data Fetched',
+                total,
+                currentPage,
+                perPage,
+                totalPages: Math.ceil(total / perPage)
             });
-
         } catch (error) {
-            res.status(400).json({
+            res.status(500).json({
                 error: error.message,
                 success: false,
                 message: 'Internal Server Error'
