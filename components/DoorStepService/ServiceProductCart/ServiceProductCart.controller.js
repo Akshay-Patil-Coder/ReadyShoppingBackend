@@ -1849,7 +1849,7 @@ module.exports = {
     sendOtpSms: async (phoneno, otp) => {
         const msg = encodeURIComponent(
             // `Use ${otp} as your service confirmation OTP. Your OTP is confidential. familycare never calls you asking for OTP.`
-            `Use ${OTP} as your website login OTP. Your OTP is confidential. familycare never calls you asking for OTP.`
+            `Use ${otp} as your website login OTP. Your OTP is confidential. familycare never calls you asking for OTP.`
         );
         const to = '91' + phoneno;
         const url = `https://sms.cell24x7.com:1111/mspProducerM/sendSMS?user=familycare&pwd=Info@2020&sender=FMLYCR&mobile=${to}&msg=${msg}&mt=0&tempId=1007457883683974747`;
