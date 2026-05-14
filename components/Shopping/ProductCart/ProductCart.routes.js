@@ -59,4 +59,11 @@ router.post('/resendOtp/:orderId/:productId', authentication, (req, res) => {
 router.post('/updateServiceStatus/:orderId/:productId', authentication, (req, res) => {
     serviceProductCart.updateServiceStatus(req, res)
 })
+router.post('/:orderId/products/:productId/request-otp', authentication, serviceProductCart.requestOtp);
+router.post('/:orderId/products/:productId/resend-otp',  authentication, serviceProductCart.resendOtp);
+router.post('/:orderId/products/:productId/verify-otp',  authentication, serviceProductCart.verifyOtpAndComplete);
+ 
+router.post('/:orderId/request-otp', authentication, serviceProductCart.requestOtpFullOrder);
+router.post('/:orderId/resend-otp',  authentication, serviceProductCart.resendOtpFullOrder);
+router.post('/:orderId/verify-otp',  authentication, serviceProductCart.verifyOtpFullOrder);
 module.exports = router

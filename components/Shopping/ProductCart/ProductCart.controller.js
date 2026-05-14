@@ -12,6 +12,67 @@ const { brandmodel } = require('../ProductsBrand/ProductsBrand.model');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+const bcrypt = require('bcrypt');
+const superagent = require('superagent');
+
+const safeId = (v) =>
+    v == null ? null : typeof v === 'string' ? v : v.toString ? v.toString() : String(v);
+
+function generateOtp() {
+    const otp = Math.floor(1000 + Math.random() * 9000);
+    const hashed = bcrypt.hashSync(otp.toString(), 10);
+    return { otp, hashed };
+}
+
+async function sendOtpSms(phoneno, otp) {
+    const msg = encodeURIComponent(
+        `${otp} is your delivery confirmation OTP. Do not share this with anyone. - Dealmoney`
+    );
+    const to = '91' + phoneno;
+    const url =
+        `https://sms.cell24x7.com:1111/mspProducerM/sendSMS` +
+        `?user=familycare&pwd=Info@2020&sender=FMLYCR` +
+        `&mobile=${to}&msg=${msg}&mt=0&tempId=1007457883683974747`;
+
+    try {
+        await superagent.get(url);
+    } catch (err) {
+        console.error('SMS send error:', err.message);
+        throw new Error('Failed to send OTP SMS. Please try again.');
+    }
+}
+
+function stampOtp(product, hashed) {
+    product.ActiveOtp = hashed;
+    product.OtpTime = new Date(Date.now() + 5 * 60 * 1000);
+}
+
+function clearOtp(product) {
+    product.ActiveOtp = null;
+    product.OtpTime = null;
+}
+
+const PRODUCT_STATUSES = [
+    'INITIATED',
+    'PENDING',
+    'SHIPPED',
+    'OUTFORDELIVERY',
+    'DELIVERED',
+    'CANCELED',
+    'ASSIGNED',
+    'RETURN',
+];
+
+const PRODUCT_STATUS_TRANSITIONS = {
+    INITIATED: ['PENDING', 'ASSIGNED', 'CANCELED'],
+    PENDING: ['ASSIGNED', 'SHIPPED', 'CANCELED'],
+    ASSIGNED: ['SHIPPED', 'CANCELED'],
+    SHIPPED: ['OUTFORDELIVERY', 'CANCELED'],
+    OUTFORDELIVERY: ['CANCELED', 'RETURN'],
+    DELIVERED: [],
+    CANCELED: [],
+    RETURN: [],
+};
 const sendWhatsAppInvoice = async (order, pdfUrl) => {
     try {
         const phone = order?.UserDetails?.Phone;
@@ -80,10 +141,7 @@ const generateInvoicePdf = async (order) => {
         try {
             const orderId = safeId(order._id);
             const invoiceDir = path.join(__dirname, '..', '..', 'public', 'invoices');
-
-            if (!fs.existsSync(invoiceDir)) {
-                fs.mkdirSync(invoiceDir, { recursive: true });
-            }
+            if (!fs.existsSync(invoiceDir)) fs.mkdirSync(invoiceDir, { recursive: true });
 
             const fileName = `Invoice_${orderId}.pdf`;
             const filePath = path.join(invoiceDir, fileName);
@@ -94,26 +152,21 @@ const generateInvoicePdf = async (order) => {
             doc.pipe(stream);
 
             const now = new Date();
-            const dateStr = now.toLocaleDateString("en-IN", {
-                day: "2-digit", month: "2-digit", year: "numeric"
-            }).replace(/\//g, "-");
-            const timeStr = now.toLocaleTimeString("en-IN", {
-                hour: "2-digit", minute: "2-digit", hour12: true
-            }).toUpperCase();
+            const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+            const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
 
-            const userName = order?.UserDetails?.UserName || order?.UserDetails?.AddresserName || "Customer";
-            const phone = order?.UserDetails?.Phone || "";
-            const email = order?.UserDetails?.Email || "";
-            const addresserName = order?.UserDetails?.AddresserName || "";
-            const addresserNum = order?.UserDetails?.AddresserNumber || "";
-            const addressType = order?.UserDetails?.AddressType || "Home";
-            const street = order?.UserDetails?.Street || "";
-            const city = order?.UserDetails?.City || "";
-            const state = order?.UserDetails?.State || "";
-            const country = order?.UserDetails?.Country || "";
-            const postalCode = order?.UserDetails?.PostalCode || "";
-            const manualAddress = order?.UserDetails?.ManualAddress || "";
-
+            const userName = order?.UserDetails?.UserName || order?.UserDetails?.AddresserName || 'Customer';
+            const phone = order?.UserDetails?.Phone || '';
+            const email = order?.UserDetails?.Email || '';
+            const addresserName = order?.UserDetails?.AddresserName || '';
+            const addresserNum = order?.UserDetails?.AddresserNumber || '';
+            const addressType = order?.UserDetails?.AddressType || 'Home';
+            const street = order?.UserDetails?.Street || '';
+            const city = order?.UserDetails?.City || '';
+            const state = order?.UserDetails?.State || '';
+            const country = order?.UserDetails?.Country || '';
+            const postalCode = order?.UserDetails?.PostalCode || '';
+            const manualAddress = order?.UserDetails?.ManualAddress || '';
             const addressParts = [street, city, state, postalCode, country].filter(Boolean);
             const fullAddress = manualAddress || (addressParts.length ? addressParts.join(', ') : '');
 
@@ -122,88 +175,60 @@ const generateInvoicePdf = async (order) => {
             const shippingCharges = Number(order.ShippingCharges || 0);
             const finalCartPrice = Number(order.FinalCartPrice || order.PaymentSession?.amount || 0);
 
-            const txnId = order?.PaymentSession?.txnId || "N/A";
-            const paymentGateway = order?.PaymentSession?.paymentGateway || "Paytm";
-            const paymentStatus = order?.PaymentSession?.status || "SUCCESS";
+            const txnId = order?.PaymentSession?.txnId || 'N/A';
+            const paymentGateway = order?.PaymentSession?.paymentGateway || 'Paytm';
+            const paymentStatus = order?.PaymentSession?.status || 'SUCCESS';
+
             const pageW = doc.page.width;
             const pageH = doc.page.height;
             const mL = 50;
             const mR = 545;
+
             doc.rect(0, 0, pageW, 85).fill('#6200EE');
-
-            doc.fillColor('#ffffff')
-                .fontSize(28).font('Helvetica-Bold')
-                .text('DealShopping', mL, 20, { align: 'left' });
-            doc.fontSize(10).font('Helvetica')
-                .text('Your one-stop shopping destination', mL, 55, { align: 'left' });
-
-            doc.fontSize(22).font('Helvetica-Bold')
-                .text('INVOICE', 0, 28, { align: 'right', width: pageW - mL });
+            doc.fillColor('#ffffff').fontSize(28).font('Helvetica-Bold').text('DealShopping', mL, 20, { align: 'left' });
+            doc.fontSize(10).font('Helvetica').text('Your one-stop shopping destination', mL, 55, { align: 'left' });
+            doc.fontSize(22).font('Helvetica-Bold').text('INVOICE', 0, 28, { align: 'right', width: pageW - mL });
 
             doc.y = 105;
-
             const infoY = doc.y;
             const halfW = 220;
             const leftX = mL;
             const rightX = 320;
 
             const drawKV = (label, value, x, y, valueColor = '#111111') => {
-                doc.fontSize(9).font('Helvetica-Bold').fillColor('#777777')
-                    .text(label, x, y, { width: 90, continued: false });
-                doc.fontSize(9).font('Helvetica').fillColor(valueColor)
-                    .text(value, x + 95, y, { width: halfW - 95 });
+                doc.fontSize(9).font('Helvetica-Bold').fillColor('#777777').text(label, x, y, { width: 90 });
+                doc.fontSize(9).font('Helvetica').fillColor(valueColor).text(value, x + 95, y, { width: halfW - 95 });
             };
 
             drawKV('Order ID :', `DS${orderId}`, leftX, infoY);
             drawKV('Date :', dateStr, leftX, infoY + 16);
             drawKV('Time :', timeStr, leftX, infoY + 32);
             drawKV('Txn ID :', txnId, leftX, infoY + 48);
-
             drawKV('Gateway :', paymentGateway, rightX, infoY);
-            drawKV('Status :', paymentStatus, rightX, infoY + 16,
-                paymentStatus === 'SUCCESS' ? '#27ae60' : '#e74c3c');
+            drawKV('Status :', paymentStatus, rightX, infoY + 16, paymentStatus === 'SUCCESS' ? '#27ae60' : '#e74c3c');
             drawKV('Address Type :', addressType, rightX, infoY + 32);
 
             doc.y = infoY + 72;
-
-            doc.moveTo(mL, doc.y).lineTo(mR, doc.y)
-                .strokeColor('#dddddd').lineWidth(1).stroke();
+            doc.moveTo(mL, doc.y).lineTo(mR, doc.y).strokeColor('#dddddd').lineWidth(1).stroke();
             doc.moveDown(0.6);
 
-            doc.fontSize(12).font('Helvetica-Bold').fillColor('#6200EE')
-                .text('Bill To', mL, doc.y);
+            doc.fontSize(12).font('Helvetica-Bold').fillColor('#6200EE').text('Bill To', mL, doc.y);
             doc.moveDown(0.3);
-
             doc.fontSize(9).font('Helvetica').fillColor('#333333');
             doc.text(`Customer Name  : ${userName}`);
-            if (addresserName && addresserName !== userName)
-                doc.text(`Addressee      : ${addresserName}`);
-            if (addresserNum)
-                doc.text(`Addressee Ph   : ${addresserNum}`);
-            if (phone)
-                doc.text(`Phone          : ${phone}`);
-            if (email)
-                doc.text(`Email          : ${email}`);
-            if (fullAddress)
-                doc.text(`Address        : ${fullAddress}`);
+            if (addresserName && addresserName !== userName) doc.text(`Addressee      : ${addresserName}`);
+            if (addresserNum) doc.text(`Addressee Ph   : ${addresserNum}`);
+            if (phone) doc.text(`Phone          : ${phone}`);
+            if (email) doc.text(`Email          : ${email}`);
+            if (fullAddress) doc.text(`Address        : ${fullAddress}`);
 
             doc.moveDown(0.6);
-            doc.moveTo(mL, doc.y).lineTo(mR, doc.y)
-                .strokeColor('#dddddd').lineWidth(1).stroke();
+            doc.moveTo(mL, doc.y).lineTo(mR, doc.y).strokeColor('#dddddd').lineWidth(1).stroke();
             doc.moveDown(0.6);
-            doc.fontSize(12).font('Helvetica-Bold').fillColor('#6200EE')
-                .text('Order Items', mL, doc.y);
+            doc.fontSize(12).font('Helvetica-Bold').fillColor('#6200EE').text('Order Items', mL, doc.y);
             doc.moveDown(0.4);
 
-            const col = {
-                no: mL,
-                name: 75,
-                variant: 220,
-                qty: 355,
-                unit: 385,
-                total: 470
-            };
-
+            const col = { no: mL, name: 75, variant: 220, qty: 355, unit: 385, total: 470 };
             const tHeaderY = doc.y;
             doc.rect(mL, tHeaderY, 495, 20).fill('#6200EE');
             doc.fillColor('#ffffff').fontSize(8).font('Helvetica-Bold');
@@ -218,24 +243,18 @@ const generateInvoicePdf = async (order) => {
 
             (order.Products || []).forEach((item, index) => {
                 const productName = item?.ProductData?.ProductInfo?.ProductName || 'Product';
-
                 const variantName = item?.ProductData?.VariantProductInfo?.VariantProductName || '';
                 const variantFields = (item?.ProductData?.VariantProductInfo?.VariantFields || [])
-                    .map(f => `${f.VariantName}: ${f.VariantValue}${f.Extension ? f.Extension : ''}`)
+                    .map(f => `${f.VariantName}: ${f.VariantValue}${f.Extension || ''}`)
                     .join(', ');
                 const variantLabel = variantFields || variantName || '-';
-
                 const qty = Number(item.Quantity) || 1;
                 const unitPrice = Number(item?.ProductData?.VariantProductInfo?.Price || 0);
-                const totalPrice = Number(item.TotalPrice || 0);
                 const discount = Number(item.DiscountPrice || 0);
                 const finalPrice = Number(item.FinalPrice || 0);
-
                 const rowH = 22;
-                if (index % 2 === 0) {
-                    doc.rect(mL, rowY - 3, 495, rowH).fill('#f5f0ff');
-                }
 
+                if (index % 2 === 0) doc.rect(mL, rowY - 3, 495, rowH).fill('#f5f0ff');
                 doc.fillColor('#333333').fontSize(8).font('Helvetica');
                 doc.text(String(index + 1), col.no, rowY, { width: 20 });
                 doc.text(productName, col.name, rowY, { width: 140, ellipsis: true });
@@ -243,88 +262,63 @@ const generateInvoicePdf = async (order) => {
                 doc.text(String(qty), col.qty, rowY, { width: 25 });
                 doc.text(`Rs.${unitPrice.toFixed(2)}`, col.unit, rowY, { width: 80 });
                 doc.text(`Rs.${finalPrice.toFixed(2)}`, col.total, rowY, { width: 70 });
-
                 rowY += rowH;
 
                 if (discount > 0) {
                     doc.fillColor('#e74c3c').fontSize(7.5).font('Helvetica')
-                        .text(`  Discount applied: -Rs.${discount.toFixed(2)}`,
-                            col.name, rowY, { width: 400 });
+                        .text(`  Discount applied: -Rs.${discount.toFixed(2)}`, col.name, rowY, { width: 400 });
                     rowY += 14;
                 }
 
-                const allServices = [
-                    ...(item.ProductServices || []),
-                    ...(item.ProductFreeServices || [])
-                ];
-                allServices.forEach(svc => {
+                [...(item.ProductServices || []), ...(item.ProductFreeServices || [])].forEach(svc => {
                     const svcAmt = Number(svc.ProductServiceAmount || 0);
                     doc.fillColor('#555577').fontSize(7.5).font('Helvetica')
-                        .text(`  + Service: ${svc.ServiceName || 'Service'} — Rs.${svcAmt.toFixed(2)}`,
-                            col.name, rowY, { width: 400 });
+                        .text(`  + Service: ${svc.ServiceName || 'Service'} — Rs.${svcAmt.toFixed(2)}`, col.name, rowY, { width: 400 });
                     rowY += 13;
                 });
             });
 
-            doc.moveTo(mL, rowY).lineTo(mR, rowY)
-                .strokeColor('#dddddd').lineWidth(1).stroke();
+            doc.moveTo(mL, rowY).lineTo(mR, rowY).strokeColor('#dddddd').lineWidth(1).stroke();
             rowY += 12;
-
 
             const sumLabelX = 360;
             const sumValX = 460;
-            const sumWidth = 80;
-
             const drawSummaryRow = (label, value, bold = false, color = '#333333') => {
-                doc.fontSize(9)
-                    .font(bold ? 'Helvetica-Bold' : 'Helvetica')
-                    .fillColor('#666666')
+                doc.fontSize(9).font(bold ? 'Helvetica-Bold' : 'Helvetica').fillColor('#666666')
                     .text(label, sumLabelX, rowY, { width: 95 });
-                doc.font(bold ? 'Helvetica-Bold' : 'Helvetica')
-                    .fillColor(color)
-                    .text(value, sumValX, rowY, { width: sumWidth, align: 'right' });
+                doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fillColor(color)
+                    .text(value, sumValX, rowY, { width: 80, align: 'right' });
                 rowY += 17;
             };
 
             drawSummaryRow('Subtotal :', `Rs.${totalCartPrice.toFixed(2)}`);
-            if (discountCartPrice > 0)
-                drawSummaryRow('Discount :', `-Rs.${discountCartPrice.toFixed(2)}`, false, '#e74c3c');
-            if (shippingCharges > 0)
-                drawSummaryRow('Shipping :', `Rs.${shippingCharges.toFixed(2)}`);
-
-            doc.moveTo(sumLabelX, rowY).lineTo(mR, rowY)
-                .strokeColor('#6200EE').lineWidth(1).stroke();
+            if (discountCartPrice > 0) drawSummaryRow('Discount :', `-Rs.${discountCartPrice.toFixed(2)}`, false, '#e74c3c');
+            if (shippingCharges > 0) drawSummaryRow('Shipping :', `Rs.${shippingCharges.toFixed(2)}`);
+            doc.moveTo(sumLabelX, rowY).lineTo(mR, rowY).strokeColor('#6200EE').lineWidth(1).stroke();
             rowY += 6;
-
             drawSummaryRow('Grand Total :', `Rs.${finalCartPrice.toFixed(2)}`, true, '#6200EE');
 
-
             const footerY = pageH - 70;
-            doc.moveTo(mL, footerY).lineTo(mR, footerY)
-                .strokeColor('#6200EE').lineWidth(2).stroke();
-
+            doc.moveTo(mL, footerY).lineTo(mR, footerY).strokeColor('#6200EE').lineWidth(2).stroke();
             doc.fontSize(9).font('Helvetica-Bold').fillColor('#6200EE')
                 .text('Thank you for shopping with DealShopping!', mL, footerY + 10, { align: 'center', width: 495 });
             doc.fontSize(8).font('Helvetica').fillColor('#888888')
                 .text('support@dealshopping.in  |  https://dealshopping.in', mL, footerY + 25, { align: 'center', width: 495 });
             doc.fontSize(7).fillColor('#aaaaaa')
-                .text(`Invoice generated on ${dateStr} at ${timeStr}  |  Txn: ${txnId}`,
-                    mL, footerY + 40, { align: 'center', width: 495 });
+                .text(`Invoice generated on ${dateStr} at ${timeStr}  |  Txn: ${txnId}`, mL, footerY + 40, { align: 'center', width: 495 });
 
             doc.end();
             stream.on('finish', () => resolve(fileUrl));
-            stream.on('error', (err) => reject(err));
-
+            stream.on('error', reject);
         } catch (err) {
             reject(err);
         }
     });
 };
 
+const getInvoicePdfUrl = async (order) => generateInvoicePdf(order);
 
-const getInvoicePdfUrl = async (order) => {
-    return await generateInvoicePdf(order);
-};
+
 module.exports = {
 
 
@@ -2376,10 +2370,9 @@ module.exports = {
                 return res.status(400).json({ message: "Orders Not Found", success: false });
             }
 
-            const allowedStatus = ['INITIATED', 'PENDING', 'SHIPPED', 'OUTFORDELIVERY', 'CANCELED', 'ASSIGNED', 'RETURN'];
-            if (Status && !allowedStatus.includes(Status)) {
-                return res.status(400).json({ message: 'Provide Proper Status Of Product', success: false });
-            }
+
+            if (Status && !PRODUCT_STATUSES.includes(Status))
+                return res.status(400).json({ message: `Invalid Status. Allowed: ${PRODUCT_STATUSES.join(', ')}`, success: false });
 
             let FilteredOrders = Orders.map(order => {
                 let products = order.Products;
@@ -2485,14 +2478,9 @@ module.exports = {
                 });
             }
 
-            const allowedStatus = ['INITIATED', 'PENDING', 'SHIPPED', 'OUTFORDELIVERY', 'CANCELED', 'ASSIGNED', 'RETURN'];
+            if (Status && !PRODUCT_STATUSES.includes(Status))
+                return res.status(400).json({ message: `Invalid Status. Allowed: ${PRODUCT_STATUSES.join(', ')}`, success: false });
 
-            if (Status && !allowedStatus.includes(Status)) {
-                return res.status(400).json({
-                    message: 'Provide Proper Status Of Product',
-                    success: false
-                });
-            }
 
             let FilteredOrders = Orders.map(order => {
                 let products = order.Products || [];
@@ -2537,63 +2525,30 @@ module.exports = {
             });
         }
     },
-    resendOtp: async (req, res) => {
+    requestOtp: async (req, res) => {
         try {
             const { orderId, productId } = req.params;
 
             const order = await ProductOrder.findById(orderId);
             if (!order) return res.status(404).json({ message: 'Order not found' });
 
-            const service = order.Products.id(productId);
-            if (!service) return res.status(404).json({ message: 'Product not found' });
+            const product = order.Products.id(productId);
+            if (!product) return res.status(404).json({ message: 'Product not found in this order' });
 
-            const currentStatus = service.OrderStatus.at(-1)?.Status;
-            if (currentStatus !== 'IN_PROGRESS') {
-                return res.status(400).json({ message: 'Service must be IN_PROGRESS to resend OTP' });
-            }
-
-            const phoneno = order.UserDetails.Phone?.toString();
-            if (!phoneno) return res.status(400).json({ message: 'Customer phone not found' });
-            let OTP = Math.floor(1000 + Math.random() * 9000);;
-            await module.exports.sendOtpSms(phoneno, OTP);
-
-            const hashedOtp = bcrypt.hashSync(OTP.toString(), 10);
-
-            service.ActiveOtp = hashedOtp;
-            service.OtpTime = new Date(Date.now() + 5 * 60 * 1000);
-
-            await order.save();
-
-            res.status(200).json({ message: 'New OTP sent to customer successfully' });
-        } catch (err) {
-            res.status(500).json({ message: err.message });
-        }
-    },
-    requestOtp: async (req, res) => {
-        try {
-            const { orderId, productId } = req.params;
-
-            const order = await ServiceOrder.findById(orderId);
-            if (!order) return res.status(404).json({ message: 'Order not found' });
-
-            const service = order.Services.id(productId);
-            if (!service) return res.status(404).json({ message: 'Service not found' });
-
-            const currentStatus = service.OrderStatus.at(-1)?.Status;
-            if (currentStatus !== 'IN_PROGRESS') {
-                return res.status(400).json({ message: `Cannot request OTP. Current status: ${currentStatus}` });
+            // Must be OUTFORDELIVERY before OTP can be requested
+            const currentStatus = product.OrderStatus.at(-1)?.Status;
+            if (currentStatus !== 'OUTFORDELIVERY') {
+                return res.status(400).json({
+                    message: `OTP can only be requested when status is OUTFORDELIVERY. Current: ${currentStatus}`,
+                });
             }
 
             const phoneno = order.UserDetails.Phone?.toString();
             if (!phoneno) return res.status(400).json({ message: 'Customer phone number not found' });
 
-            let OTP = Math.floor(1000 + Math.random() * 9000);;
-            await module.exports.sendOtpSms(phoneno, OTP);
-
-            const hashedOtp = bcrypt.hashSync(OTP.toString(), 10);
-
-            service.ActiveOtp = hashedOtp;
-            service.OtpTime = new Date(Date.now() + 5 * 60 * 1000);
+            const { otp, hashed } = generateOtp();
+            await sendOtpSms(phoneno, otp);
+            stampOtp(product, hashed);
 
             await order.save();
 
@@ -2602,146 +2557,297 @@ module.exports = {
             res.status(500).json({ message: err.message });
         }
     },
-    sendOtpSms: async (phoneno, otp) => {
-        const msg = encodeURIComponent(
-            `Use ${otp} as your service confirmation OTP. Your OTP is confidential. familycare never calls you asking for OTP.`
-        );
-        const to = '91' + phoneno;
-        const url = `https://sms.cell24x7.com:1111/mspProducerM/sendSMS?user=familycare&pwd=Info@2020&sender=FMLYCR&mobile=${to}&msg=${msg}&mt=0&tempId=1007457883683974747`;
 
+    resendOtp: async (req, res) => {
         try {
-            await superagent.get(url);
+            const { orderId, productId } = req.params;
+
+            const order = await ProductOrder.findById(orderId);
+            if (!order) return res.status(404).json({ message: 'Order not found' });
+
+            const product = order.Products.id(productId);
+            if (!product) return res.status(404).json({ message: 'Product not found in this order' });
+
+            const currentStatus = product.OrderStatus.at(-1)?.Status;
+            if (currentStatus !== 'OUTFORDELIVERY') {
+                return res.status(400).json({
+                    message: `OTP can only be resent when status is OUTFORDELIVERY. Current: ${currentStatus}`,
+                });
+            }
+
+            const phoneno = order.UserDetails.Phone?.toString();
+            if (!phoneno) return res.status(400).json({ message: 'Customer phone number not found' });
+
+            const { otp, hashed } = generateOtp();
+            await sendOtpSms(phoneno, otp);
+            stampOtp(product, hashed);
+
+            await order.save();
+
+            res.status(200).json({ message: 'New OTP sent to customer successfully' });
         } catch (err) {
-            console.log('SMS send error:', err);
-            throw err;
+            res.status(500).json({ message: err.message });
         }
     },
+
+
     verifyOtpAndComplete: async (req, res) => {
         try {
             const { orderId, productId } = req.params;
             const { otp } = req.body;
-            const providerId = req.user.id;
+            const agentId = req.user?.id;
 
             if (!otp) return res.status(400).json({ message: 'OTP is required' });
 
-            const order = await ServiceOrder.findById(orderId);
+            const order = await ProductOrder.findById(orderId);
             if (!order) return res.status(404).json({ message: 'Order not found' });
 
-            const service = order.Services.id(productId);
-            if (!service) return res.status(404).json({ message: 'Service not found' });
+            const product = order.Products.id(productId);
+            if (!product) return res.status(404).json({ message: 'Product not found in this order' });
 
-            const currentStatus = service.OrderStatus.at(-1)?.Status;
-            if (currentStatus !== 'IN_PROGRESS') {
-                return res.status(400).json({ message: `Service is not in progress. Status: ${currentStatus}` });
+            const currentStatus = product.OrderStatus.at(-1)?.Status;
+            if (currentStatus !== 'OUTFORDELIVERY') {
+                return res.status(400).json({
+                    message: `Cannot verify OTP. Product status is: ${currentStatus}`,
+                });
             }
 
-            if (!service.ActiveOtp || !service.OtpTime) {
-                return res.status(400).json({ message: 'No OTP found. Request a new OTP first.' });
+            if (!product.ActiveOtp || !product.OtpTime) {
+                return res.status(400).json({ message: 'No active OTP found. Please request a new OTP first.' });
             }
 
-            if (new Date() > new Date(service.OtpTime)) {
-                service.ActiveOtp = null;
-                service.OtpTime = null;
+            if (new Date() > new Date(product.OtpTime)) {
+                clearOtp(product);
                 await order.save();
-                return res.status(400).json({ message: 'OTP expired. Please request a new one.' });
+                return res.status(400).json({ message: 'OTP has expired. Please request a new one.' });
             }
 
-            const isMatch = bcrypt.compareSync(otp.toString(), service.ActiveOtp);
+            const isMatch = bcrypt.compareSync(otp.toString(), product.ActiveOtp);
             if (!isMatch) {
                 return res.status(400).json({ message: 'Invalid OTP. Please check and try again.' });
             }
 
-            service.OrderStatus.push({
-                Status: 'COMPLETED',
+            product.OrderStatus.push({
+                Status: 'DELIVERED',
                 StatusAt: new Date(),
-                AssignedTo: providerId,
-                Reason: 'Service confirmed by customer OTP'
+                AssignedTo: agentId,
+                Reason: 'Delivery confirmed by customer OTP',
             });
 
-            service.ActiveOtp = null;
-            service.OtpTime = null;
-
+            clearOtp(product);
             await order.save();
 
             res.status(200).json({
-                message: 'Service confirmed and marked as completed',
-                service: {
-                    id: service._id,
-                    status: 'COMPLETED',
-                    serviceName: service.ServiceData.ServiceInfo.ServiceName
-                }
+                message: 'Product delivery confirmed successfully',
+                product: {
+                    id: product._id,
+                    status: 'DELIVERED',
+                    productName: product.ProductData?.ProductInfo?.ProductName,
+                },
             });
         } catch (err) {
             res.status(500).json({ message: err.message });
         }
     },
-    updateServiceStatus: async (req, res) => {
+
+
+    requestOtpFullOrder: async (req, res) => {
+        try {
+            const { orderId } = req.params;
+
+            const order = await ProductOrder.findById(orderId);
+            if (!order) return res.status(404).json({ message: 'Order not found' });
+
+            const eligibleProducts = order.Products.filter(
+                (p) => p.OrderStatus.at(-1)?.Status === 'OUTFORDELIVERY'
+            );
+
+            if (eligibleProducts.length === 0) {
+                return res.status(400).json({
+                    message: 'No products in OUTFORDELIVERY status. Cannot send OTP.',
+                });
+            }
+
+            const phoneno = order.UserDetails.Phone?.toString();
+            if (!phoneno) return res.status(400).json({ message: 'Customer phone number not found' });
+
+            const { otp, hashed } = generateOtp();
+            await sendOtpSms(phoneno, otp);
+
+            eligibleProducts.forEach((p) => stampOtp(p, hashed));
+
+            await order.save();
+
+            res.status(200).json({
+                message: `OTP sent to customer. Covers ${eligibleProducts.length} product(s).`,
+                productCount: eligibleProducts.length,
+            });
+        } catch (err) {
+            res.status(500).json({ message: err.message });
+        }
+    },
+
+
+    resendOtpFullOrder: async (req, res) => {
+        try {
+            const { orderId } = req.params;
+
+            const order = await ProductOrder.findById(orderId);
+            if (!order) return res.status(404).json({ message: 'Order not found' });
+
+            const eligibleProducts = order.Products.filter(
+                (p) => p.OrderStatus.at(-1)?.Status === 'OUTFORDELIVERY'
+            );
+
+            if (eligibleProducts.length === 0) {
+                return res.status(400).json({
+                    message: 'No products in OUTFORDELIVERY status. Cannot resend OTP.',
+                });
+            }
+
+            const phoneno = order.UserDetails.Phone?.toString();
+            if (!phoneno) return res.status(400).json({ message: 'Customer phone number not found' });
+
+            const { otp, hashed } = generateOtp();
+            await sendOtpSms(phoneno, otp);
+
+            eligibleProducts.forEach((p) => stampOtp(p, hashed));
+
+            await order.save();
+
+            res.status(200).json({
+                message: `New OTP sent to customer. Covers ${eligibleProducts.length} product(s).`,
+                productCount: eligibleProducts.length,
+            });
+        } catch (err) {
+            res.status(500).json({ message: err.message });
+        }
+    },
+
+
+    verifyOtpFullOrder: async (req, res) => {
+        try {
+            const { orderId } = req.params;
+            const { otp } = req.body;
+            const agentId = req.user?.id;
+
+            if (!otp) return res.status(400).json({ message: 'OTP is required' });
+
+            const order = await ProductOrder.findById(orderId);
+            if (!order) return res.status(404).json({ message: 'Order not found' });
+
+            const eligibleProducts = order.Products.filter(
+                (p) => p.OrderStatus.at(-1)?.Status === 'OUTFORDELIVERY'
+            );
+
+            if (eligibleProducts.length === 0) {
+                return res.status(400).json({ message: 'No products pending OTP verification.' });
+            }
+
+            const reference = eligibleProducts[0];
+
+            if (!reference.ActiveOtp || !reference.OtpTime) {
+                return res.status(400).json({ message: 'No active OTP found. Please request a new OTP first.' });
+            }
+
+            if (new Date() > new Date(reference.OtpTime)) {
+                eligibleProducts.forEach(clearOtp);
+                await order.save();
+                return res.status(400).json({ message: 'OTP has expired. Please request a new one.' });
+            }
+
+            const isMatch = bcrypt.compareSync(otp.toString(), reference.ActiveOtp);
+            if (!isMatch) {
+                return res.status(400).json({ message: 'Invalid OTP. Please check and try again.' });
+            }
+
+            const deliveredProducts = [];
+            eligibleProducts.forEach((p) => {
+                p.OrderStatus.push({
+                    Status: 'DELIVERED',
+                    StatusAt: new Date(),
+                    AssignedTo: agentId,
+                    Reason: 'Delivery confirmed by customer OTP (full order)',
+                });
+                clearOtp(p);
+                deliveredProducts.push({
+                    id: p._id,
+                    productName: p.ProductData?.ProductInfo?.ProductName,
+                });
+            });
+
+            await order.save();
+
+            res.status(200).json({
+                message: `Order delivery confirmed. ${deliveredProducts.length} product(s) marked as delivered.`,
+                deliveredProducts,
+            });
+        } catch (err) {
+            res.status(500).json({ message: err.message });
+        }
+    },
+    updateProductStatus: async (req, res) => {
         try {
             const { orderId, productId } = req.params;
             const { status, reason } = req.body;
-            const providerId = req.user._id;
+            const agentId = req.user?._id;
 
-            if (!status) {
+            if (!status)
                 return res.status(400).json({ message: 'Status is required' });
-            }
 
-            const VALID_TRANSITIONS = {
-                INITIATED: ['CONFIRMED', 'CANCELLED'],
-                CONFIRMED: ['IN_PROGRESS', 'CANCELLED'],
-                IN_PROGRESS: ['CANCELLED'],
-                COMPLETED: [],
-                CANCELLED: []
-            };
+            if (!PRODUCT_STATUSES.includes(status))
+                return res.status(400).json({ message: `Invalid status. Allowed values: ${PRODUCT_STATUSES.join(', ')}` });
 
-            const order = await ServiceOrder.findById(orderId);
+            // DELIVERED is locked behind OTP — never set it manually
+            if (status === 'DELIVERED')
+                return res.status(400).json({ message: 'Cannot manually set DELIVERED. Use the OTP verification endpoint.' });
+
+            const order = await ProductOrder.findById(orderId);
             if (!order) return res.status(404).json({ message: 'Order not found' });
 
-            const service = order.Services.id(productId);
-            if (!service) return res.status(404).json({ message: 'Service not found' });
+            const product = order.Products.id(productId);
+            if (!product) return res.status(404).json({ message: 'Product not found in this order' });
 
-            const currentStatus = service.OrderStatus.at(-1)?.Status ?? 'INITIATED';
+            const currentStatus = product.OrderStatus.at(-1)?.Status ?? 'INITIATED';
+            const allowed = PRODUCT_STATUS_TRANSITIONS[currentStatus];
 
-            if (status === 'COMPLETED') {
-                return res.status(400).json({
-                    message: 'Cannot manually set COMPLETED. Use the OTP verification endpoint.'
-                });
-            }
-
-            const allowed = VALID_TRANSITIONS[currentStatus];
-            if (!allowed || !allowed.includes(status)) {
+            if (!allowed || !allowed.includes(status))
                 return res.status(400).json({
                     message: `Invalid transition: ${currentStatus} → ${status}`,
-                    allowedTransitions: allowed
+                    allowedTransitions: allowed,
                 });
-            }
 
-            service.OrderStatus.push({
+            product.OrderStatus.push({
                 Status: status,
                 StatusAt: new Date(),
-                AssignedTo: providerId,
-                Reason: reason || null
+                AssignedTo: agentId,
+                Reason: reason || null,
             });
 
-            if (status === 'CANCELLED') {
-                service.ActiveOtp = null;
-                service.OtpTime = null;
-            }
+            if (status === 'CANCELED') clearOtp(product);
 
             await order.save();
 
-            res.status(200).json({
-                message: `Service status updated to ${status}`,
+            return res.status(200).json({
+                message: `Product status updated to ${status}`,
                 currentStatus: status,
-                statusHistory: service.OrderStatus
+                statusHistory: product.OrderStatus,
             });
 
         } catch (err) {
-            res.status(500).json({ message: err.message });
+            return res.status(500).json({ message: err.message });
         }
     },
 
 
+}
 
-};
+
+
+
+
+
+
+
 
 

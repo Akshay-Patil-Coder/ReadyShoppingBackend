@@ -112,17 +112,19 @@ module.exports = {
 
                     if (existingDaySchedule) {
                         existingDaySchedule.appointments.forEach((existingSlot) => {
-                            if (existingSlot.booked === true) {
+                            if (existingSlot.booked === true || existingSlot.MakeItBusy === true) {
                                 appointments.push({
                                     _id: existingSlot._id,
                                     ServiceStartTime: existingSlot.ServiceStartTime,
                                     ServiceEndTime: existingSlot.ServiceEndTime,
-                                    booked: true
+                                    booked: existingSlot.booked,
+                                    MakeItBusy: existingSlot.MakeItBusy
                                 });
                                 availableShedule.push({
                                     ServiceStartTime: existingSlot.ServiceStartTime,
                                     ServiceEndTime: existingSlot.ServiceEndTime,
-                                    booked: true
+                                    booked: existingSlot.booked,
+                                    MakeItBusy: existingSlot.MakeItBusy
                                 });
                             }
                         });
@@ -134,14 +136,16 @@ module.exports = {
                             newSlot.push({
                                 ServiceStartTime: ServiceStartTime,
                                 ServiceEndTime: ServiceEndTime,
-                                booked: false
+                                booked: false,
+                                MakeItBusy: false
                             });
                             if (!checkForConflict(newSlot[0], availableShedule)) {
                                 appointments.push(
                                     {
                                         ServiceStartTime: ServiceStartTime,
                                         ServiceEndTime: ServiceEndTime,
-                                        booked: false
+                                        booked: false,
+                                        MakeItBusy: false
                                     }
                                 )
                             }
@@ -161,7 +165,8 @@ module.exports = {
                             appointments.push({
                                 ServiceStartTime: ServiceStartTime,
                                 ServiceEndTime: ServiceEndTime,
-                                booked: false
+                                booked: false,
+                                MakeItBusy: false
                             });
 
                             adjustServiceTime += ServiceTime;
@@ -247,8 +252,7 @@ module.exports = {
             return resp.status(400).json({ message: 'Something went wrong', error: error.message });
         }
     },
-
-
+   
     updateTimeSlotsBooking: async (req, res) => {
         try {
             const { TimeSlot, ServiceProviderId, ServiceProductId } = req.body;
@@ -269,61 +273,22 @@ module.exports = {
                 });
             }
 
-            if (!mongoose.isValidObjectId(companyId) || !mongoose.isValidObjectId(ServiceProviderId) || !mongoose.isValidObjectId(ServiceProductId)) {
-                return res.status(400).json({ message: 'Invalid companyId, ServiceProviderId or ServiceProductId', success: false });
+            if (
+                !mongoose.isValidObjectId(companyId) ||
+                !mongoose.isValidObjectId(ServiceProviderId) ||
+                !mongoose.isValidObjectId(ServiceProductId)
+            ) {
+                return res.status(400).json({
+                    message: 'Invalid companyId, ServiceProviderId or ServiceProductId',
+                    success: false,
+                });
             }
 
             const companyObjId = new mongoose.Types.ObjectId(String(companyId));
             const providerObjId = new mongoose.Types.ObjectId(String(ServiceProviderId));
             const productObjId = new mongoose.Types.ObjectId(String(ServiceProductId));
 
-            if (operation === 'booked') {
-
-
-                const result = await ServiceAppointmentModel.findOneAndUpdate(
-                    {
-                        companyId: companyObjId,
-                        ServiceProviderId: providerObjId,
-                        ServiceProductId: productObjId,
-                        'schedule.date': TimeSlot.date,
-                        'schedule.appointments.ServiceStartTime': TimeSlot.ServiceStartTime,
-                        'schedule.appointments.ServiceEndTime': TimeSlot.ServiceEndTime,
-                    },
-                    {
-                        $set: {
-                            'schedule.$[sch].appointments.$[appt].booked': true,
-                        },
-                    },
-                    {
-                        arrayFilters: [
-                            { 'sch.date': TimeSlot.date },
-                            {
-                                'appt.ServiceStartTime': TimeSlot.ServiceStartTime,
-                                'appt.ServiceEndTime': TimeSlot.ServiceEndTime,
-                                'appt.booked': false,
-                            },
-                        ],
-                        new: true,
-                    }
-                );
-
-                if (!result) {
-                    return res.status(404).json({
-                        message: 'Time slot not found, already booked, or update failed',
-                        success: false,
-                    });
-                }
-
-                return res.status(200).json({
-                    message: 'Time slot successfully marked as booked',
-                    success: true,
-                    data: result,
-                });
-            }
-
-            else if (operation === 'unbooked') {
-
-
+            async function getTargetSlotId() {
                 const appointmentDoc = await ServiceAppointmentModel.findOne({
                     companyId: companyObjId,
                     ServiceProviderId: providerObjId,
@@ -333,12 +298,7 @@ module.exports = {
                     'schedule.appointments.ServiceEndTime': TimeSlot.ServiceEndTime,
                 });
 
-                if (!appointmentDoc) {
-                    return res.status(404).json({ message: 'Time slot not found', success: false });
-                }
-
-                let targetSlotId = null;
-                let targetSchedule = null;
+                if (!appointmentDoc) return { doc: null, slotId: null };
 
                 for (const sch of appointmentDoc.schedule) {
                     if (sch.date !== TimeSlot.date) continue;
@@ -347,48 +307,15 @@ module.exports = {
                             appt.ServiceStartTime === TimeSlot.ServiceStartTime &&
                             appt.ServiceEndTime === TimeSlot.ServiceEndTime
                         ) {
-                            targetSlotId = appt._id;
-                            targetSchedule = sch;
-                            break;
+                            return { doc: appointmentDoc, slotId: appt._id };
                         }
                     }
-                    if (targetSlotId) break;
                 }
 
-                if (!targetSlotId) {
-                    return res.status(404).json({ message: 'Exact slot not found within schedule', success: false });
-                }
+                return { doc: appointmentDoc, slotId: null };
+            }
 
-                const updatedAppointment = await ServiceAppointmentModel.findOneAndUpdate(
-                    {
-                        companyId: companyObjId,
-                        ServiceProviderId: providerObjId,
-                        ServiceProductId: productObjId,
-                        'schedule.date': TimeSlot.date,
-                        'schedule.appointments.ServiceStartTime': TimeSlot.ServiceStartTime,
-                        'schedule.appointments.ServiceEndTime': TimeSlot.ServiceEndTime,
-                    },
-                    {
-                        $set: {
-                            'schedule.$[sch].appointments.$[appt].booked': false,
-                        },
-                    },
-                    {
-                        arrayFilters: [
-                            { 'sch.date': TimeSlot.date },
-                            {
-                                'appt.ServiceStartTime': TimeSlot.ServiceStartTime,
-                                'appt.ServiceEndTime': TimeSlot.ServiceEndTime,
-                            },
-                        ],
-                        new: true,
-                    }
-                );
-
-                if (!updatedAppointment) {
-                    return res.status(404).json({ message: 'Time slot update failed', success: false });
-                }
-
+            async function cancelLinkedOrdersAndCart(targetSlotId) {
                 const affectedOrders = await ServiceOrder.find({
                     companyId: companyObjId,
                     'Services.ServiceData.AppointmentInfo.AppointmentId': targetSlotId,
@@ -397,13 +324,10 @@ module.exports = {
                 const now = new Date();
 
                 for (const order of affectedOrders) {
-
                     let orderModified = false;
 
                     for (const svc of order.Services) {
-                        if (
-                            !svc.ServiceData?.AppointmentInfo?.AppointmentId?.equals(targetSlotId)
-                        ) continue;
+                        if (!svc.ServiceData?.AppointmentInfo?.AppointmentId?.equals(targetSlotId)) continue;
 
                         const lastStatus = svc.OrderStatus?.[svc.OrderStatus.length - 1]?.Status;
                         if (lastStatus === 'COMPLETED' || lastStatus === 'CANCELLED') continue;
@@ -411,24 +335,19 @@ module.exports = {
                         svc.OrderStatus.push({
                             Status: 'CANCELLED',
                             StatusAt: now,
-                            Reason: 'Slot manually unbooked by admin',
+                            Reason: operation === 'booked'
+                                ? 'Slot manually marked busy by admin'
+                                : 'Slot manually unbooked and released by admin',
                         });
 
                         orderModified = true;
                     }
 
-
-                    if (
-                        orderModified &&
-                        ['INITIATED', 'PENDING'].includes(order.PaymentSession?.status)
-                    ) {
+                    if (orderModified && ['INITIATED', 'PENDING'].includes(order.PaymentSession?.status)) {
                         order.PaymentSession.status = 'FAILED';
                     }
 
-                    if (orderModified) {
-                        await order.save();
-                    }
-
+                    if (orderModified) await order.save();
 
                     try {
                         if (order.UserId) {
@@ -439,9 +358,7 @@ module.exports = {
 
                             if (cart) {
                                 for (const svc of order.Services) {
-                                    if (
-                                        !svc.ServiceData?.AppointmentInfo?.AppointmentId?.equals(targetSlotId)
-                                    ) continue;
+                                    if (!svc.ServiceData?.AppointmentInfo?.AppointmentId?.equals(targetSlotId)) continue;
 
                                     const cartItem = cart.Services.find(
                                         c => c._id.toString() === svc.CartServiceId?.toString()
@@ -468,20 +385,127 @@ module.exports = {
                             }
                         }
                     } catch (cartErr) {
-                        console.error('Cart update error during unbook:', cartErr.message);
+                        console.error('Cart update error:', cartErr.message);
                     }
                 }
 
+                return affectedOrders.length;
+            }
+
+        
+            if (operation === 'booked') {
+
+                const { doc, slotId } = await getTargetSlotId();
+
+                if (!doc) {
+                    return res.status(404).json({ message: 'Time slot not found', success: false });
+                }
+                if (!slotId) {
+                    return res.status(404).json({ message: 'Exact slot not found within schedule', success: false });
+                }
+
+                const result = await ServiceAppointmentModel.findOneAndUpdate(
+                    {
+                        companyId: companyObjId,
+                        ServiceProviderId: providerObjId,
+                        ServiceProductId: productObjId,
+                        'schedule.date': TimeSlot.date,
+                        'schedule.appointments.ServiceStartTime': TimeSlot.ServiceStartTime,
+                        'schedule.appointments.ServiceEndTime': TimeSlot.ServiceEndTime,
+                    },
+                    {
+                        $set: {
+                            'schedule.$[sch].appointments.$[appt].booked': true,
+                            'schedule.$[sch].appointments.$[appt].MakeItBusy': true,
+                        },
+                    },
+                    {
+                        arrayFilters: [
+                            { 'sch.date': TimeSlot.date },
+                            {
+                                'appt.ServiceStartTime': TimeSlot.ServiceStartTime,
+                                'appt.ServiceEndTime': TimeSlot.ServiceEndTime,
+                            },
+                        ],
+                        new: true,
+                    }
+                );
+
+                if (!result) {
+                    return res.status(404).json({
+                        message: 'Time slot not found, already booked, or update failed',
+                        success: false,
+                    });
+                }
+
+                const affectedOrders = await cancelLinkedOrdersAndCart(slotId);
+
                 return res.status(200).json({
-                    message: 'Time slot successfully unbooked',
+                    message: 'Time slot marked as busy and all linked orders cancelled',
+                    success: true,
+                    data: result,
+                    affectedOrders,
+                });
+            }
+
+
+            else if (operation === 'unbooked') {
+
+                const { doc, slotId } = await getTargetSlotId();
+
+                if (!doc) {
+                    return res.status(404).json({ message: 'Time slot not found', success: false });
+                }
+                if (!slotId) {
+                    return res.status(404).json({ message: 'Exact slot not found within schedule', success: false });
+                }
+
+                const updatedAppointment = await ServiceAppointmentModel.findOneAndUpdate(
+                    {
+                        companyId: companyObjId,
+                        ServiceProviderId: providerObjId,
+                        ServiceProductId: productObjId,
+                        'schedule.date': TimeSlot.date,
+                        'schedule.appointments.ServiceStartTime': TimeSlot.ServiceStartTime,
+                        'schedule.appointments.ServiceEndTime': TimeSlot.ServiceEndTime,
+                    },
+                    {
+                        $set: {
+                            'schedule.$[sch].appointments.$[appt].booked': false,
+                            'schedule.$[sch].appointments.$[appt].MakeItBusy': false,
+                        },
+                    },
+                    {
+                        arrayFilters: [
+                            { 'sch.date': TimeSlot.date },
+                            {
+                                'appt.ServiceStartTime': TimeSlot.ServiceStartTime,
+                                'appt.ServiceEndTime': TimeSlot.ServiceEndTime,
+                            },
+                        ],
+                        new: true,
+                    }
+                );
+
+                if (!updatedAppointment) {
+                    return res.status(404).json({ message: 'Time slot update failed', success: false });
+                }
+
+                const affectedOrders = await cancelLinkedOrdersAndCart(slotId);
+
+                return res.status(200).json({
+                    message: 'Time slot successfully unbooked, released and linked orders cancelled',
                     success: true,
                     data: updatedAppointment,
-                    affectedOrders: affectedOrders.length,
+                    affectedOrders,
                 });
             }
 
             else {
-                return res.status(400).json({ message: 'Invalid operation. Use "booked" or "unbooked"', success: false });
+                return res.status(400).json({
+                    message: 'Invalid operation. Use "booked" or "unbooked"',
+                    success: false,
+                });
             }
 
         } catch (error) {
@@ -515,59 +539,6 @@ module.exports = {
         }
     },
 
-    // getAppointmentsData: async (matchCondition) => {
-    //     return await ServiceAppointmentModel.aggregate([
-    //         { $match: matchCondition },
-    //         {
-    //             $lookup: {
-    //                 from: "serviceproviders",
-    //                 localField: "ServiceProviderId",
-    //                 foreignField: "_id",
-    //                 as: "ServiceProviderInfo",
-    //             }
-    //         },
-    //         {
-    //             $lookup: {
-    //                 from: "serviceproducts",
-    //                 localField: "ServiceProductId",
-    //                 foreignField: "_id",
-    //                 as: "ServiceProductInfo",
-    //             }
-
-    //         }
-    //     ]);
-    // },
-    // getAppointments: async (req, res) => {
-    //     let { companyId, ServiceProductId, ServiceProviderId } = req.query;
-
-    //     try {
-    //         let matchCondition = { companyId: mongoose.Types.ObjectId.createFromHexString(companyId) };
-
-    //         if (ServiceProductId) {
-    //             if (!mongoose.Types.ObjectId.isValid(ServiceProductId)) {
-    //                 return res.status(400).json({ message: 'Invalid ID format', success: false });
-    //             }
-    //             matchCondition.ServiceProductId = mongoose.Types.ObjectId.createFromHexString(ServiceProductId);
-    //         }
-    //         if (ServiceProviderId) {
-    //             if (!mongoose.Types.ObjectId.isValid(ServiceProviderId)) {
-    //                 return res.status(400).json({ message: 'Invalid ID format', success: false });
-    //             }
-    //             matchCondition.ServiceProviderId = mongoose.Types.ObjectId.createFromHexString(ServiceProviderId);
-    //         }
-    //         const data = await module.exports.getAppointmentsData(matchCondition);
-
-    //         if (data.length === 0) {
-    //             return res.status(400).json({ message: 'Slots not available', success: false });
-    //         }
-
-    //         return res.status(200).json({ data: data, success: true, message: "Data Fetched" });
-
-    //     } catch (error) {
-    //         return res.status(400).json({ error: error.message, success: false, message: "Internal Server Error" });
-
-    //     }
-    // },
 
     getAppointmentsData: async (matchCondition) => {
         return await ServiceAppointmentModel.aggregate([
@@ -578,7 +549,6 @@ module.exports = {
                 }
             },
 
-            // 🔽 Provider Info
             {
                 $lookup: {
                     from: "serviceproviders",
@@ -594,7 +564,6 @@ module.exports = {
                 }
             },
 
-            // 🔽 Product Info
             {
                 $lookup: {
                     from: "serviceproducts",
@@ -610,7 +579,6 @@ module.exports = {
                 }
             },
 
-            // 🔽 Optional: remove unnecessary fields
             {
                 $project: {
                     companyId: 1,
@@ -708,7 +676,7 @@ module.exports = {
                                 let slotStart = timeToMinutesSinceMidnight(slot.ServiceStartTime);
 
                                 if (slot.booked) return false;
-
+                                if (slot.MakeItBusy) return false;
                                 if (isToday(day.date) && slotStart < currentMinutes) {
                                     return false;
                                 }
@@ -727,7 +695,7 @@ module.exports = {
                         else {
 
                             if (isDatePast(day.date)) {
-                                let bookedSlots = day.appointments.filter(slot => slot.booked);
+                                let bookedSlots = day.appointments.filter(slot => slot.booked || slot.MakeItBusy);
 
                                 if (bookedSlots.length === 0) return null;
 
@@ -741,6 +709,7 @@ module.exports = {
                                 let slotStart = timeToMinutesSinceMidnight(slot.ServiceStartTime);
 
                                 if (slot.booked) return true;
+                                if (slot.MakeItBusy) return true; // always show busy slots
 
                                 if (isToday(day.date) && slotStart < currentMinutes) {
                                     return false;
@@ -786,3 +755,5 @@ module.exports = {
     },
 
 }
+
+

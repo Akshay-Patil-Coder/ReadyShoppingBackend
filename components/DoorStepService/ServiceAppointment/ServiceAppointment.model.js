@@ -42,6 +42,10 @@ const serviceAppointmentSchema = mongoose.Schema(
                     booked: {
                         type: Boolean,
                         default: false
+                    },
+                    MakeItBusy:{
+                        type:Boolean,
+                        default:false
                     }
                 }
             ]
