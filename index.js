@@ -16,13 +16,15 @@ const DoorStepServiceRoutes = require('./Routes/DoorStepService.routes');
 const ShoppingRoutes = require('./Routes/Shopping.routes');
 // const CoachingRoutes = require('./Routes/Coaching.routes');
 // require('./components/Shopping/ElasticSearch/elastic/createindex.js');
-// require('./components/Shopping/ElasticSearch/elastic/reindexAll.js');
+require('./components/Shopping/ElasticSearch/elastic/reindexAll.js');
 const scraperRoutes = require('./components/Shopping/WebScrapper/WebScrapper.routes');
 const UrbanScraperRoutes = require('./components/DoorStepService/UrbanScraper/UrbanScraper.routes');
 
 const { ProductOrder } = require('./components/Shopping/ProductCart/ProductCart.model');
-const {ServiceOrder}=require('./components/DoorStepService/ServiceProductCart/ServiceProductCart.model')
+const { ServiceOrder } = require('./components/DoorStepService/ServiceProductCart/ServiceProductCart.model')
 const staticPaths = require('./Routes/StaticPath.routes');
+const { reindexProducts, reindexWishlist } = require('./components/Shopping/ElasticSearch/elastic/reindexAll.js');
+const { runPriceSyncJob } = require('./components/Shopping/VariantsProducts/NodecronScrapper.js');
 
 const app = express();
 
@@ -174,6 +176,41 @@ cron.schedule("*/10 * * * *", async () => {
   }
 });
 
+cron.schedule("0 3 * * *", () => {
+  console.log("🕒 [ReindexCron] Starting nightly reindex at 3 AM...");
+
+  (async () => {
+    try {
+      console.log("📦 [ReindexCron] Reindexing products...");
+      await reindexProducts();
+      console.log("✅ [ReindexCron] Products reindexed successfully");
+
+      console.log("❤️  [ReindexCron] Reindexing wishlist...");
+      await reindexWishlist();
+      console.log("✅ [ReindexCron] Wishlist reindexed successfully");
+
+      console.log("🎉 [ReindexCron] Nightly reindex complete");
+    } catch (err) {
+      console.error("❌ [ReindexCron] Reindex failed:", err.message);
+    }
+  })();
+});
+
+cron.schedule("0 23 * * *", () => {
+  console.log("🕒 [PriceSyncCron] Starting nightly price sync at 11 PM...");
+
+  (async () => {
+    try {
+      console.log("💰 [PriceSyncCron] Syncing Amazon prices...");
+      await runPriceSyncJob();
+      console.log("✅ [PriceSyncCron] Price sync completed successfully");
+
+      console.log("🎉 [PriceSyncCron] Nightly price sync complete");
+    } catch (err) {
+      console.error("❌ [PriceSyncCron] Price sync failed:", err.message);
+    }
+  })();
+});
 io.on("connection", (socket) => {
   console.log("🔌 Client connected");
 

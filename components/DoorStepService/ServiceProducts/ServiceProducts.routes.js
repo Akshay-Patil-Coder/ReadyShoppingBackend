@@ -43,7 +43,7 @@ router.post('/addserviceproduct', authentication, upload.array('serviceImages', 
 });
 router.post('/generateBlankCSVServiceProducts', authentication, (req, res) => {
   if (req.user.role === 'Admin' || req.user.role === 'Company' || req.user.role === 'Service Provider') {
-   return serviceController.generateBlankCSVServiceProducts(req, res)
+    return serviceController.generateBlankCSVServiceProducts(req, res)
   }
   res.status(400).json({ message: "Authentication Failed only admin or company eligible to add data", success: false })
 
@@ -111,5 +111,8 @@ router.put('/deleteServiceImage/:id', authentication, (req, res) => {
 
 router.get('/getserviceproducts', (req, res) => {
   serviceController.getproducts(req, res);
+});
+router.get('/getAvailableLocationOfServiceProducts', (req, res) => {
+  serviceController.getAvailableLocationOfServiceProducts(req, res);
 });
 module.exports = router

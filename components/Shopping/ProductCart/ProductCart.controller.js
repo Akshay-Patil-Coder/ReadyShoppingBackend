@@ -1110,6 +1110,7 @@ module.exports = {
                     userInfo: { custId: UserId.toString() }
                 }
             };
+            console.log(paytmParams,'paytm')
 
             const checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), process.env.PAYTM_KEY);
             paytmParams.head = { signature: checksum };
@@ -1125,7 +1126,7 @@ module.exports = {
                     "Content-Length": Buffer.byteLength(post_data)
                 }
             };
-
+            console.log(options,'paytm options')
             const paytmResponse = await new Promise((resolve, reject) => {
                 let response = "";
                 const paytmReq = https.request(options, (paytmRes) => {
@@ -1159,7 +1160,7 @@ module.exports = {
             return res.status(200).json({
                 success: true,
                 message: "Payment Initiated",
-                url: `https://securegw.paytm.in/theia/api/v1/showPaymentPage?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
+                url: `https://${process.env.PAYTM_HOSTNAME}/theia/api/v1/showPaymentPage?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
                 txnToken: paytmResponse.body.txnToken,
                 orderId,
                 mid: process.env.PAYTM_MID,
@@ -2037,7 +2038,7 @@ module.exports = {
                 return res.status(200).json({
                     success: true,
                     message: "Payment Initiated",
-                    url: `https://securegw.paytm.in/theia/api/v1/showPaymentPage?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
+                    url: `https://${process.env.PAYTM_HOSTNAME}/theia/api/v1/showPaymentPage?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
                     txnToken: paytmResponse.body.txnToken,
                     orderId,
                     mid: process.env.PAYTM_MID,
@@ -2535,7 +2536,6 @@ module.exports = {
             const product = order.Products.id(productId);
             if (!product) return res.status(404).json({ message: 'Product not found in this order' });
 
-            // Must be OUTFORDELIVERY before OTP can be requested
             const currentStatus = product.OrderStatus.at(-1)?.Status;
             if (currentStatus !== 'OUTFORDELIVERY') {
                 return res.status(400).json({
@@ -2798,7 +2798,6 @@ module.exports = {
             if (!PRODUCT_STATUSES.includes(status))
                 return res.status(400).json({ message: `Invalid status. Allowed values: ${PRODUCT_STATUSES.join(', ')}` });
 
-            // DELIVERED is locked behind OTP — never set it manually
             if (status === 'DELIVERED')
                 return res.status(400).json({ message: 'Cannot manually set DELIVERED. Use the OTP verification endpoint.' });
 

@@ -617,7 +617,7 @@ module.exports = {
             return res.status(200).json({
                 success: true,
                 message: 'Payment initiated',
-                url: `https://securegw.paytm.in/theia/api/v1/showPaymentPage?mid=${process.env.PAYTM_MID}&orderId=${paytmOrderId}`,
+                url: `https://${process.env.PAYTM_HOSTNAME}/theia/api/v1/showPaymentPage?mid=${process.env.PAYTM_MID}&orderId=${paytmOrderId}`,
                 txnToken: paytmResponse.body.txnToken,
                 orderId: paytmOrderId,
                 mid: process.env.PAYTM_MID,

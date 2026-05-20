@@ -62,7 +62,41 @@ module.exports = {
       return resp.status(500).json({ message: "Internal Server Error", error: error.message, success: false });
     }
   },
+  getBrandsNames: async (req, res) => {
+    try {
 
+      let { companyId } = req.query;
+
+      if (!companyId) {
+        return res.status(400).json({
+          success: false,
+          message: "companyId is required"
+        });
+      }
+
+      const AllBrands = await brandmodel.distinct(
+        "BrandName",
+        {
+          companyId: new mongoose.Types.ObjectId(companyId)
+        }
+      );
+
+      return res.status(200).json({
+        success: true,
+        brands: AllBrands
+      });
+
+    } catch (error) {
+
+      console.error("getBrandsNames Error:", error);
+
+      return res.status(500).json({
+        success: false,
+        message: "Internal Server Error"
+      });
+
+    }
+  },
   getBrandData: async (matchCondition) => {
     return await brandmodel.aggregate([
       { $match: matchCondition },

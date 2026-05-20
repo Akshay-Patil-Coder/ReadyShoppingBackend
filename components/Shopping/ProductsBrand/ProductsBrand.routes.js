@@ -51,6 +51,9 @@ router.post("/addbrands", authentication, upload.single('BrandImage'), (req, res
 router.get('/getBrandsById', (req, res) => {
   brandController.getBrandsById(req, res)
 })
+router.get('/getBrandsNames', (req, res) => {
+  brandController.getBrandsNames(req, res)
+})
 
 router.put('/updateSubCategoryList', authentication, (req, res) => {
   if (req.user.role == 'Company' || req.user.role == 'Admin') {

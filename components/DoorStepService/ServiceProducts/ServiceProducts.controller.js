@@ -36,89 +36,6 @@ module.exports = {
         }
     },
 
-    // addserviceproduct: async (req, res) => {
-    //     console.log(req.body)
-    //     try {
-    //         let {
-    //             companyId,
-    //             ServiceName,
-    //             HeadServiceId,
-    //             SubServiceId,
-    //             ProviderId,
-    //             service_description,
-    //             service_parts,
-    //             service_base_price,
-    //             offerPercentage,
-    //             serviceTime,
-    //             googleLocation,
-    //         } = req.body;
-    //         let finalPrice = 0;
-    //         console.log(req.body, 'service')
-    //         if (service_parts) {
-    //             service_parts = JSON.parse(service_parts)
-    //         }
-    //         if (!companyId || !ServiceName || !HeadServiceId || !SubServiceId || !ProviderId || !service_description || !googleLocation) {
-    //             if (req.files) {
-    //                 req.files.forEach((file) => {
-    //                     const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProductImage', file.filename);
-    //                     if (fs.existsSync(newImagePath)) {
-    //                         fs.unlinkSync(newImagePath);
-    //                     }
-    //                 })
-
-    //             }
-    //             return res.status(400).send({
-    //                 success: false,
-    //                 message: "Please filled all required fields"
-    //             });
-    //         }
-
-    //         if (service_parts) {
-    //             service_parts.forEach(data => {
-    //                 finalPrice = finalPrice + data.partPrice
-    //             });
-    //             console.log(finalPrice, 'price')
-    //             if (finalPrice > 0) {
-    //                 service_base_price = finalPrice;
-    //             }
-    //         }
-
-    //         const serviceImages = req.files.map(file => `${file.filename}`);
-
-    //         const newService = new serviceProductsModel({
-    //             companyId,
-    //             ServiceName,
-    //             HeadServiceId,
-    //             SubServiceId,
-    //             ProviderId,
-    //             service_description,
-    //             service_parts,
-    //             service_base_price,
-    //             offerPercentage,
-    //             serviceTime,
-    //             googleLocation,
-    //             serviceImages: serviceImages
-    //         });
-
-    //         const result = await newService.save();
-
-    //         res.status(200).send({ success: true, message: "Successfully added", data: result });
-
-    //     } catch (error) {
-    //         if (req.files) {
-    //             req.files.forEach((file) => {
-    //                 const newImagePath = path.join(__dirname, '..', '..', 'public', 'ServiceProductImage', file.filename);
-    //                 if (fs.existsSync(newImagePath)) {
-    //                     fs.unlinkSync(newImagePath);
-    //                 }
-    //             })
-
-    //         }
-    //         console.log("Error:", error);
-    //         res.status(500).send({ success: false, message: "Error occurred", error: error.message });
-    //     }
-    // },
-
 
     addserviceproduct: async (req, res) => {
         const deleteUploadedFiles = (files) => {
@@ -837,5 +754,31 @@ module.exports = {
             }
         });
     },
+    getAvailableLocationOfServiceProducts: async (req, res) => {
+        try {
+            const { companyId } = req.query;
 
+            let allGoogleLocations = await serviceProductsModel.distinct(
+                "googleLocation",
+                {
+                    companyId: companyId,
+                }
+            );
+            allGoogleLocations = [...new Set(allGoogleLocations)]
+            return res.status(200).json({
+                success: true,
+                message: "Available locations fetched successfully",
+                data: allGoogleLocations
+            });
+
+        } catch (error) {
+            console.log("getAvailableLocationOfServiceProducts Error:", error);
+
+            return res.status(500).json({
+                success: false,
+                message: "Internal server error",
+                error: error.message
+            });
+        }
+    },
 } 
