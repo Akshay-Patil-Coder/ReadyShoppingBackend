@@ -416,8 +416,10 @@ const OrderSchema = new mongoose.Schema({
         txnId: { type: String },
         status: { type: String, enum: ['INITIATED', 'SUCCESS', 'FAILED', 'PENDING', 'EXPIRED'], default: 'INITIATED' },
         amount: { type: Number },
-        paymentGateway: { type: String, default: 'Paytm' }
-    }
+        paymentGateway: { type: String, enum: ['Paytm', 'COD'], default: 'Paytm' }, // ← added 'COD'
+        paymentType: { type: String }
+    },
+  
 
 }, {
     timestamps: true

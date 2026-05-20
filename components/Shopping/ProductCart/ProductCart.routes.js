@@ -29,12 +29,12 @@ router.post('/proceedToPaymentForCart', authentication, (req, res) => {
     }
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 })
-router.post('/handlePaymentStatus',  (req, res) => {
-        return cartsController.handlePaymentStatus(req, res)
+router.post('/handlePaymentStatus', (req, res) => {
+    return cartsController.handlePaymentStatus(req, res)
 
 })
 router.get('/getOrders', authentication, (req, res) => {
-    if (req.user.role == 'User' || req.user.role == 'Company' ||req.user.role == 'Admin' ) {
+    if (req.user.role == 'User' || req.user.role == 'Company' || req.user.role == 'Admin') {
         return cartsController.getOrders(req, res)
     }
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
@@ -44,7 +44,7 @@ router.get('/getAllOrders', authentication, (req, res) => {
     if (req.user.role == 'Company' || req.user.role == 'Admin') {
         return cartsController.getAllOrders(req, res)
     }
-    
+
     return res.status(400).json({ message: 'Authenticate User Not Found To Make Operation', success: false })
 })
 router.post('/requestOtp/:orderId/:productId', authentication, (req, res) => {
@@ -60,10 +60,12 @@ router.post('/updateServiceStatus/:orderId/:productId', authentication, (req, re
     cartsController.updateServiceStatus(req, res)
 })
 router.post('/:orderId/products/:productId/request-otp', authentication, cartsController.requestOtp);
-router.post('/:orderId/products/:productId/resend-otp',  authentication, cartsController.resendOtp);
-router.post('/:orderId/products/:productId/verify-otp',  authentication, cartsController.verifyOtpAndComplete);
- 
+router.post('/:orderId/products/:productId/resend-otp', authentication, cartsController.resendOtp);
+router.post('/:orderId/products/:productId/verify-otp', authentication, cartsController.verifyOtpAndComplete);
+
 router.post('/:orderId/request-otp', authentication, cartsController.requestOtpFullOrder);
-router.post('/:orderId/resend-otp',  authentication, cartsController.resendOtpFullOrder);
-router.post('/:orderId/verify-otp',  authentication, cartsController.verifyOtpFullOrder);
+router.post('/:orderId/resend-otp', authentication, cartsController.resendOtpFullOrder);
+router.post('/:orderId/verify-otp', authentication, cartsController.verifyOtpFullOrder);
+router.post('/cod/collect', authentication, cartsController.confirmCODCollection);
+router.post('/cod/update-status', authentication, cartsController.updateCODOrderStatus);
 module.exports = router

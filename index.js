@@ -118,6 +118,7 @@ cron.schedule("*/10 * * * *", async () => {
   try {
     const companies = await ProductOrder.distinct("companyId", {
       'PaymentSession.status': { $in: ["PENDING", "INITIATED"] },
+      'PaymentSession.paymentGateway':{$ne:'COD'},
       ReservationStartedAt: { $exists: true }
     });
 
