@@ -9,7 +9,7 @@ const path = require('path');
 
 module.exports = {
 
-    addProductReview: async (req, res) => {
+    addProductReview: async (req, res) => { 
         let { companyId, ProductId, UserId, ReviewText, RatingStar } = req.body;
         if (req.user.UserId) UserId = req.user.UserId
         if (req.user.companyId) companyId = req.user.companyId
