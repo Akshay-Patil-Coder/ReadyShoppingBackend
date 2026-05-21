@@ -3049,6 +3049,7 @@ module.exports = {
         const VALID_STATUSES = ["ASSIGNED", "OUTFORDELIVERY", "CANCELED"];
 
         const ALLOWED_TRANSITIONS = {
+            INITIATED: ["ASSIGNED", "CANCELED"],
             PENDING: ["ASSIGNED", "CANCELED"],
             ASSIGNED: ["OUTFORDELIVERY", "CANCELED"],
             OUTFORDELIVERY: ["CANCELED"]
