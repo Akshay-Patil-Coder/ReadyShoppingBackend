@@ -166,7 +166,7 @@ module.exports = {
                     }
 
                     VariantData.VariantProductName = EachVariantProduct?.VariantProductName || ProductName;
-                    VariantData.Price = EachVariantProduct?.Price || 0;
+                    VariantData.Price = Number(Number(EachVariantProduct?.Price || 0).toFixed(2));
                     if (EachVariantProduct?.OfferPercentage) VariantData.OfferPercentage = EachVariantProduct.OfferPercentage;
                     if (EachVariantProduct?.InventoryBaseStock?.AvailableStock > EachVariantProduct?.InventoryBaseStock?.Stock) {
                         clearFiles(AllProductImages);
@@ -424,7 +424,7 @@ module.exports = {
                             SubCategoryId,
                             ProductId: product._id,
                             VariantProductName: EachVariant.VariantProductName || EachProduct.ProductName,
-                            Price: EachVariant.Price,
+                            Price: Number(Number(EachVariant?.Price || 0).toFixed(2)),
                             OfferPercentage: EachVariant.OfferPercentage,
                             InventoryBaseStock: EachVariant.InventoryBaseStock,
                         };
@@ -723,7 +723,7 @@ module.exports = {
                             SubCategoryId,
                             ProductId: product._id,
                             VariantProductName: EachVariant.VariantProductName || EachProduct.ProductName,
-                            Price: EachVariant.Price,
+                            Price: Number(Number(EachVariant?.Price || 0).toFixed(2)),
                             OfferPercentage: EachVariant.OfferPercentage,
                         };
                         if (EachVariant?.InventoryBaseStock) {
@@ -963,7 +963,7 @@ module.exports = {
 
                         groupedProducts[row.ProductName].VariantProductDatas.push({
                             VariantProductName: row.VariantProductName,
-                            Price: Number(row.Price),
+                            Price: Number(Number(row?.Price || 0).toFixed(2)),
                             OfferPercentage: Number(row.OfferPercentage || 0),
                             InventoryBaseStock: {
                                 InventoryBase: row.InventoryBase === "true",
@@ -1038,7 +1038,7 @@ module.exports = {
                                 SubCategoryId,
                                 ProductId: product._id,
                                 VariantProductName: EachVariant.VariantProductName || product.ProductName,
-                                Price: EachVariant.Price,
+                                Price: Number(Number(EachVariant?.Price || 0).toFixed(2)),
                                 OfferPercentage: EachVariant.OfferPercentage,
                                 InventoryBaseStock: EachVariant.InventoryBaseStock
                             };
@@ -1278,7 +1278,7 @@ module.exports = {
 
                 groupedProducts[row.ProductName].VariantProductDatas.push({
                     VariantProductName: row.VariantProductName || row.ProductName,
-                    Price: Number(row.Price || 0),
+                    Price: Number(Number(row?.Price || 0).toFixed(2)),
                     OfferPercentage: Number(row.OfferPercentage || 0),
                     BatchIds: parsePipeArray(row.BatchIds),
                     InventoryBaseStock: {
@@ -1483,7 +1483,7 @@ module.exports = {
                         BatchIds = [BatchIds];
                     }
                 } catch (err) {
-                    BatchIds = []; 
+                    BatchIds = [];
                 }
             } else if (!Array.isArray(BatchIds)) {
                 BatchIds = BatchIds ? [BatchIds] : [];
@@ -1510,7 +1510,7 @@ module.exports = {
                     VariantValue: v.VariantValue
                 })) : [],
                 OfferPercentage,
-                Price,
+                Price: Number(Number(Price || 0).toFixed(2)),
                 BatchIds: Array.isArray(BatchIds) ? BatchIds : (BatchIds ? [BatchIds] : []),
                 InventoryBaseStock: InventoryBaseStock || { InventoryBase: false, Stock: 0, AvailableStock: 0 },
                 Specification: Array.isArray(Specification) ? Specification.filter(s => s.SpecificationKey && s.SpecificationValue) : [],
@@ -3066,7 +3066,7 @@ module.exports = {
                             AboutProduct: variant.AboutProduct,
                             BatchesInfo: variant.BatchesInfo,
                             OfferPercentage: variant.OfferPercentage,
-                            Price: variant.Price,
+                            Price: Number(Number(variant?.Price || 0).toFixed(2)),
                             VariantFields: variant.VariantFields,
                             VariantProductName: variant.VariantProductName,
                             RatingStar: product.RatingStar,

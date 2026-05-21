@@ -26,14 +26,16 @@ function generateOtp() {
 
 async function sendOtpSms(phoneno, otp) {
     const msg = encodeURIComponent(
-        `${otp} is your delivery confirmation OTP. Do not share this with anyone. - Dealmoney`
+        `Use ${otp} as your website login OTP. Your OTP is confidential. familycare never calls you asking for OTP.`
+
     );
+
+
     const to = '91' + phoneno;
     const url =
         `https://sms.cell24x7.com:1111/mspProducerM/sendSMS` +
         `?user=familycare&pwd=Info@2020&sender=FMLYCR` +
         `&mobile=${to}&msg=${msg}&mt=0&tempId=1007457883683974747`;
-
     try {
         await superagent.get(url);
     } catch (err) {
@@ -2089,7 +2091,7 @@ module.exports = {
             return res.status(500).json({ message: "Internal Server Error", success: false });
         }
     },
-  
+
     handlePaymentStatus: async (req, res) => {
         let FrontendRenderDomain;
         try {
@@ -2611,6 +2613,8 @@ module.exports = {
 
             const order = await ProductOrder.findById(orderId);
             if (!order) return res.status(404).json({ message: 'Order not found' });
+            if (order.PaymentSession?.paymentGateway === "Paytm" && order.PaymentSession?.status !== "SUCCESS")
+                return res.status(400).json({ message: "Payment not completed for this order", success: false });
 
             const product = order.Products.id(productId);
             if (!product) return res.status(404).json({ message: 'Product not found in this order' });
@@ -2643,6 +2647,8 @@ module.exports = {
 
             const order = await ProductOrder.findById(orderId);
             if (!order) return res.status(404).json({ message: 'Order not found' });
+            if (order.PaymentSession?.paymentGateway === "Paytm" && order.PaymentSession?.status !== "SUCCESS")
+                return res.status(400).json({ message: "Payment not completed for this order", success: false });
 
             const product = order.Products.id(productId);
             if (!product) return res.status(404).json({ message: 'Product not found in this order' });
@@ -2680,6 +2686,8 @@ module.exports = {
 
             const order = await ProductOrder.findById(orderId);
             if (!order) return res.status(404).json({ message: 'Order not found' });
+            if (order.PaymentSession?.paymentGateway === "Paytm" && order.PaymentSession?.status !== "SUCCESS")
+                return res.status(400).json({ message: "Payment not completed for this order", success: false });
 
             const product = order.Products.id(productId);
             if (!product) return res.status(404).json({ message: 'Product not found in this order' });
@@ -2736,6 +2744,8 @@ module.exports = {
 
             const order = await ProductOrder.findById(orderId);
             if (!order) return res.status(404).json({ message: 'Order not found' });
+            if (order.PaymentSession?.paymentGateway === "Paytm" && order.PaymentSession?.status !== "SUCCESS")
+                return res.status(400).json({ message: "Payment not completed for this order", success: false });
 
             const eligibleProducts = order.Products.filter(
                 (p) => p.OrderStatus.at(-1)?.Status === 'OUTFORDELIVERY'
@@ -2773,6 +2783,8 @@ module.exports = {
 
             const order = await ProductOrder.findById(orderId);
             if (!order) return res.status(404).json({ message: 'Order not found' });
+            if (order.PaymentSession?.paymentGateway === "Paytm" && order.PaymentSession?.status !== "SUCCESS")
+                return res.status(400).json({ message: "Payment not completed for this order", success: false });
 
             const eligibleProducts = order.Products.filter(
                 (p) => p.OrderStatus.at(-1)?.Status === 'OUTFORDELIVERY'
@@ -2814,6 +2826,8 @@ module.exports = {
 
             const order = await ProductOrder.findById(orderId);
             if (!order) return res.status(404).json({ message: 'Order not found' });
+            if (order.PaymentSession?.paymentGateway === "Paytm" && order.PaymentSession?.status !== "SUCCESS")
+                return res.status(400).json({ message: "Payment not completed for this order", success: false });
 
             const eligibleProducts = order.Products.filter(
                 (p) => p.OrderStatus.at(-1)?.Status === 'OUTFORDELIVERY'
@@ -2866,7 +2880,7 @@ module.exports = {
         }
     },
     updateProductStatus: async (req, res) => {
-        let { NewStatus, AgentId, Reason, companyId, ProductIds ,orderId} = req.body;
+        let { NewStatus, AgentId, Reason, companyId, ProductIds, orderId } = req.body;
 
         if (req.user?.companyId) companyId = req.user.companyId;
         if (req.user?._id) AgentId = req.user._id;
@@ -2893,9 +2907,9 @@ module.exports = {
             let FoundOrder = await ProductOrder.findOne({ _id: orderId, companyId });
             if (!FoundOrder)
                 return res.status(404).json({ message: "Order not found", success: false });
+            if (FoundOrder.PaymentSession?.paymentGateway === "Paytm" && FoundOrder.PaymentSession?.status !== "SUCCESS")
+                return res.status(400).json({ message: "Payment not completed for this order", success: false });
 
-            if (FoundOrder.PaymentSession?.status === "SUCCESS" && FoundOrder.PaymentSession?.paymentGateway !== "COD")
-                return res.status(400).json({ message: "Order already completed, cannot update status", success: false });
 
             let updatedProducts = [];
 
@@ -2964,10 +2978,10 @@ module.exports = {
 
         } catch (err) {
             console.error("updateProductStatus Error:", err);
-            return res.status(500).json({ message: "Internal Server Error", success: false });
+            return res.status(500).json({ message: "Internal Server Error", success: false,error:err.message });
         }
     },
-  confirmCODCollection: async (req, res) => {
+    confirmCODCollection: async (req, res) => {
         let { orderId, companyId, AgentId } = req.body;
 
         if (req.user?.companyId) companyId = req.user.companyId;
