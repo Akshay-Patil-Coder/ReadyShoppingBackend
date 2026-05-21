@@ -56,8 +56,8 @@ router.post('/verifyOtpAndComplete/:orderId/:productId', authentication, (req, r
 router.post('/resendOtp/:orderId/:productId', authentication, (req, res) => {
     cartsController.resendOtp(req, res)
 })
-router.post('/updateServiceStatus/:orderId/:productId', authentication, (req, res) => {
-    cartsController.updateServiceStatus(req, res)
+router.post('/updateProductStatus', authentication, (req, res) => {
+    cartsController.updateProductStatus(req, res)
 })
 router.post('/:orderId/products/:productId/request-otp', authentication, cartsController.requestOtp);
 router.post('/:orderId/products/:productId/resend-otp', authentication, cartsController.resendOtp);

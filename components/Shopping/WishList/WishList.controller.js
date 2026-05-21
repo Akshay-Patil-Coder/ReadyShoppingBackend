@@ -1017,365 +1017,761 @@ module.exports = {
         }
     },
 
+    // proceedToPaymentForWishList: async (req, res) => {
+    //     let { UserId, companyId, AddressId, WishListId } = req.body;
+    //     let { RenderingDomain } = req.query;
+
+    //     RenderingDomain = ["private", "public"].includes((RenderingDomain || "").toLowerCase())
+    //         ? RenderingDomain.toLowerCase()
+    //         : "public";
+
+    //     if (req.user.UserId) UserId = req.user.UserId;
+    //     if (req.user.companyId) companyId = req.user.companyId;
+
+    //     let rollback = {
+    //         orderId: null,
+    //         stockUpdates: []
+    //     };
+
+    //     const RollBackFunction = async () => {
+    //         try {
+    //             if (rollback.stockUpdates?.length) {
+    //                 await Promise.all(
+    //                     rollback.stockUpdates.map(async ({ variantId, quantity }) =>
+    //                         VariantProduct.updateOne(
+    //                             { _id: variantId, "InventoryBaseStock.InventoryBase": true },
+    //                             {
+    //                                 $inc: {
+    //                                     "InventoryBaseStock.AvailableStock": quantity,
+    //                                     "InventoryBaseStock.ReservedStock": -quantity
+    //                                 }
+    //                             }
+    //                         )
+    //                     )
+    //                 );
+    //             }
+
+    //             if (rollback.orderId) {
+    //                 await ProductOrder.findByIdAndDelete(rollback.orderId);
+    //             }
+
+    //         } catch (err) {
+    //             console.error("Rollback Error:", err.message);
+    //         }
+    //     };
+
+    //     try {
+    //         await module.exports.ValidateWishlist(req, res);
+
+    //         let WishList = await Wishlist.findOne({
+    //             _id: WishListId,
+    //             UserId,
+    //             companyId
+    //         });
+
+    //         if (!WishList || !WishList.Products?.length)
+    //             return res.status(400).json({ message: "Wishlist is empty", success: false });
+
+    //         let FoundUser = await User.findOne({ _id: UserId, companyId });
+    //         if (!FoundUser)
+    //             return res.status(400).json({ message: "User not found", success: false });
+
+    //         let OrderData = {
+    //             UserId,
+    //             companyId,
+    //             Products: [],
+    //             ReservationStartedAt: new Date()
+    //         };
+
+    //         let FoundedAddress;
+    //         if (!FoundUser.Address || FoundUser.Address.length === 0)
+    //             return res.status(400).json({ message: "Address not found", success: false });
+
+    //         if (!AddressId) {
+    //             FoundedAddress = FoundUser.Address.find(a => a.DefaultAddress) || FoundUser.Address[0];
+    //         } else {
+    //             FoundedAddress = FoundUser.Address.find(a => a._id.toString() === AddressId);
+    //         }
+
+    //         if (!FoundedAddress)
+    //             return res.status(400).json({ message: "Address not found", success: false });
+
+    //         OrderData.UserDetails = {
+    //             UserName: FoundUser.UserName || "",
+    //             Email: FoundUser.Email || "",
+    //             Phone: FoundUser.Phone,
+    //             AddresserName: FoundedAddress.AddresserName || FoundUser.UserName || "Guest",
+    //             AddresserNumber: FoundedAddress.AddresserNumber || FoundUser.Phone,
+    //             AddressType: FoundedAddress.AddressType || "Home",
+    //             Street: FoundedAddress.Street || "",
+    //             City: FoundedAddress.City || "",
+    //             State: FoundedAddress.State || "",
+    //             Country: FoundedAddress.Country || "",
+    //             PostalCode: FoundedAddress.PostalCode || "",
+    //             Latitude: FoundedAddress.Latitude || "",
+    //             Longitude: FoundedAddress.Longitude || "",
+    //             ManualAddress: FoundedAddress.ManualAddress || ""
+    //         };
+
+    //         let matchCondition = {
+    //             companyId: new mongoose.Types.ObjectId(String(companyId)),
+    //             UserId: new mongoose.Types.ObjectId(String(UserId)),
+    //             _id: new mongoose.Types.ObjectId(String(WishListId))
+    //         };
+
+    //         let data = await module.exports.getWishListData(matchCondition);
+
+    //         if (data && data[0]) {
+    //             if (data.length) {
+    //                 data = data.map(cart => {
+    //                     cart.Products = cart.Products.map(prod => {
+    //                         if (prod?.ProductInfo?.ProductServices && prod?.ServiceInfo) {
+    //                             let existingServiceIds = prod.ServiceInfo.map(s => s.ProductServiceId?.toString());
+    //                             let remaining = prod.ProductInfo.ProductServices
+    //                                 .filter(s => !existingServiceIds.includes(s.ProductServiceId?.toString()))
+    //                                 .filter(s => s.Paid == true);
+    //                             prod.RemainingServices = remaining;
+    //                         } else prod.RemainingServices = [];
+    //                         delete prod.ProductInfo.ProductServices;
+    //                         return prod;
+    //                     });
+    //                     return cart;
+    //                 });
+    //             }
+    //             let WLProducts = data[0].Products;
+
+    //             for (let p of WLProducts) {
+    //                 if (p?.IsActive == false || p?.Quantity == 0 || p?.Quantity == undefined || p?.Quantity == null) continue;
+
+    //                 let variantInfo = await VariantProduct.findById(p.VariantProductId);
+
+    //                 let ProductEntry = {
+    //                     WishListProductId: p._id,
+    //                     OrderStatus: [{ Status: "INITIATED", StatusAt: new Date() }],
+    //                     Quantity: p.Quantity,
+    //                     TotalPrice: p.TotalPrice,
+    //                     DiscountPrice: p.DiscountPrice,
+    //                     FinalPrice: p.FinalPrice,
+    //                     ProductData: { ProductInfo: {}, VariantProductInfo: {} },
+    //                     ProductServices: [],
+    //                     ProductFreeServices: []
+    //                 };
+
+    //                 ProductEntry.ProductData.ProductInfo = {
+    //                     ProductId: p.ProductId,
+    //                     ProductName: p.ProductInfo.ProductName,
+    //                     CommonImages: p.ProductInfo.CommonImages,
+    //                     CommonVideos: p.ProductInfo.CommonVideos,
+    //                     CommonDescription: p.ProductInfo.CommonDescription
+    //                 };
+
+    //                 let FoundBrand = await brandmodel.findOne({
+    //                     companyId,
+    //                     _id: p.ProductInfo.BrandId
+    //                 });
+
+    //                 if (FoundBrand) {
+    //                     ProductEntry.ProductData.ProductInfo.BrandId = FoundBrand._id;
+    //                     ProductEntry.ProductData.ProductInfo.BrandName = FoundBrand.BrandName;
+    //                 }
+
+    //                 if (variantInfo) {
+    //                     ProductEntry.ProductData.VariantProductInfo = {
+    //                         VariantProductId: variantInfo._id,
+    //                         VariantProductName: variantInfo.VariantProductName,
+    //                         VariantFields: p.VariantInfo.VariantFields,
+    //                         VariantProductImage: p.VariantInfo.VariantProductImage,
+    //                         OfferPercentage: variantInfo.OfferPercentage,
+    //                         Price: variantInfo.Price,
+    //                         Specification: variantInfo.Specification,
+    //                         AboutProduct: variantInfo.AboutProduct
+    //                     };
+    //                 }
+
+    //                 ProductEntry.ProductServices = (p.ServiceInfo || []).map(s => ({
+    //                     ProductServiceId: s.ProductServiceId,
+    //                     ServiceName: s.ServiceName,
+    //                     Description: s.Description,
+    //                     ServiceImages: s.ServiceImages,
+    //                     ProductServiceAmount: s.ProductServiceAmount,
+    //                     ExpiryDate: s.ExpiryDate
+    //                 }));
+
+    //                 ProductEntry.ProductFreeServices = (p.FreeServiceInfo || []).map(s => ({
+    //                     ProductServiceId: s._id,
+    //                     ServiceName: s.ServiceName,
+    //                     Description: s.Description,
+    //                     ServiceImages: s.ServiceImages,
+    //                     ProductServiceAmount: s.ProductServiceAmount,
+    //                     ExpiryDate: s.ExpiryDate
+    //                 }));
+
+    //                 OrderData.Products.push(ProductEntry);
+    //             }
+    //         }
+
+    //         if (!OrderData.Products.length)
+    //             return res.status(400).json({ message: "No valid products found", success: false });
+
+    //         OrderData.TotalCartPrice = parseFloat(
+    //             OrderData.Products.reduce((a, b) => a + (b.TotalPrice || 0), 0).toFixed(2)
+    //         );
+    //         OrderData.DiscountCartPrice = parseFloat(
+    //             OrderData.Products.reduce((a, b) => a + (b.DiscountPrice || 0), 0).toFixed(2)
+    //         );
+    //         OrderData.FinalCartPrice = parseFloat(
+    //             OrderData.Products.reduce((a, b) => a + (b.FinalPrice || 0), 0).toFixed(2)
+    //         );
+
+    //         let SavedOrder = await new ProductOrder(OrderData).save();
+    //         rollback.orderId = SavedOrder._id;
+
+    //         let FoundOrder = await ProductOrder.findById(SavedOrder._id);
+    //         if (!FoundOrder) {
+    //             await RollBackFunction();
+    //             return res.status(500).json({ message: "Order initialization failed", success: false });
+    //         }
+
+
+    //         try {
+    //             let productsToUpdate = [];
+
+    //             for (let item of FoundOrder.Products) {
+    //                 let variant = await VariantProduct.findOne({
+    //                     _id: item.ProductData.VariantProductInfo.VariantProductId,
+    //                     ProductId: item.ProductData.ProductInfo.ProductId,
+    //                     companyId,
+    //                     isActive: true
+    //                 });
+
+    //                 if (!variant) {
+    //                     await RollBackFunction();
+    //                     return res.status(400).json({ message: "Some products are unavailable", success: false });
+    //                 }
+
+    //                 if (variant.InventoryBaseStock?.InventoryBase == true) {
+    //                     let available = variant.InventoryBaseStock.AvailableStock || 0;
+
+    //                     if (item.Quantity > available) {
+    //                         await RollBackFunction();
+    //                         return res.status(400).json({
+    //                             message: `Not enough stock for ${variant.VariantProductName || "product"}`,
+    //                             success: false
+    //                         });
+    //                     }
+
+    //                     productsToUpdate.push({ variantId: variant._id, quantity: item.Quantity });
+    //                 }
+    //             }
+
+    //             await Promise.all(
+    //                 productsToUpdate.map(async ({ variantId, quantity }) => {
+    //                     await VariantProduct.updateOne(
+    //                         { _id: variantId, "InventoryBaseStock.InventoryBase": true },
+    //                         {
+    //                             $inc: {
+    //                                 "InventoryBaseStock.AvailableStock": -quantity,
+    //                                 "InventoryBaseStock.ReservedStock": quantity
+    //                             }
+    //                         }
+    //                     );
+    //                     rollback.stockUpdates.push({ variantId, quantity });
+    //                 })
+    //             );
+
+    //         } catch (err) {
+    //             console.error("Stock Validation Error:", err);
+    //             await RollBackFunction();
+    //             return res.status(500).json({ message: "Stock validation failed", success: false });
+    //         }
+
+    //         try {
+    //             let orderId = `ORDER_${FoundOrder._id.toString().slice(-6)}_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
+    //             let totalAmount = FoundOrder.FinalCartPrice || FoundOrder.TotalCartPrice;
+
+    //             let paytmParams = {
+    //                 body: {
+    //                     requestType: "Payment",
+    //                     mid: process.env.PAYTM_MID,
+    //                     websiteName: process.env.PAYTM_WEBSITE,
+    //                     orderId,
+    //                     callbackUrl: `${process.env.BASE_URL}productcart/handlePaymentStatus?RenderingDomain=${RenderingDomain}&companyId=${companyId}`,
+    //                     txnAmount: { value: totalAmount.toString(), currency: "INR" },
+    //                     userInfo: { custId: UserId.toString() }
+    //                 }
+    //             };
+
+    //             let checksum = await PaytmChecksum.generateSignature(
+    //                 JSON.stringify(paytmParams.body),
+    //                 process.env.PAYTM_KEY
+    //             );
+
+    //             paytmParams.head = { signature: checksum };
+    //             let post_data = JSON.stringify(paytmParams);
+
+    //             let options = {
+    //                 hostname: process.env.PAYTM_HOSTNAME,
+    //                 port: 443,
+    //                 path: `/theia/api/v1/initiateTransaction?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
+    //                 method: "POST",
+    //                 headers: {
+    //                     "Content-Type": "application/json",
+    //                     "Content-Length": Buffer.byteLength(post_data)
+    //                 }
+    //             };
+
+    //             let paytmResponse = await new Promise((resolve, reject) => {
+    //                 let response = "";
+    //                 let paytmReq = https.request(options, (paytmRes) => {
+    //                     paytmRes.on("data", chunk => (response += chunk));
+    //                     paytmRes.on("end", () => {
+    //                         try {
+    //                             resolve(JSON.parse(response));
+    //                         } catch (err) {
+    //                             reject(err);
+    //                         }
+    //                     });
+    //                 });
+
+    //                 paytmReq.on("error", reject);
+    //                 paytmReq.write(post_data);
+    //                 paytmReq.end();
+    //             });
+
+    //             FoundOrder.PaymentSession = {
+    //                 orderId,
+    //                 txnId: null,
+    //                 status: "INITIATED",
+    //                 amount: totalAmount,
+    //                 paymentGateway: "Paytm"
+    //             };
+
+    //             FoundOrder.ReservationStartedAt = new Date();
+    //             await FoundOrder.save();
+
+    //             if (!paytmResponse?.body?.txnToken) {
+    //                 await RollBackFunction();
+    //                 return res.status(500).json({ message: "Payment gateway returned no txnToken", success: false });
+    //             }
+
+    //             return res.status(200).json({
+    //                 success: true,
+    //                 message: "Payment Initiated",
+    //                 url: `https://s${process.env.PAYTM_HOSTNAME}/theia/api/v1/showPaymentPage?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
+    //                 txnToken: paytmResponse.body.txnToken,
+    //                 orderId,
+    //                 mid: process.env.PAYTM_MID,
+    //                 amount: totalAmount
+    //             });
+
+    //         } catch (err) {
+    //             console.error("Payment Initiation Error:", err);
+    //             await RollBackFunction();
+    //             return res.status(500).json({ message: "Failed to initiate payment", success: false });
+    //         }
+
+    //     } catch (err) {
+    //         console.error("ProceedToPaymentForWishlist Error:", err);
+    //         await RollBackFunction();
+    //         return res.status(500).json({ message: "Internal server error", success: false });
+    //     }
+    // },
+  
     proceedToPaymentForWishList: async (req, res) => {
-        let { UserId, companyId, AddressId, WishListId } = req.body;
-        let { RenderingDomain } = req.query;
+    let { UserId, companyId, AddressId, WishListId, PaymentMethod = "Paytm" } = req.body;
+    let { RenderingDomain } = req.query;
 
-        RenderingDomain = ["private", "public"].includes((RenderingDomain || "").toLowerCase())
-            ? RenderingDomain.toLowerCase()
-            : "public";
+    RenderingDomain = ["private", "public"].includes((RenderingDomain || "").toLowerCase())
+        ? RenderingDomain.toLowerCase()
+        : "public";
 
-        if (req.user.UserId) UserId = req.user.UserId;
-        if (req.user.companyId) companyId = req.user.companyId;
+    PaymentMethod = ["COD", "Paytm"].includes((PaymentMethod || "").toUpperCase())
+        ? PaymentMethod.toUpperCase()
+        : "Paytm";
 
-        let rollback = {
-            orderId: null,
-            stockUpdates: []
-        };
+    if (req.user.UserId) UserId = req.user.UserId;
+    if (req.user.companyId) companyId = req.user.companyId;
 
-        const RollBackFunction = async () => {
-            try {
-                if (rollback.stockUpdates?.length) {
-                    await Promise.all(
-                        rollback.stockUpdates.map(async ({ variantId, quantity }) =>
-                            VariantProduct.updateOne(
-                                { _id: variantId, "InventoryBaseStock.InventoryBase": true },
-                                {
-                                    $inc: {
-                                        "InventoryBaseStock.AvailableStock": quantity,
-                                        "InventoryBaseStock.ReservedStock": -quantity
-                                    }
-                                }
-                            )
-                        )
-                    );
-                }
+    let rollback = {
+        orderId: null,
+        stockUpdates: []
+    };
 
-                if (rollback.orderId) {
-                    await ProductOrder.findByIdAndDelete(rollback.orderId);
-                }
-
-            } catch (err) {
-                console.error("Rollback Error:", err.message);
-            }
-        };
-
+    const RollBackFunction = async () => {
         try {
-            await module.exports.ValidateWishlist(req, res);
-
-            let WishList = await Wishlist.findOne({
-                _id: WishListId,
-                UserId,
-                companyId
-            });
-
-            if (!WishList || !WishList.Products?.length)
-                return res.status(400).json({ message: "Wishlist is empty", success: false });
-
-            let FoundUser = await User.findOne({ _id: UserId, companyId });
-            if (!FoundUser)
-                return res.status(400).json({ message: "User not found", success: false });
-
-            let OrderData = {
-                UserId,
-                companyId,
-                Products: [],
-                ReservationStartedAt: new Date()
-            };
-
-            let FoundedAddress;
-            if (!FoundUser.Address || FoundUser.Address.length === 0)
-                return res.status(400).json({ message: "Address not found", success: false });
-
-            if (!AddressId) {
-                FoundedAddress = FoundUser.Address.find(a => a.DefaultAddress) || FoundUser.Address[0];
-            } else {
-                FoundedAddress = FoundUser.Address.find(a => a._id.toString() === AddressId);
-            }
-
-            if (!FoundedAddress)
-                return res.status(400).json({ message: "Address not found", success: false });
-
-            OrderData.UserDetails = {
-                UserName: FoundUser.UserName || "",
-                Email: FoundUser.Email || "",
-                Phone: FoundUser.Phone,
-                AddresserName: FoundedAddress.AddresserName || FoundUser.UserName || "Guest",
-                AddresserNumber: FoundedAddress.AddresserNumber || FoundUser.Phone,
-                AddressType: FoundedAddress.AddressType || "Home",
-                Street: FoundedAddress.Street || "",
-                City: FoundedAddress.City || "",
-                State: FoundedAddress.State || "",
-                Country: FoundedAddress.Country || "",
-                PostalCode: FoundedAddress.PostalCode || "",
-                Latitude: FoundedAddress.Latitude || "",
-                Longitude: FoundedAddress.Longitude || "",
-                ManualAddress: FoundedAddress.ManualAddress || ""
-            };
-
-            let matchCondition = {
-                companyId: new mongoose.Types.ObjectId(String(companyId)),
-                UserId: new mongoose.Types.ObjectId(String(UserId)),
-                _id: new mongoose.Types.ObjectId(String(WishListId))
-            };
-
-            let data = await module.exports.getWishListData(matchCondition);
-
-            if (data && data[0]) {
-                if (data.length) {
-                    data = data.map(cart => {
-                        cart.Products = cart.Products.map(prod => {
-                            if (prod?.ProductInfo?.ProductServices && prod?.ServiceInfo) {
-                                let existingServiceIds = prod.ServiceInfo.map(s => s.ProductServiceId?.toString());
-                                let remaining = prod.ProductInfo.ProductServices
-                                    .filter(s => !existingServiceIds.includes(s.ProductServiceId?.toString()))
-                                    .filter(s => s.Paid == true);
-                                prod.RemainingServices = remaining;
-                            } else prod.RemainingServices = [];
-                            delete prod.ProductInfo.ProductServices;
-                            return prod;
-                        });
-                        return cart;
-                    });
-                }
-                let WLProducts = data[0].Products;
-
-                for (let p of WLProducts) {
-                    if (p?.IsActive == false || p?.Quantity == 0 || p?.Quantity == undefined || p?.Quantity == null) continue;
-
-                    let variantInfo = await VariantProduct.findById(p.VariantProductId);
-
-                    let ProductEntry = {
-                        WishListProductId: p._id,
-                        OrderStatus: [{ Status: "INITIATED", StatusAt: new Date() }],
-                        Quantity: p.Quantity,
-                        TotalPrice: p.TotalPrice,
-                        DiscountPrice: p.DiscountPrice,
-                        FinalPrice: p.FinalPrice,
-                        ProductData: { ProductInfo: {}, VariantProductInfo: {} },
-                        ProductServices: [],
-                        ProductFreeServices: []
-                    };
-
-                    ProductEntry.ProductData.ProductInfo = {
-                        ProductId: p.ProductId,
-                        ProductName: p.ProductInfo.ProductName,
-                        CommonImages: p.ProductInfo.CommonImages,
-                        CommonVideos: p.ProductInfo.CommonVideos,
-                        CommonDescription: p.ProductInfo.CommonDescription
-                    };
-
-                    let FoundBrand = await brandmodel.findOne({
-                        companyId,
-                        _id: p.ProductInfo.BrandId
-                    });
-
-                    if (FoundBrand) {
-                        ProductEntry.ProductData.ProductInfo.BrandId = FoundBrand._id;
-                        ProductEntry.ProductData.ProductInfo.BrandName = FoundBrand.BrandName;
-                    }
-
-                    if (variantInfo) {
-                        ProductEntry.ProductData.VariantProductInfo = {
-                            VariantProductId: variantInfo._id,
-                            VariantProductName: variantInfo.VariantProductName,
-                            VariantFields: p.VariantInfo.VariantFields,
-                            VariantProductImage: p.VariantInfo.VariantProductImage,
-                            OfferPercentage: variantInfo.OfferPercentage,
-                            Price: variantInfo.Price,
-                            Specification: variantInfo.Specification,
-                            AboutProduct: variantInfo.AboutProduct
-                        };
-                    }
-
-                    ProductEntry.ProductServices = (p.ServiceInfo || []).map(s => ({
-                        ProductServiceId: s.ProductServiceId,
-                        ServiceName: s.ServiceName,
-                        Description: s.Description,
-                        ServiceImages: s.ServiceImages,
-                        ProductServiceAmount: s.ProductServiceAmount,
-                        ExpiryDate: s.ExpiryDate
-                    }));
-
-                    ProductEntry.ProductFreeServices = (p.FreeServiceInfo || []).map(s => ({
-                        ProductServiceId: s._id,
-                        ServiceName: s.ServiceName,
-                        Description: s.Description,
-                        ServiceImages: s.ServiceImages,
-                        ProductServiceAmount: s.ProductServiceAmount,
-                        ExpiryDate: s.ExpiryDate
-                    }));
-
-                    OrderData.Products.push(ProductEntry);
-                }
-            }
-
-            if (!OrderData.Products.length)
-                return res.status(400).json({ message: "No valid products found", success: false });
-
-            OrderData.TotalCartPrice = parseFloat(
-                OrderData.Products.reduce((a, b) => a + (b.TotalPrice || 0), 0).toFixed(2)
-            );
-            OrderData.DiscountCartPrice = parseFloat(
-                OrderData.Products.reduce((a, b) => a + (b.DiscountPrice || 0), 0).toFixed(2)
-            );
-            OrderData.FinalCartPrice = parseFloat(
-                OrderData.Products.reduce((a, b) => a + (b.FinalPrice || 0), 0).toFixed(2)
-            );
-
-            let SavedOrder = await new ProductOrder(OrderData).save();
-            rollback.orderId = SavedOrder._id;
-
-            let FoundOrder = await ProductOrder.findById(SavedOrder._id);
-            if (!FoundOrder) {
-                await RollBackFunction();
-                return res.status(500).json({ message: "Order initialization failed", success: false });
-            }
-
-
-            try {
-                let productsToUpdate = [];
-
-                for (let item of FoundOrder.Products) {
-                    let variant = await VariantProduct.findOne({
-                        _id: item.ProductData.VariantProductInfo.VariantProductId,
-                        ProductId: item.ProductData.ProductInfo.ProductId,
-                        companyId,
-                        isActive: true
-                    });
-
-                    if (!variant) {
-                        await RollBackFunction();
-                        return res.status(400).json({ message: "Some products are unavailable", success: false });
-                    }
-
-                    if (variant.InventoryBaseStock?.InventoryBase == true) {
-                        let available = variant.InventoryBaseStock.AvailableStock || 0;
-
-                        if (item.Quantity > available) {
-                            await RollBackFunction();
-                            return res.status(400).json({
-                                message: `Not enough stock for ${variant.VariantProductName || "product"}`,
-                                success: false
-                            });
-                        }
-
-                        productsToUpdate.push({ variantId: variant._id, quantity: item.Quantity });
-                    }
-                }
-
+            if (rollback.stockUpdates?.length) {
                 await Promise.all(
-                    productsToUpdate.map(async ({ variantId, quantity }) => {
-                        await VariantProduct.updateOne(
+                    rollback.stockUpdates.map(async ({ variantId, quantity }) =>
+                        VariantProduct.updateOne(
                             { _id: variantId, "InventoryBaseStock.InventoryBase": true },
                             {
                                 $inc: {
-                                    "InventoryBaseStock.AvailableStock": -quantity,
-                                    "InventoryBaseStock.ReservedStock": quantity
+                                    "InventoryBaseStock.AvailableStock": quantity,
+                                    "InventoryBaseStock.ReservedStock": -quantity
                                 }
                             }
-                        );
-                        rollback.stockUpdates.push({ variantId, quantity });
-                    })
+                        )
+                    )
                 );
-
-            } catch (err) {
-                console.error("Stock Validation Error:", err);
-                await RollBackFunction();
-                return res.status(500).json({ message: "Stock validation failed", success: false });
             }
 
+            if (rollback.orderId) {
+                await ProductOrder.findByIdAndDelete(rollback.orderId);
+            }
+
+        } catch (err) {
+            console.error("Rollback Error:", err.message);
+        }
+    };
+
+    try {
+        await module.exports.ValidateWishlist(req, res);
+
+        let WishList = await Wishlist.findOne({
+            _id: WishListId,
+            UserId,
+            companyId
+        });
+
+        if (!WishList || !WishList.Products?.length)
+            return res.status(400).json({ message: "Wishlist is empty", success: false });
+
+        let FoundUser = await User.findOne({ _id: UserId, companyId });
+        if (!FoundUser)
+            return res.status(400).json({ message: "User not found", success: false });
+
+        let OrderData = {
+            UserId,
+            companyId,
+            Products: [],
+            ReservationStartedAt: new Date()
+        };
+
+        let FoundedAddress;
+        if (!FoundUser.Address || FoundUser.Address.length === 0)
+            return res.status(400).json({ message: "Address not found", success: false });
+
+        if (!AddressId) {
+            FoundedAddress = FoundUser.Address.find(a => a.DefaultAddress) || FoundUser.Address[0];
+        } else {
+            FoundedAddress = FoundUser.Address.find(a => a._id.toString() === AddressId);
+        }
+
+        if (!FoundedAddress)
+            return res.status(400).json({ message: "Address not found", success: false });
+
+        OrderData.UserDetails = {
+            UserName: FoundUser.UserName || "",
+            Email: FoundUser.Email || "",
+            Phone: FoundUser.Phone,
+            AddresserName: FoundedAddress.AddresserName || FoundUser.UserName || "Guest",
+            AddresserNumber: FoundedAddress.AddresserNumber || FoundUser.Phone,
+            AddressType: FoundedAddress.AddressType || "Home",
+            Street: FoundedAddress.Street || "",
+            City: FoundedAddress.City || "",
+            State: FoundedAddress.State || "",
+            Country: FoundedAddress.Country || "",
+            PostalCode: FoundedAddress.PostalCode || "",
+            Latitude: FoundedAddress.Latitude || "",
+            Longitude: FoundedAddress.Longitude || "",
+            ManualAddress: FoundedAddress.ManualAddress || ""
+        };
+
+        let matchCondition = {
+            companyId: new mongoose.Types.ObjectId(String(companyId)),
+            UserId: new mongoose.Types.ObjectId(String(UserId)),
+            _id: new mongoose.Types.ObjectId(String(WishListId))
+        };
+
+        let data = await module.exports.getWishListData(matchCondition);
+
+        if (data && data[0]) {
+            if (data.length) {
+                data = data.map(cart => {
+                    cart.Products = cart.Products.map(prod => {
+                        if (prod?.ProductInfo?.ProductServices && prod?.ServiceInfo) {
+                            let existingServiceIds = prod.ServiceInfo.map(s => s.ProductServiceId?.toString());
+                            let remaining = prod.ProductInfo.ProductServices
+                                .filter(s => !existingServiceIds.includes(s.ProductServiceId?.toString()))
+                                .filter(s => s.Paid == true);
+                            prod.RemainingServices = remaining;
+                        } else prod.RemainingServices = [];
+                        delete prod.ProductInfo.ProductServices;
+                        return prod;
+                    });
+                    return cart;
+                });
+            }
+            let WLProducts = data[0].Products;
+
+            for (let p of WLProducts) {
+                if (p?.IsActive == false || p?.Quantity == 0 || p?.Quantity == undefined || p?.Quantity == null) continue;
+
+                let variantInfo = await VariantProduct.findById(p.VariantProductId);
+
+                let ProductEntry = {
+                    WishListProductId: p._id,
+                    OrderStatus: [{ Status: "INITIATED", StatusAt: new Date() }],
+                    Quantity: p.Quantity,
+                    TotalPrice: p.TotalPrice,
+                    DiscountPrice: p.DiscountPrice,
+                    FinalPrice: p.FinalPrice,
+                    ProductData: { ProductInfo: {}, VariantProductInfo: {} },
+                    ProductServices: [],
+                    ProductFreeServices: []
+                };
+
+                ProductEntry.ProductData.ProductInfo = {
+                    ProductId: p.ProductId,
+                    ProductName: p.ProductInfo.ProductName,
+                    CommonImages: p.ProductInfo.CommonImages,
+                    CommonVideos: p.ProductInfo.CommonVideos,
+                    CommonDescription: p.ProductInfo.CommonDescription
+                };
+
+                let FoundBrand = await brandmodel.findOne({
+                    companyId,
+                    _id: p.ProductInfo.BrandId
+                });
+
+                if (FoundBrand) {
+                    ProductEntry.ProductData.ProductInfo.BrandId = FoundBrand._id;
+                    ProductEntry.ProductData.ProductInfo.BrandName = FoundBrand.BrandName;
+                }
+
+                if (variantInfo) {
+                    ProductEntry.ProductData.VariantProductInfo = {
+                        VariantProductId: variantInfo._id,
+                        VariantProductName: variantInfo.VariantProductName,
+                        VariantFields: p.VariantInfo.VariantFields,
+                        VariantProductImage: p.VariantInfo.VariantProductImage,
+                        OfferPercentage: variantInfo.OfferPercentage,
+                        Price: variantInfo.Price,
+                        Specification: variantInfo.Specification,
+                        AboutProduct: variantInfo.AboutProduct
+                    };
+                }
+
+                ProductEntry.ProductServices = (p.ServiceInfo || []).map(s => ({
+                    ProductServiceId: s.ProductServiceId,
+                    ServiceName: s.ServiceName,
+                    Description: s.Description,
+                    ServiceImages: s.ServiceImages,
+                    ProductServiceAmount: s.ProductServiceAmount,
+                    ExpiryDate: s.ExpiryDate
+                }));
+
+                ProductEntry.ProductFreeServices = (p.FreeServiceInfo || []).map(s => ({
+                    ProductServiceId: s._id,
+                    ServiceName: s.ServiceName,
+                    Description: s.Description,
+                    ServiceImages: s.ServiceImages,
+                    ProductServiceAmount: s.ProductServiceAmount,
+                    ExpiryDate: s.ExpiryDate
+                }));
+
+                OrderData.Products.push(ProductEntry);
+            }
+        }
+
+        if (!OrderData.Products.length)
+            return res.status(400).json({ message: "No valid products found", success: false });
+
+        OrderData.TotalCartPrice = parseFloat(
+            OrderData.Products.reduce((a, b) => a + (b.TotalPrice || 0), 0).toFixed(2)
+        );
+        OrderData.DiscountCartPrice = parseFloat(
+            OrderData.Products.reduce((a, b) => a + (b.DiscountPrice || 0), 0).toFixed(2)
+        );
+        OrderData.FinalCartPrice = parseFloat(
+            OrderData.Products.reduce((a, b) => a + (b.FinalPrice || 0), 0).toFixed(2)
+        );
+
+        let SavedOrder = await new ProductOrder(OrderData).save();
+        rollback.orderId = SavedOrder._id;
+
+        let FoundOrder = await ProductOrder.findById(SavedOrder._id);
+        if (!FoundOrder) {
+            await RollBackFunction();
+            return res.status(500).json({ message: "Order initialization failed", success: false });
+        }
+
+        try {
+            let productsToUpdate = [];
+
+            for (let item of FoundOrder.Products) {
+                let variant = await VariantProduct.findOne({
+                    _id: item.ProductData.VariantProductInfo.VariantProductId,
+                    ProductId: item.ProductData.ProductInfo.ProductId,
+                    companyId,
+                    isActive: true
+                });
+
+                if (!variant) {
+                    await RollBackFunction();
+                    return res.status(400).json({ message: "Some products are unavailable", success: false });
+                }
+
+                if (variant.InventoryBaseStock?.InventoryBase == true) {
+                    let available = variant.InventoryBaseStock.AvailableStock || 0;
+
+                    if (item.Quantity > available) {
+                        await RollBackFunction();
+                        return res.status(400).json({
+                            message: `Not enough stock for ${variant.VariantProductName || "product"}`,
+                            success: false
+                        });
+                    }
+
+                    productsToUpdate.push({ variantId: variant._id, quantity: item.Quantity });
+                }
+            }
+
+            await Promise.all(
+                productsToUpdate.map(async ({ variantId, quantity }) => {
+                    await VariantProduct.updateOne(
+                        { _id: variantId, "InventoryBaseStock.InventoryBase": true },
+                        {
+                            $inc: {
+                                "InventoryBaseStock.AvailableStock": -quantity,
+                                "InventoryBaseStock.ReservedStock": quantity
+                            }
+                        }
+                    );
+                    rollback.stockUpdates.push({ variantId, quantity });
+                })
+            );
+
+        } catch (err) {
+            console.error("Stock Validation Error:", err);
+            await RollBackFunction();
+            return res.status(500).json({ message: "Stock validation failed", success: false });
+        }
+
+        let totalAmount = FoundOrder.FinalCartPrice || FoundOrder.TotalCartPrice;
+
+        // ✅ COD block — added to match proceedToPaymentForCart
+        if (PaymentMethod === "COD") {
             try {
                 let orderId = `ORDER_${FoundOrder._id.toString().slice(-6)}_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
-                let totalAmount = FoundOrder.FinalCartPrice || FoundOrder.TotalCartPrice;
-
-                let paytmParams = {
-                    body: {
-                        requestType: "Payment",
-                        mid: process.env.PAYTM_MID,
-                        websiteName: process.env.PAYTM_WEBSITE,
-                        orderId,
-                        callbackUrl: `${process.env.BASE_URL}productcart/handlePaymentStatus?RenderingDomain=${RenderingDomain}&companyId=${companyId}`,
-                        txnAmount: { value: totalAmount.toString(), currency: "INR" },
-                        userInfo: { custId: UserId.toString() }
-                    }
-                };
-
-                let checksum = await PaytmChecksum.generateSignature(
-                    JSON.stringify(paytmParams.body),
-                    process.env.PAYTM_KEY
-                );
-
-                paytmParams.head = { signature: checksum };
-                let post_data = JSON.stringify(paytmParams);
-
-                let options = {
-                    hostname: process.env.PAYTM_HOSTNAME,
-                    port: 443,
-                    path: `/theia/api/v1/initiateTransaction?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Content-Length": Buffer.byteLength(post_data)
-                    }
-                };
-
-                let paytmResponse = await new Promise((resolve, reject) => {
-                    let response = "";
-                    let paytmReq = https.request(options, (paytmRes) => {
-                        paytmRes.on("data", chunk => (response += chunk));
-                        paytmRes.on("end", () => {
-                            try {
-                                resolve(JSON.parse(response));
-                            } catch (err) {
-                                reject(err);
-                            }
-                        });
-                    });
-
-                    paytmReq.on("error", reject);
-                    paytmReq.write(post_data);
-                    paytmReq.end();
-                });
 
                 FoundOrder.PaymentSession = {
                     orderId,
                     txnId: null,
-                    status: "INITIATED",
+                    status: "PENDING",
                     amount: totalAmount,
-                    paymentGateway: "Paytm"
+                    paymentGateway: "COD",
+                    paymentType: "COD"
                 };
-
                 FoundOrder.ReservationStartedAt = new Date();
                 await FoundOrder.save();
 
-                if (!paytmResponse?.body?.txnToken) {
-                    await RollBackFunction();
-                    return res.status(500).json({ message: "Payment gateway returned no txnToken", success: false });
-                }
-
                 return res.status(200).json({
                     success: true,
-                    message: "Payment Initiated",
-                    url: `https://s${process.env.PAYTM_HOSTNAME}/theia/api/v1/showPaymentPage?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
-                    txnToken: paytmResponse.body.txnToken,
+                    message: "Order placed successfully with Cash on Delivery",
                     orderId,
-                    mid: process.env.PAYTM_MID,
-                    amount: totalAmount
+                    amount: totalAmount,
+                    paymentMethod: "COD"
                 });
 
             } catch (err) {
-                console.error("Payment Initiation Error:", err);
+                console.error("COD Order Error:", err);
                 await RollBackFunction();
-                return res.status(500).json({ message: "Failed to initiate payment", success: false });
+                return res.status(500).json({ message: "Failed to place COD order", success: false });
+            }
+        }
+
+        // existing Paytm block — unchanged
+        try {
+            let orderId = `ORDER_${FoundOrder._id.toString().slice(-6)}_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
+            
+            let paytmParams = {
+                body: {
+                    requestType: "Payment",
+                    mid: process.env.PAYTM_MID,
+                    websiteName: process.env.PAYTM_WEBSITE,
+                    orderId,
+                    callbackUrl: `${process.env.BASE_URL}productcart/handlePaymentStatus?RenderingDomain=${RenderingDomain}&companyId=${companyId}`,
+                    txnAmount: { value: totalAmount.toString(), currency: "INR" },
+                    userInfo: { custId: UserId.toString() }
+                }
+            };
+
+            let checksum = await PaytmChecksum.generateSignature(
+                JSON.stringify(paytmParams.body),
+                process.env.PAYTM_KEY
+            );
+
+            paytmParams.head = { signature: checksum };
+            let post_data = JSON.stringify(paytmParams);
+
+            let options = {
+                hostname: process.env.PAYTM_HOSTNAME,
+                port: 443,
+                path: `/theia/api/v1/initiateTransaction?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Content-Length": Buffer.byteLength(post_data)
+                }
+            };
+
+            let paytmResponse = await new Promise((resolve, reject) => {
+                let response = "";
+                let paytmReq = https.request(options, (paytmRes) => {
+                    paytmRes.on("data", chunk => (response += chunk));
+                    paytmRes.on("end", () => {
+                        try {
+                            resolve(JSON.parse(response));
+                        } catch (err) {
+                            reject(err);
+                        }
+                    });
+                });
+
+                paytmReq.on("error", reject);
+                paytmReq.write(post_data);
+                paytmReq.end();
+            });
+
+            FoundOrder.PaymentSession = {
+                orderId,
+                txnId: null,
+                status: "INITIATED",
+                amount: totalAmount,
+                paymentGateway: "Paytm"
+            };
+
+            FoundOrder.ReservationStartedAt = new Date();
+            await FoundOrder.save();
+
+            if (!paytmResponse?.body?.txnToken) {
+                await RollBackFunction();
+                return res.status(500).json({ message: "Payment gateway returned no txnToken", success: false });
             }
 
+            return res.status(200).json({
+                success: true,
+                message: "Payment Initiated",
+                url: `https://${process.env.PAYTM_HOSTNAME}/theia/api/v1/showPaymentPage?mid=${process.env.PAYTM_MID}&orderId=${orderId}`,
+                txnToken: paytmResponse.body.txnToken,
+                orderId,
+                mid: process.env.PAYTM_MID,
+                amount: totalAmount
+            });
+
         } catch (err) {
-            console.error("ProceedToPaymentForWishlist Error:", err);
+            console.error("Payment Initiation Error:", err);
             await RollBackFunction();
-            return res.status(500).json({ message: "Internal server error", success: false });
+            return res.status(500).json({ message: "Failed to initiate payment", success: false });
         }
-    },
+
+    } catch (err) {
+        console.error("ProceedToPaymentForWishlist Error:", err);
+        await RollBackFunction();
+        return res.status(500).json({ message: "Internal server error", success: false });
+    }
+},
     deleteWishList: async (req, res) => {
         let { UserId, companyId, WishListId } = req.query;
 
